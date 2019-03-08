@@ -1,7 +1,7 @@
 package godal
 
 import (
-	"package/github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/consu/reddo"
 	"reflect"
 	"testing"
 )
