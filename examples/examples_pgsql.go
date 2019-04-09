@@ -1,9 +1,9 @@
 /*
-MongoDB Dao example. Run with command:
+PostgreSQL Dao example.
 
-$ go run examples_bo.go examples_mongo.go
+$ go run examples_bo.go examples_sql.go examples_pgsql.go
 
-MongoDB Dao implementation guideline:
+PostgreSQL Dao implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -12,181 +12,80 @@ MongoDB Dao implementation guideline:
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/mongo"
+	"github.com/btnguyen2k/godal/sql"
 	"github.com/btnguyen2k/prom"
+	_ "github.com/lib/pq"
 	"math/rand"
 	"strconv"
 	"time"
 )
 
-type DaoAppMongodb struct {
-	*mongo.GenericDaoMongo
-	collectionName string
+type DaoAppPgsql struct {
+	*DaoAppSql
 }
 
-func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string) IDaoApp {
-	dao := &DaoAppMongodb{collectionName: collectionName}
-	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+	dao := &DaoAppPgsql{}
+	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
+	dao.SetSqlFlavor(prom.FlavorPgSql)
+	dao.SetRowMapper(&sql.GenericRowMapperSql{ColNameTrans: sql.ColNameTransLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
 	return dao
 }
 
-// toGenericBo transforms BoApp to godal.IGenericBo
-func (dao *DaoAppMongodb) toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
-	if bo == nil {
-		return nil, nil
-	}
-	gbo := godal.NewGenericBo()
-	js, err := json.Marshal(bo)
-	if err != nil {
-		return nil, err
-	}
-	err = gbo.GboFromJson(js)
-	return gbo, err
-}
-
-// toBoApp transforms godal.IGenericBo to BoApp
-func (dao *DaoAppMongodb) toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
-	if gbo == nil {
-		return nil, nil
-	}
-	bo := BoApp{}
-	err := gbo.GboTransferViaJson(&bo)
-	return &bo, err
-}
-
 /*----------------------------------------------------------------------*/
-// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *DaoAppMongodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	id, _ := bo.GboGetAttr("id", reddo.TypeString)
-	return map[string]interface{}{"id": id}
-}
 
-// EnableTxMode implements IDaoApp.EnableTxMode
-func (dao *DaoAppMongodb) EnableTxMode(txMode bool) {
-	dao.SetTransactionMode(txMode)
-}
-
-// Delete implements IDaoApp.Delete
-func (dao *DaoAppMongodb) Delete(bo *BoApp) (bool, error) {
-	gbo, err := dao.toGenericBo(bo)
-	if err != nil {
-		return false, err
-	}
-	numRows, err := dao.GdaoDelete(dao.collectionName, gbo)
-	return numRows > 0, err
-}
-
-// Create implements IDaoApp.Create
-func (dao *DaoAppMongodb) Create(bo *BoApp) (bool, error) {
-	gbo, err := dao.toGenericBo(bo)
-	if err != nil {
-		return false, err
-	}
-	numRows, err := dao.GdaoCreate(dao.collectionName, gbo)
-	return numRows > 0, err
-}
-
-// Get implements IDaoApp.Get
-func (dao *DaoAppMongodb) Get(id string) (*BoApp, error) {
-	filter := map[string]interface{}{"id": id}
-	gbo, err := dao.GdaoFetchOne(dao.collectionName, filter)
-	if err != nil || gbo == nil {
-		return nil, err
-	}
-	return dao.toBoApp(gbo)
-}
-
-// GetAll implements IDaoApp.GetAll
-func (dao *DaoAppMongodb) GetAll() ([]*BoApp, error) {
-	sorting := map[string]int{"val_time": 1} // sort by "val_time" attribute, ascending
-	rows, err := dao.GdaoFetchMany(dao.collectionName, nil, sorting, 0, 0)
-	if err != nil {
-		return nil, err
-	}
-	var result []*BoApp
-	for _, e := range rows {
-		bo, err := dao.toBoApp(e)
+func createSqlConnectForPgsql() *prom.SqlConnect {
+	driver := "postgres"
+	dsn := "postgres://test:test@localhost:5432/test?sslmode=disable&client_encoding=UTF-8&application_name=godal"
+	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	if sqlConnect == nil || err != nil {
 		if err != nil {
-			return nil, err
+			fmt.Println("Error:", err)
 		}
-		result = append(result, bo)
-	}
-	return result, nil
-}
-
-// Update implements IDaoApp.Update
-func (dao *DaoAppMongodb) Update(bo *BoApp) (bool, error) {
-	gbo, err := dao.toGenericBo(bo)
-	if err != nil {
-		return false, err
-	}
-	numRows, err := dao.GdaoUpdate(dao.collectionName, gbo)
-	return numRows > 0, err
-}
-
-// Upsert implements IDaoApp.Upsert
-func (dao *DaoAppMongodb) Upsert(bo *BoApp) (bool, error) {
-	gbo, err := dao.toGenericBo(bo)
-	if err != nil {
-		return false, err
-	}
-	numRows, err := dao.GdaoSave(dao.collectionName, gbo)
-	return numRows > 0, err
-}
-
-// GetN demonstrates fetching documents with paging (result is sorted by "val_time")
-func (dao *DaoAppMongodb) GetN(startOffset, numRows int) ([]*BoApp, error) {
-	sorting := map[string]int{"id": 1} // sort by "id" attribute, ascending
-	rows, err := dao.GdaoFetchMany(dao.collectionName, nil, sorting, startOffset, numRows)
-	if err != nil {
-		return nil, err
-	}
-	var result []*BoApp
-	for _, e := range rows {
-		bo, err := dao.toBoApp(e)
-		if err != nil {
-			return nil, err
+		if sqlConnect == nil {
+			panic("error creating [prom.SqlConnect] instance")
 		}
-		result = append(result, bo)
 	}
-	return result, nil
+	loc, _ := time.LoadLocation(timeZone)
+	sqlConnect.SetLocation(loc)
+	return sqlConnect
 }
 
-/*----------------------------------------------------------------------*/
-func createMongoConnect() *prom.MongoConnect {
-	url := "mongodb://test:test@localhost:27017/test"
-	db := "test"
-	mc, err := prom.NewMongoConnect(url, db, 10000)
+func initDataPgsql(sqlC *prom.SqlConnect, table string) {
+	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
+	_, err := sqlC.GetDB().Exec(sql)
+	if err != nil {
+		fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
+	}
+
+	types := []string{"VARCHAR(16)", "VARCHAR(255)", "CHAR(1)", "BIGINT", "DOUBLE PRECISION", "VARCHAR(256)",
+		"TIME", "TIME WITH TIME ZONE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
+		"JSON", "JSON"}
+	sql = fmt.Sprintf("CREATE TABLE %s (", table)
+	for i := range colsSql {
+		sql += colsSql[i] + " " + types[i] + ","
+	}
+	sql += "PRIMARY KEY(id))"
+	fmt.Println("Query:", sql)
+	_, err = sqlC.GetDB().Exec(sql)
 	if err != nil {
 		panic(err)
 	}
-	return mc
 }
 
-func initDataMongo(mc *prom.MongoConnect, collection string) {
-	err := mc.GetCollection(collection).Drop(nil)
-	if err != nil {
-		panic(err)
-	}
-	_, err = mc.CreateCollection(collection)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
-	initDataMongo(mc, collection)
+func demoPgsqlInsertRows(loc *time.Location, table string, txMode bool) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	initDataPgsql(sqlC, table)
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Insert documents to collection (TxMode=%v) ==-\n", txMode)
+	fmt.Printf("-== Insert rows to table (TxMode=%v) ==-\n", txMode)
 
-	// insert a document
+	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo := BoApp{
 		Id:            "log",
@@ -214,7 +113,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	// insert another document
+	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo = BoApp{
 		Id:            "login",
@@ -242,7 +141,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	// insert another document with duplicated id
+	// insert another row with duplicated id
 	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
@@ -255,13 +154,14 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	fmt.Println(sep)
 }
 
-func demoMongoFetchDocById(collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlFetchRowById(table string, ids ...string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(false)
 
-	fmt.Printf("-== Fetch documents by id ==-\n")
-	for _, id := range docIds {
+	fmt.Printf("-== Fetch rows by id ==-\n")
+	for _, id := range ids {
 		bo, err := dao.Get(id)
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -275,12 +175,13 @@ func demoMongoFetchDocById(collection string, docIds ...string) {
 	fmt.Println(sep)
 }
 
-func demoMongoFetchAllDocs(collection string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlFetchAllRow(table string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(false)
 
-	fmt.Println("-== Fetch all documents in collection ==-")
+	fmt.Println("-== Fetch all rows in table ==-")
 	boList, err := dao.GetAll()
 	if err != nil {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
@@ -292,13 +193,14 @@ func demoMongoFetchAllDocs(collection string) {
 	fmt.Println(sep)
 }
 
-func demoMongoDeleteDocs(collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlDeleteRow(table string, ids ...string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(false)
 
-	fmt.Println("-== Delete documents from collection ==-")
-	for _, id := range docIds {
+	fmt.Println("-== Delete rows from table ==-")
+	for _, id := range ids {
 		bo, err := dao.Get(id)
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -328,13 +230,14 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 	fmt.Println(sep)
 }
 
-func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlUpdateRows(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(false)
 
-	fmt.Println("-== Update documents from collection ==-")
-	for _, id := range docIds {
+	fmt.Println("-== Update rows from table ==-")
+	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
 		if err != nil {
@@ -386,13 +289,14 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 	fmt.Println(sep)
 }
 
-func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, docIds ...string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-", txMode)
-	for _, id := range docIds {
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
 		if err != nil {
@@ -444,15 +348,16 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 	fmt.Println(sep)
 }
 
-func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
-	mc := createMongoConnect()
-	initDataMongo(mc, collection)
-	dao := NewDaoAppMongodb(mc, collection)
+func demoPgsqlSelectSortingAndLimit(loc *time.Location, table string) {
+	sqlC := createSqlConnectForPgsql()
+	defer sqlC.Close()
+	initDataPgsql(sqlC, table)
+	dao := NewDaoAppPgsql(sqlC, table)
 	dao.EnableTxMode(false)
 
-	fmt.Println("-== Fetch documents from collection with sorting and limit ==-")
+	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
 	n := 100
-	fmt.Printf("\tInserting %d docs...\n", n)
+	fmt.Printf("\tInserting %d rows...\n", n)
 	for i := 0; i < n; i++ {
 		id := strconv.Itoa(i)
 		for len(id) < 3 {
@@ -484,7 +389,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 	}
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
-	fmt.Printf("\tFetching %d docs, starting from offset %d...\n", numRows, startOffset)
+	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
 	boList, err := dao.GetN(startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
@@ -501,14 +406,14 @@ func main() {
 	loc, _ := time.LoadLocation(timeZone)
 	fmt.Println("Timezone:", loc)
 
-	collection := "apps"
-	demoMongoInsertDocs(loc, collection, true)
-	demoMongoInsertDocs(loc, collection, false)
-	demoMongoFetchDocById(collection, "login", "loggin")
-	demoMongoFetchAllDocs(collection)
-	demoMongoDeleteDocs(collection, "login", "loggin")
-	demoMongoUpdateDocs(loc, collection, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, true, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, false, "log", "loggging")
-	demoMongoSelectSortingAndLimit(loc, collection)
+	table := "tbl_app"
+	demoPgsqlInsertRows(loc, table, true)
+	demoPgsqlInsertRows(loc, table, false)
+	demoPgsqlFetchRowById(table, "login", "loggin")
+	demoPgsqlFetchAllRow(table)
+	demoPgsqlDeleteRow(table, "login", "loggin")
+	demoPgsqlUpdateRows(loc, table, "log", "logging")
+	demoPgsqlUpsertRows(loc, table, true, "log", "logging")
+	demoPgsqlUpsertRows(loc, table, false, "log", "loggging")
+	demoPgsqlSelectSortingAndLimit(loc, table)
 }

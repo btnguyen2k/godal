@@ -10,9 +10,16 @@ Generic Database Access Layer implementation in Golang.
 - [GoDoc](https://godoc.org/github.com/btnguyen2k/godal)
 - [Examples](examples/)
 - [Generic MongoDB DAO](mongo/MONGO.md)
+- [Generic database/sql DAO](sql/SQL.md)
 
 
 ## History
+
+### 2019-04-09 - v0.0.2
+
+- Migrate to Go modular design.
+- Generic [database/sql](https://golang.org/pkg/database/sql/) DAO implementation: `GenericDaoSql`
+
 
 ### 2019-03-12 - v0.0.1
 

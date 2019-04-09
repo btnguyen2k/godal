@@ -18,43 +18,57 @@ Sample usage: see #GenericBo
 */
 type IGenericBo interface {
 	/*
-	GboGetAttr retrieves an attribute of the bo
+		GboIterate iterates over all bo's top level fields.
+
+		Available since v0.0.2
+	*/
+	GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{}))
+
+	/*
+		GboGetAttr retrieves an attribute of the bo
 	*/
 	GboGetAttr(path string, typ reflect.Type) (interface{}, error)
 
 	/*
-	GboGetTimeWithLayout retrieves an attribute of the bo as 'time.Time'
+		GboGetAttrUnsafe retrieves an attribute of the bo (similar to GboGetAttr), ignoring error if any.
 
-	If value at 'path' is a datetime represented as a string, this function calls 'time.Parse(...)' to convert the value to 'time.Time' using 'layout'.
+		Available since v0.0.2
+	*/
+	GboGetAttrUnsafe(path string, typ reflect.Type) interface{}
+
+	/*
+		GboGetTimeWithLayout retrieves an attribute of the bo as 'time.Time'
+
+		If value at 'path' is a datetime represented as a string, this function calls 'time.Parse(...)' to convert the value to 'time.Time' using 'layout'.
 	*/
 	GboGetTimeWithLayout(path, layout string) (time.Time, error)
 
 	/*
-	GboSetAttr sets a attribute of the bo
+		GboSetAttr sets a attribute of the bo
 	*/
 	GboSetAttr(path string, value interface{}) error
 
 	/*
-	GboToJson serializes bo's data to JSON string
+		GboToJson serializes bo's data to JSON string
 	*/
 	GboToJson() ([]byte, error)
 
 	/*
-	GboFromJson imports bo's data from a JSON string
+		GboFromJson imports bo's data from a JSON string
 	*/
 	GboFromJson(js []byte) error
 
 	/*
-	GboTransferViaJson transfers bo's attributes to the destination using JSON transformation.
-	Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
+		GboTransferViaJson transfers bo's attributes to the destination using JSON transformation.
+		Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
 
-	Note: 'dest' must be a pointer because passing value does not work.
+		Note: 'dest' must be a pointer because passing value does not work.
 	*/
 	GboTransferViaJson(dest interface{}) error
 
 	/*
-	GboImportViaJson imports bo's data from an external source using JSON transformation.
-	Firstly, src is marshaled to JSON data. Then the JSON data is unmarshaled/imported to bo's attributes.
+		GboImportViaJson imports bo's data from an external source using JSON transformation.
+		Firstly, src is marshaled to JSON data. Then the JSON data is unmarshaled/imported to bo's attributes.
 	*/
 	GboImportViaJson(src interface{}) error
 }
@@ -107,6 +121,31 @@ type GenericBo struct {
 }
 
 /*
+GboIterate implements IGenericBo.GboIterate
+
+	If the underlying data is a map, 'callback' is called for each map's entry with reflect.Map is passed as 'kind' parameter.
+	If the underlying data is a slice or array, 'callback' is called for each entry with reflect.Slice is passed as 'kind' parameter.
+	This function of type GenericBo does not support iterating on other data types.
+*/
+func (bo *GenericBo) GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{})) {
+	bo.m.RLock()
+	defer bo.m.RUnlock()
+	v := reflect.ValueOf(bo.data)
+	for v.Kind() == reflect.Ptr && !v.IsNil() {
+		v = v.Elem()
+	}
+	if v.Kind() == reflect.Map {
+		for iter := v.MapRange(); iter.Next(); callback(reflect.Map, iter.Key(), iter.Value().Interface()) {
+		}
+	}
+	if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
+		for i := 0; i < v.Len(); i++ {
+			callback(reflect.Map, i, v.Index(i).Interface())
+		}
+	}
+}
+
+/*
 GboGetAttr implements IGenericBo.GboGetAttr
 
 	- 'type' can be nil. In that case, this function returns the result of type 'interface{}'
@@ -118,6 +157,16 @@ func (bo *GenericBo) GboGetAttr(path string, typ reflect.Type) (interface{}, err
 		return nil, nil
 	}
 	return bo.s.GetValueOfType(path, typ)
+}
+
+/*
+GboGetAttrUnsafe implements IGenericBo.GboGetAttrUnsafe
+
+	- 'type' can be nil. In that case, this function returns the result of type 'interface{}'
+*/
+func (bo *GenericBo) GboGetAttrUnsafe(path string, typ reflect.Type) interface{} {
+	v, _ := bo.GboGetAttr(path, typ)
+	return v
 }
 
 /*
