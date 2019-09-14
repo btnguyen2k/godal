@@ -15,6 +15,11 @@ Generic Database Access Layer implementation in Golang.
 
 ## History
 
+### 2019-09-14 - v0.0.3
+
+- Upgrade dependency libs.
+
+
 ### 2019-04-09 - v0.0.2
 
 - Migrate to Go modular design.
