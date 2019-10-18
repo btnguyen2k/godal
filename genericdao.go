@@ -31,7 +31,7 @@ Sample usage: see #AbstractGenericDao for an abstract implementation of IGeneric
 */
 type IGenericDao interface {
 	/*
-		GdaoCreateFilter creates a filter to match a specific BO exactly.
+		GdaoCreateFilter creates a filter to match exactly a specific BO.
 	*/
 	GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
 
@@ -66,14 +66,14 @@ type IGenericDao interface {
 	/*
 		GdaoCreate persists one BO to database store and returns the number of saved items.
 
-		If the BO already existed, this function does not modify the existing one and should return 0.
+		If the BO already existed, this function does not modify the existing one and should return (0, nil)
 	*/
 	GdaoCreate(storageId string, bo IGenericBo) (int, error)
 
 	/*
 		GdaoUpdate updates one existing BO and returns the number of updated items.
 
-		If the BO does not exist, this function does not create new BO and should return 0.
+		If the BO does not exist, this function does not create new BO and should return (0, nil)
 	*/
 	GdaoUpdate(storageId string, bo IGenericBo) (int, error)
 

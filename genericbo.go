@@ -2,6 +2,7 @@ package godal
 
 import (
 	"encoding/json"
+	"github.com/btnguyen2k/consu/checksum"
 	"github.com/btnguyen2k/consu/semita"
 	"reflect"
 	"sync"
@@ -20,41 +21,41 @@ type IGenericBo interface {
 	/*
 		GboIterate iterates over all bo's top level fields.
 
-		Available since v0.0.2
+		Available: since v0.0.2
 	*/
 	GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{}))
 
 	/*
-		GboGetAttr retrieves an attribute of the bo
+		GboGetAttr retrieves bo's attribute.
 	*/
 	GboGetAttr(path string, typ reflect.Type) (interface{}, error)
 
 	/*
-		GboGetAttrUnsafe retrieves an attribute of the bo (similar to GboGetAttr), ignoring error if any.
+		GboGetAttrUnsafe retrieves a bo's attribute, ignoring error if any.
 
-		Available since v0.0.2
+		Available: since v0.0.2
 	*/
 	GboGetAttrUnsafe(path string, typ reflect.Type) interface{}
 
 	/*
-		GboGetTimeWithLayout retrieves an attribute of the bo as 'time.Time'
+		GboGetTimeWithLayout retrieves a bo's attribute as 'time.Time'.
 
 		If value at 'path' is a datetime represented as a string, this function calls 'time.Parse(...)' to convert the value to 'time.Time' using 'layout'.
 	*/
 	GboGetTimeWithLayout(path, layout string) (time.Time, error)
 
 	/*
-		GboSetAttr sets a attribute of the bo
+		GboSetAttr sets a bo's attribute.
 	*/
 	GboSetAttr(path string, value interface{}) error
 
 	/*
-		GboToJson serializes bo's data to JSON string
+		GboToJson serializes bo's data to JSON string.
 	*/
 	GboToJson() ([]byte, error)
 
 	/*
-		GboFromJson imports bo's data from a JSON string
+		GboFromJson imports bo's data from a JSON string.
 	*/
 	GboFromJson(js []byte) error
 
@@ -118,6 +119,15 @@ type GenericBo struct {
 	data interface{}
 	s    *semita.Semita
 	m    sync.RWMutex
+}
+
+/*
+Checksum returns checksum value of the BO.
+
+Available: since v0.0.4
+*/
+func (bo *GenericBo) Checksum() []byte {
+	return checksum.Md5Checksum(bo.data)
 }
 
 /*
