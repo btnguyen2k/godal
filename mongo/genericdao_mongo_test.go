@@ -64,10 +64,6 @@ type MyDaoMongo struct {
 	collectionName string
 }
 
-func (dao *MyDaoMongo) EnableTxMode(txMode bool) {
-	dao.SetTransactionMode(txMode)
-}
-
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *MyDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
 	return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
@@ -128,7 +124,7 @@ func TestGenericDaoMongo_GdaoCreateGet(t *testing.T) {
 func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOff(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOff"
 	dao := initDao()
-	dao.EnableTxMode(false)
+	dao.SetTransactionMode(false)
 	bo := &MyBo{
 		Id:      "1",
 		Name:    "BO - 1",
@@ -155,7 +151,7 @@ func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOff(t *testing.T) {
 func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOn(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOn"
 	dao := initDao()
-	dao.EnableTxMode(true)
+	dao.SetTransactionMode(true)
 	bo := &MyBo{
 		Id:      "1",
 		Name:    "BO - 1",
@@ -182,7 +178,7 @@ func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOn(t *testing.T) {
 func TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOff(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOff"
 	dao := initDao()
-	dao.EnableTxMode(false)
+	dao.SetTransactionMode(false)
 	numThreads := 4
 	numLoopsPerThread := 10
 	var wg sync.WaitGroup
@@ -216,7 +212,7 @@ func TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOff(t *testing.T) {
 func TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOn(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOn"
 	dao := initDao()
-	dao.EnableTxMode(true)
+	dao.SetTransactionMode(true)
 	numThreads := 4
 	numLoopsPerThread := 10
 	var wg sync.WaitGroup

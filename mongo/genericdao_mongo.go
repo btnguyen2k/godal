@@ -3,10 +3,11 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/prom"
-	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -20,7 +21,7 @@ GenericRowMapperMongo is a generic implementation of godal.IRowMapper for MongoD
 Implementation rules:
 
 	- ToRow: transform godal.IGenericBo "as-is" to map[string]interface{}.
-	- ToBo: expect input is a JSON data (string or array/slice of bytes), transform it to godal.IGenericBo via JSON unmarshalling.
+	- ToBo: expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
 	- ColumnsList: return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
 
 Available: since v0.0.2.
@@ -37,27 +38,52 @@ func (mapper *GenericRowMapperMongo) ToRow(storageId string, bo godal.IGenericBo
 		return nil, nil
 	}
 	result := make(map[string]interface{})
-	err := bo.GboTransferViaJson(&result)
-	return result, err
+	return result, bo.GboTransferViaJson(&result)
 }
 
 /*
 ToBo implements godal.IRowMapper.ToBo.
-This function expects input is a JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
+This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
 */
 func (mapper *GenericRowMapperMongo) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
 		return nil, nil
 	}
+	switch row.(type) {
+	case map[string]interface{}:
+		bo := godal.NewGenericBo()
+		for k, v := range row.(map[string]interface{}) {
+			bo.GboSetAttr(k, v)
+		}
+		return bo, nil
+	case string:
+		bo := godal.NewGenericBo()
+		return bo, bo.GboFromJson([]byte(row.(string)))
+	case *string:
+		bo := godal.NewGenericBo()
+		return bo, bo.GboFromJson([]byte(*row.(*string)))
+	case []byte:
+		bo := godal.NewGenericBo()
+		return bo, bo.GboFromJson(row.([]byte))
+	case *[]byte:
+		bo := godal.NewGenericBo()
+		return bo, bo.GboFromJson(*row.(*[]byte))
+	}
+
 	v := reflect.ValueOf(row)
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
-		v = v.Elem()
+	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {
+	case reflect.Map:
+		bo := godal.NewGenericBo()
+		for iter := v.MapRange(); iter.Next(); {
+			key, _ := reddo.ToString(iter.Key().Interface())
+			bo.GboSetAttr(key, iter.Value().Interface())
+		}
+		return bo, nil
 	case reflect.String:
 		bo := godal.NewGenericBo()
-		err := bo.GboFromJson([]byte(v.Interface().(string)))
-		return bo, err
+		return bo, bo.GboFromJson([]byte(v.Interface().(string)))
 	case reflect.Slice, reflect.Array:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			// input is []byte
@@ -67,11 +93,10 @@ func (mapper *GenericRowMapperMongo) ToBo(storageId string, row interface{}) (go
 				return nil, err
 			}
 			bo := godal.NewGenericBo()
-			err = bo.GboFromJson(arr.([]byte))
-			return bo, err
+			return bo, bo.GboFromJson(arr.([]byte))
 		}
 	}
-	return nil, errors.Errorf("cannot construct godal.IGenericBo from input %v", row)
+	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
 }
 
 /*
@@ -267,7 +292,7 @@ func toMap(input interface{}) (map[string]interface{}, error) {
 		return result.(map[string]interface{}), err
 
 	}
-	return nil, errors.Errorf("cannot convert %v to map[string]interface{}", input)
+	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]interface{}", input))
 }
 
 func toSortingMap(input interface{}) (map[string]int, error) {
@@ -299,7 +324,7 @@ func toSortingMap(input interface{}) (map[string]int, error) {
 		return result.(map[string]int), err
 
 	}
-	return nil, errors.Errorf("cannot convert %v to map[string]int", input)
+	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]int", input))
 }
 
 /*

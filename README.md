@@ -15,13 +15,17 @@ Generic Database Access Layer implementation in Golang.
 
 ## History
 
-### 2019-10-17 - v0.0.4
+### 2019-10-25 - v0.0.4
 
 - `GenericBo`: new function `Checksum() []byte`
 - `GenericDaoMongo`:
   - New method `WrapTransaction(ctx context.Context, txFunc func(sctx mongo.SessionContext) error) error`
   - Add tests
   - Fixes & Enhancements
+- `GenericDaoSql`:
+  - Add tests
+  - Fixes & Enhancements
+- Update dependency libs
 - Other fixes & enhancements
 
 

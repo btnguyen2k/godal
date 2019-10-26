@@ -1,8 +1,8 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/aws/aws-sdk-go v1.25.10 h1:3epJfNmP6xWkOpLOdhIIj07+9UAJwvbzq8bBzyPigI4=
 github.com/aws/aws-sdk-go v1.25.10/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
-github.com/btnguyen2k/consu/checksum v0.1.0 h1:i22L2ViTNwhHxZcAqHN/6MZKogfrUQYMkLkgbn3lflU=
-github.com/btnguyen2k/consu/checksum v0.1.0/go.mod h1:Kye8gGAK2BnHsB+DmffPOLhJW/YYFAOUosXnuSmyOf8=
+github.com/btnguyen2k/consu/checksum v0.1.1 h1:1EQXi0GeAJ6d6iruULCP5fTMO/6QFM4iN+gq4lBW2pM=
+github.com/btnguyen2k/consu/checksum v0.1.1/go.mod h1:Kye8gGAK2BnHsB+DmffPOLhJW/YYFAOUosXnuSmyOf8=
 github.com/btnguyen2k/consu/reddo v0.1.4 h1:AT3xH1f7O9R9RVOdSiGhAwu0cI0VWr5fg4io9uDTRB8=
 github.com/btnguyen2k/consu/reddo v0.1.4/go.mod h1:6L2l4rRFQlyGWlKxt9SiwYs/wB6SE70oxFcrTo/YLPY=
 github.com/btnguyen2k/consu/reddo v0.1.6 h1:NUG2Uw0HWnJjiUUzhNwpTTQheoM1JKVza+5HWd/kQtU=

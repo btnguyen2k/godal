@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/prom"
-	"github.com/pkg/errors"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -68,6 +70,15 @@ type GenericRowMapperSql struct {
 
 var typeTime = reflect.TypeOf(time.Time{})
 
+func (mapper *GenericRowMapperSql) transformColumnName(colName string) string {
+	if mapper.ColNameTrans == ColNameTransLowerCase {
+		return strings.ToLower(colName)
+	} else if mapper.ColNameTrans == ColNameTransUpperCase {
+		return strings.ToUpper(colName)
+	}
+	return colName
+}
+
 /*
 ToRow implements godal.IRowMapper.ToRow.
 This function transforms godal.IGenericBo to map[string]interface{}:
@@ -79,30 +90,25 @@ This function transforms godal.IGenericBo to map[string]interface{}:
 	- If field is float32 or float64: its value is converted to float64
 	- Field is one of other types: its value is converted to JSON string
 */
-func (mapper *GenericRowMapperSql) ToRow(storageId string, bo godal.IGenericBo) (interface{}, error) {
-	if bo == nil {
+func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo) (interface{}, error) {
+	if gbo == nil {
 		return nil, nil
 	}
 	var row = make(map[string]interface{})
 	var err error
-	bo.GboIterate(func(kind reflect.Kind, field interface{}, value interface{}) {
+	gbo.GboIterate(func(kind reflect.Kind, field interface{}, value interface{}) {
 		if err != nil {
 			return
 		}
-		k, e := reddo.ToString(field)
-		if err != nil {
-			err = e
+		var k string
+		if k, err = reddo.ToString(field); err != nil {
 			return
+		} else {
+			k = mapper.transformColumnName(k)
 		}
-		switch mapper.ColNameTrans {
-		case ColNameTransLowerCase:
-			k = strings.ToLower(k)
-		case ColNameTransUpperCase:
-			k = strings.ToUpper(k)
-		}
+
 		v := reflect.ValueOf(value)
-		for v.Kind() == reflect.Ptr {
-			v = v.Elem()
+		for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 		}
 		switch v.Kind() {
 		case reflect.Bool:
@@ -115,23 +121,15 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, bo godal.IGenericBo) 
 			row[k] = v.Uint()
 		case reflect.Float32, reflect.Float64:
 			row[k] = v.Float()
-		case reflect.Struct:
+		default:
 			if v.Type() == typeTime {
 				row[k] = v.Interface().(time.Time)
 			} else {
-				js, e := json.Marshal(v.Interface())
-				if e == nil {
-					row[k] = string(js)
-				} else {
+				if js, e := json.Marshal(v.Interface()); e != nil {
 					err = e
+				} else {
+					row[k] = string(js)
 				}
-			}
-		default:
-			js, e := json.Marshal(v.Interface())
-			if e == nil {
-				row[k] = string(js)
-			} else {
-				err = e
 			}
 		}
 	})
@@ -140,39 +138,66 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, bo godal.IGenericBo) 
 
 /*
 ToBo implements godal.IRowMapper.ToBo.
-This function expects input is a map[string]interface{}, transforms it to godal.IGenericBo. Field names are transform according to 'ColNameTrans' setting.
+This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo. Field names are transform according to 'ColNameTrans' setting.
 */
 func (mapper *GenericRowMapperSql) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
 		return nil, nil
 	}
+	switch row.(type) {
+	case map[string]interface{}:
+		bo := godal.NewGenericBo()
+		for k, v := range row.(map[string]interface{}) {
+			bo.GboSetAttr(mapper.transformColumnName(k), v)
+		}
+		return bo, nil
+	case string:
+		var data interface{}
+		json.Unmarshal([]byte(row.(string)), &data)
+		return mapper.ToBo(storageId, data)
+	case *string:
+		var data interface{}
+		json.Unmarshal([]byte(*row.(*string)), &data)
+		return mapper.ToBo(storageId, data)
+	case []byte:
+		var data interface{}
+		json.Unmarshal(row.([]byte), &data)
+		return mapper.ToBo(storageId, data)
+	case *[]byte:
+		var data interface{}
+		json.Unmarshal(*row.(*[]byte), &data)
+		return mapper.ToBo(storageId, data)
+	}
+
 	v := reflect.ValueOf(row)
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
-		v = v.Elem()
+	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {
 	case reflect.Map:
 		bo := godal.NewGenericBo()
-		iter := v.MapRange()
-		for iter.Next() {
-			key, err := reddo.ToString(iter.Key().Interface())
-			if err != nil {
-				return bo, err
-			}
-			switch mapper.ColNameTrans {
-			case ColNameTransLowerCase:
-				key = strings.ToLower(key)
-			case ColNameTransUpperCase:
-				key = strings.ToUpper(key)
-			}
-			err = bo.GboSetAttr(key, iter.Value().Interface())
-			if err != nil {
-				return bo, err
-			}
+		for iter := v.MapRange(); iter.Next(); {
+			key, _ := reddo.ToString(iter.Key().Interface())
+			bo.GboSetAttr(mapper.transformColumnName(key), iter.Value().Interface())
 		}
 		return bo, nil
+	case reflect.String:
+		var data interface{}
+		json.Unmarshal([]byte(v.Interface().(string)), &data)
+		return mapper.ToBo(storageId, data)
+	case reflect.Slice, reflect.Array:
+		if v.Type().Elem().Kind() == reflect.Uint8 {
+			// input is []byte
+			zero := make([]byte, 0)
+			arr, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(zero))
+			if err != nil {
+				return nil, err
+			}
+			var data interface{}
+			json.Unmarshal(arr.([]byte), &data)
+			return mapper.ToBo(storageId, data)
+		}
 	}
-	return nil, errors.Errorf("cannot construct godal.IGenericBo from input %v", row)
+	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
 }
 
 /*
@@ -180,8 +205,10 @@ ColumnsList implements godal.IRowMapper.ColumnsList.
 This function lookups column-list from a 'columns-list map', returns []string{"*"} if not found
 */
 func (mapper *GenericRowMapperSql) ColumnsList(storageId string) []string {
-	result, e := mapper.ColumnsListMap[storageId]
-	if e {
+	if result, ok := mapper.ColumnsListMap[storageId]; ok {
+		return result
+	}
+	if result, ok := mapper.ColumnsListMap["*"]; ok {
 		return result
 	}
 	return allColumns
@@ -200,11 +227,15 @@ var (
 NewGenericDaoSql constructs a new GenericDaoSql.
 */
 func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoSql {
-	dao := &GenericDaoSql{AbstractGenericDao: agdao, sqlConnect: sqlConnect}
-	dao.optionOpLiteral = defaultOptionLiteralOperation
-	dao.txMode = false
-	dao.txIsolationLevel = sql.LevelDefault
-	dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorQuestion
+	dao := &GenericDaoSql{
+		AbstractGenericDao:          agdao,
+		sqlConnect:                  sqlConnect,
+		sqlFlavor:                   prom.FlavorDefault,
+		txMode:                      false,
+		txIsolationLevel:            sql.LevelDefault,
+		optionOpLiteral:             defaultOptionLiteralOperation,
+		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
+	}
 	if dao.GetRowMapper() == nil {
 		dao.SetRowMapper(GenericRowMapperSqlInstance)
 	}
@@ -342,8 +373,7 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 	if v.Type().AssignableTo(ifilterType) {
 		return filter.(IFilter), nil
 	}
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
+	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	if v.Kind() == reflect.Map {
 		result := &FilterAnd{Filters: make([]IFilter, 0)}
@@ -351,18 +381,13 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 		if ops == nil {
 			ops = defaultOptionLiteralOperation
 		}
-
-		iter := v.MapRange()
-		for iter.Next() {
+		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
-			value := iter.Value().Interface()
-			f := FilterFieldValue{Field: key, Operation: ops.OpEqual, Value: value}
-			result.Add(&f)
+			result.Add(&FilterFieldValue{Field: key, Operation: ops.OpEqual, Value: iter.Value().Interface()})
 		}
-
 		return result, nil
 	}
-	return nil, errors.Errorf("cannot build filter from %v", filter)
+	return nil, errors.New(fmt.Sprintf("cannot build filter from %v", filter))
 }
 
 /*
@@ -384,20 +409,18 @@ func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) 
 	if v.Type().AssignableTo(isortingType) {
 		return ordering.(ISorting), nil
 	}
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
+	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	if v.Kind() == reflect.Map {
 		result := &GenericSorting{Flavor: dao.sqlFlavor}
-		iter := v.MapRange()
-		for iter.Next() {
+		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
 			value, _ := reddo.ToString(iter.Value().Interface())
 			result.Add(key + ":" + value)
 		}
 		return result, nil
 	}
-	return nil, errors.Errorf("cannot build ordering from %v", ordering)
+	return nil, errors.New(fmt.Sprintf("cannot build ordering from %v", ordering))
 }
 
 /*----------------------------------------------------------------------*/
@@ -410,7 +433,7 @@ SqlExecute executes a non-SELECT SQL statement within a context/transaction.
 */
 func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sqlStm string, values ...interface{}) (sql.Result, error) {
 	if ctx == nil {
-		ctx, _ = dao.sqlConnect.NewBackgroundContext()
+		ctx, _ = dao.sqlConnect.NewContext()
 	}
 	if tx != nil {
 		return tx.ExecContext(ctx, sqlStm, values...)
@@ -423,11 +446,11 @@ SqlQuery executes a SELECT SQL statement within a context/transaction.
 
 	- If ctx is nil, SqlQuery creates a new context to use.
 	- If tx is not nil, SqlQuery uses transaction context to execute the query.
-	- If tx is nil, SqlQuery calls DB.ExecContext to execute the query.
+	- If tx is nil, SqlQuery calls DB.QueryContext to execute the query.
 */
 func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sqlStm string, values ...interface{}) (*sql.Rows, error) {
 	if ctx == nil {
-		ctx, _ = dao.sqlConnect.NewBackgroundContext()
+		ctx, _ = dao.sqlConnect.NewContext()
 	}
 	if tx != nil {
 		return tx.QueryContext(ctx, sqlStm, values...)
@@ -437,7 +460,6 @@ func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sqlStm strin
 
 /*
 SqlDelete constructs a DELETE statement and executes it within a context/transaction.
-If ctx is nil, SqlDelete creates a new context to use.
 */
 func (dao *GenericDaoSql) SqlDelete(ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
 	builder := NewDeleteBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithFilter(filter)
@@ -450,7 +472,6 @@ func (dao *GenericDaoSql) SqlDelete(ctx context.Context, tx *sql.Tx, table strin
 
 /*
 SqlInsert constructs a INSERT statement and executes it within a context/transaction.
-If ctx is nil, SqlDelete creates a new context to use.
 */
 func (dao *GenericDaoSql) SqlInsert(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
 	builder := NewInsertBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals)
@@ -463,7 +484,6 @@ func (dao *GenericDaoSql) SqlInsert(ctx context.Context, tx *sql.Tx, table strin
 
 /*
 SqlSelect constructs a SELECT query and executes it within a context/transaction.
-If ctx is nil, SqlSelect creates a new context to use.
 */
 func (dao *GenericDaoSql) SqlSelect(ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
 	builder := NewSelectBuilder().WithFlavor(dao.sqlFlavor).
@@ -480,7 +500,6 @@ func (dao *GenericDaoSql) SqlSelect(ctx context.Context, tx *sql.Tx, table strin
 
 /*
 SqlUpdate constructs an UPDATE query and executes it within a context/transaction.
-If ctx is nil, SqlUpdate creates a new context to use.
 */
 func (dao *GenericDaoSql) SqlUpdate(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
 	builder := NewUpdateBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals).WithFilter(filter)
@@ -492,9 +511,9 @@ func (dao *GenericDaoSql) SqlUpdate(ctx context.Context, tx *sql.Tx, table strin
 }
 
 /*
-FetchOne fetches a row from a dataset and transforms it to godal.IGenericBo.
+FetchOne fetches a row from `sql.Rows` and transforms it to godal.IGenericBo.
 
-	- FetchOne will NOT call dbRows.Close(), caller must take care of closing dataset.
+	- FetchOne will NOT call dbRows.Close(), caller must take care of cleaning resource.
 	- Caller should not call dbRows.Next(), FetchOne will do that.
 */
 func (dao *GenericDaoSql) FetchOne(storageId string, dbRows *sql.Rows) (godal.IGenericBo, error) {
@@ -515,20 +534,20 @@ func (dao *GenericDaoSql) FetchOne(storageId string, dbRows *sql.Rows) (godal.IG
 }
 
 /*
-FetchAll fetches all rows from a dataset and transforms to []godal.IGenericBo
+FetchAll fetches all rows from `sql.Rows` and transforms to []godal.IGenericBo
 
-	- FetchOne will NOT call dbRows.Close(), caller must take are of closing dataset
+	- FetchOne will NOT call dbRows.Close(), caller must take are of cleaning resource.
 	- Caller should not call dbRows.Next(), FetchOne will do that.
 */
 func (dao *GenericDaoSql) FetchAll(storageId string, dbRows *sql.Rows) ([]godal.IGenericBo, error) {
-	var boList []godal.IGenericBo
+	boList := make([]godal.IGenericBo, 0)
 	var err error
 	e := dao.sqlConnect.FetchRowsCallback(dbRows, func(row map[string]interface{}, e error) bool {
 		if e != nil {
+			err = e
 			return false
 		}
-		bo, e := dao.GetRowMapper().ToBo(storageId, row)
-		if e != nil {
+		if bo, e := dao.GetRowMapper().ToBo(storageId, row); e != nil {
 			err = e
 			return false
 		} else {
@@ -547,53 +566,51 @@ func (dao *GenericDaoSql) FetchAll(storageId string, dbRows *sql.Rows) ([]godal.
 GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
 */
 func (dao *GenericDaoSql) GdaoDeleteMany(storageId string, filter interface{}) (int, error) {
-	f, err := dao.BuildFilter(filter)
-	if err != nil {
+	if f, err := dao.BuildFilter(filter); err != nil {
 		return 0, err
-	}
-	result, err := dao.SqlDelete(nil, nil, storageId, f)
-	if err != nil {
+	} else if result, err := dao.SqlDelete(nil, nil, storageId, f); err != nil {
 		return 0, err
+	} else {
+		numRows, err := result.RowsAffected()
+		return int(numRows), err
 	}
-	numRows, err := result.RowsAffected()
-	return int(numRows), err
 }
 
 /*
 GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
 */
 func (dao *GenericDaoSql) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
-	if err != nil {
+	if f, err := dao.BuildFilter(filter); err != nil {
 		return nil, err
+	} else {
+		dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, nil, 0, 0)
+		if dbRows != nil {
+			defer func() { _ = dbRows.Close() }()
+		}
+		if err != nil {
+			return nil, err
+		}
+		return dao.FetchOne(storageId, dbRows)
 	}
-	dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, nil, 0, 0)
-	if dbRows != nil {
-		defer func() { _ = dbRows.Close() }()
-	}
-	if err != nil {
-		return nil, err
-	}
-	return dao.FetchOne(storageId, dbRows)
 }
 
 /*
 GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
 */
 func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
-	if err != nil {
+	if f, err := dao.BuildFilter(filter); err != nil {
 		return nil, err
+	} else {
+		o, _ := dao.BuildOrdering(ordering)
+		dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
+		if dbRows != nil {
+			defer func() { _ = dbRows.Close() }()
+		}
+		if err != nil {
+			return nil, err
+		}
+		return dao.FetchAll(storageId, dbRows)
 	}
-	o, err := dao.BuildOrdering(ordering)
-	dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
-	if dbRows != nil {
-		defer func() { _ = dbRows.Close() }()
-	}
-	if err != nil {
-		return nil, err
-	}
-	return dao.FetchAll(storageId, dbRows)
 }
 
 func (dao *GenericDaoSql) updateOrInsert(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (bool, error) {
@@ -630,6 +647,20 @@ func (dao *GenericDaoSql) updateOrInsert(ctx context.Context, tx *sql.Tx, storag
 	return numRows > 0, err
 }
 
+func (dao *GenericDaoSql) isErrorDuplicatedEntry(err error) bool {
+	switch dao.sqlFlavor {
+	case prom.FlavorMySql:
+		return regexp.MustCompile(`\W1062\W`).FindString(err.Error()) != ""
+	case prom.FlavorPgSql:
+		return regexp.MustCompile(`\W23505\W`).FindString(fmt.Sprintf("%e", err)) != ""
+	case prom.FlavorMsSql:
+		return regexp.MustCompile(`\W2627\W`).FindString(fmt.Sprintf("%e", err)) != ""
+	case prom.FlavorOracle:
+		return regexp.MustCompile(`\WORA\-00001\W`).FindString(fmt.Sprintf("%v", err)) != ""
+	}
+	return false
+}
+
 func (dao *GenericDaoSql) insertIfNotExist(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (bool, error) {
 	// first fetch existing document from storage
 	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
@@ -651,27 +682,27 @@ func (dao *GenericDaoSql) insertIfNotExist(ctx context.Context, tx *sql.Tx, stor
 	}
 
 	// insert new document
-	row, err := dao.GetRowMapper().ToRow(storageId, bo)
-	if err != nil {
+	if row, err := dao.GetRowMapper().ToRow(storageId, bo); err != nil {
 		return false, err
-	}
-	colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{}))
-	if err != nil {
+	} else if colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{})); err != nil {
 		return false, err
+	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
+		if dao.isErrorDuplicatedEntry(err) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	} else {
+		numRows, err := result.RowsAffected()
+		return numRows > 0, err
 	}
-	result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{}))
-	if err != nil {
-		return false, err
-	}
-	numRows, err := result.RowsAffected()
-	return numRows > 0, err
 }
 
 /*
 GdaoCreate implements godal.IGenericDao.GdaoCreate.
 */
 func (dao *GenericDaoSql) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error) {
-	ctx, _ := dao.sqlConnect.NewBackgroundContext()
+	ctx, _ := dao.sqlConnect.NewContext()
 	var tx *sql.Tx
 	var err error
 	if dao.txMode {
@@ -719,7 +750,7 @@ func (dao *GenericDaoSql) GdaoUpdate(storageId string, bo godal.IGenericBo) (int
 GdaoSave implements godal.IGenericDao.GdaoSave.
 */
 func (dao *GenericDaoSql) GdaoSave(storageId string, bo godal.IGenericBo) (int, error) {
-	ctx, _ := dao.sqlConnect.NewBackgroundContext()
+	ctx, _ := dao.sqlConnect.NewContext()
 	var tx *sql.Tx
 	var err error
 	if dao.txMode {
