@@ -15,6 +15,19 @@ Generic Database Access Layer implementation in Golang.
 
 ## History
 
+### 2019-11-03 - v0.1.0
+
+- Breaking changes:
+  - Move `AbstractGenericDao.GdaoDelete(...)` to sub-classes (`GenericDaoMongo` and `GenericDaoSql`)
+  - `IGenericDao`: `GdaoCreate`, `GdaoUpdate` and `GdaoSave` return `(0, GdaoErrorDuplicatedEntry)` if written row violate data integrity (duplicated key or unique index)
+- Add transaction-supported functions to `GenericDaoMongo` and `GenericDaoSql`.
+- `GenericDaoSql`:
+  - New method `WrapTransaction(ctx context.Context, func(ctx context.Context, tx *sql.Tx) error) error`  
+- More tests
+- Update dependency libs
+- Other fixes & enhancements
+
+
 ### 2019-10-25 - v0.0.4
 
 - `GenericBo`: new function `Checksum() []byte`

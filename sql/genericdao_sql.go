@@ -224,14 +224,14 @@ var (
 /*----------------------------------------------------------------------*/
 
 /*
-NewGenericDaoSql constructs a new GenericDaoSql.
+NewGenericDaoSql constructs a new GenericDaoSql with 'txModeOnWrite=true'.
 */
 func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoSql {
 	dao := &GenericDaoSql{
 		AbstractGenericDao:          agdao,
 		sqlConnect:                  sqlConnect,
 		sqlFlavor:                   prom.FlavorDefault,
-		txMode:                      false,
+		txModeOnWrite:               true,
 		txIsolationLevel:            sql.LevelDefault,
 		optionOpLiteral:             defaultOptionLiteralOperation,
 		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
@@ -248,7 +248,7 @@ GenericDaoSql is 'database/sql' implementation of godal.IGenericDao.
 Function implementations (n = No, y = Yes, i = inherited):
 
 	(n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
-	(i) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
+	(Y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
 	(y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
 	(y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
 	(y) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numItems int) ([]godal.IGenericBo, error)
@@ -260,7 +260,7 @@ type GenericDaoSql struct {
 	*godal.AbstractGenericDao
 	sqlConnect                  *prom.SqlConnect
 	sqlFlavor                   prom.DbFlavor
-	txMode                      bool
+	txModeOnWrite               bool
 	txIsolationLevel            sql.IsolationLevel
 	optionOpLiteral             *OptionOpLiteral
 	funcNewPlaceholderGenerator NewPlaceholderGenerator
@@ -313,18 +313,79 @@ func (dao *GenericDaoSql) SetSqlFlavor(sqlFlavor prom.DbFlavor) *GenericDaoSql {
 
 /*
 GetTransactionMode returns transaction mode settings.
+
+Deprecated: since v0.1.0 use GetTxIsolationLevel/GetTxModeOnWrite instead.
 */
 func (dao *GenericDaoSql) GetTransactionMode() (bool, sql.IsolationLevel) {
-	return dao.txMode, dao.txIsolationLevel
+	return dao.txModeOnWrite, dao.txIsolationLevel
 }
 
 /*
 SetTransactionMode enables/disables transaction mode.
+
+Deprecated: since v0.1.0 use SetTxIsolationLevel/SetTxModeOnWrite instead.
 */
 func (dao *GenericDaoSql) SetTransactionMode(enabled bool, txIsolationLevel sql.IsolationLevel) *GenericDaoSql {
-	dao.txMode = enabled
+	dao.txModeOnWrite = enabled
 	dao.txIsolationLevel = txIsolationLevel
 	return dao
+}
+
+/*
+GetTxModeOnWrite returns 'true' if transaction mode is enabled on write operations, 'false' otherwise.
+
+RDBMS/SQL's implementation of GdaoSave is "try update, if failed then insert". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GetTxModeOnWrite() bool {
+	return dao.txModeOnWrite
+}
+
+/*
+SetTxModeOnWrite enables/disables transaction mode on write operations.
+
+RDBMS/SQL's implementation of GdaoSave is "try update, if failed then insert". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
+By default, GenericDaoSql is created with 'txModeOnWrite=true', and it is recommended setting.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) SetTxModeOnWrite(enabled bool) *GenericDaoSql {
+	dao.txModeOnWrite = enabled
+	return dao
+}
+
+/*
+GetTxIsolationLevel returns current transaction isolation level setting.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GetTxIsolationLevel() sql.IsolationLevel {
+	return dao.txIsolationLevel
+}
+
+/*
+SetTxIsolationLevel sets new transaction isolation level.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) SetTxIsolationLevel(txIsolationLevel sql.IsolationLevel) *GenericDaoSql {
+	dao.txIsolationLevel = txIsolationLevel
+	return dao
+}
+
+/*
+StartTx starts a new transaction.
+
+	- if ctx is nil, this function will create a new context by calling sqlConnect.NewContext()
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) StartTx(ctx context.Context) (*sql.Tx, error) {
+	if ctx == nil {
+		ctx, _ = dao.sqlConnect.NewContext()
+	}
+	return dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel})
 }
 
 /*
@@ -563,12 +624,40 @@ func (dao *GenericDaoSql) FetchAll(storageId string, dbRows *sql.Rows) ([]godal.
 
 /*----------------------------------------------------------------------*/
 /*
+GdaoDelete implements godal.IGenericDao.GdaoDelete.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error) {
+	return dao.GdaoDeleteWithTx(nil, nil, storageId, bo)
+}
+
+/*
+GdaoDeleteWithTx is extended-implementation of godal.IGenericDao.GdaoDelete.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
+	filter := dao.GdaoCreateFilter(storageId, bo)
+	return dao.GdaoDeleteManyWithTx(ctx, tx, storageId, filter)
+}
+
+/*
 GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
 */
 func (dao *GenericDaoSql) GdaoDeleteMany(storageId string, filter interface{}) (int, error) {
+	return dao.GdaoDeleteManyWithTx(nil, nil, storageId, filter)
+}
+
+/*
+GdaoDeleteManyWithTx is extended-implementation of godal.IGenericDao.GdaoDeleteMany.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (int, error) {
 	if f, err := dao.BuildFilter(filter); err != nil {
 		return 0, err
-	} else if result, err := dao.SqlDelete(nil, nil, storageId, f); err != nil {
+	} else if result, err := dao.SqlDelete(ctx, tx, storageId, f); err != nil {
 		return 0, err
 	} else {
 		numRows, err := result.RowsAffected()
@@ -580,10 +669,19 @@ func (dao *GenericDaoSql) GdaoDeleteMany(storageId string, filter interface{}) (
 GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
 */
 func (dao *GenericDaoSql) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error) {
+	return dao.GdaoFetchOneWithTx(nil, nil, storageId, filter)
+}
+
+/*
+GdaoFetchOneWithTx is extended-implementation of godal.IGenericDao.GdaoFetchOne.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (godal.IGenericBo, error) {
 	if f, err := dao.BuildFilter(filter); err != nil {
 		return nil, err
 	} else {
-		dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, nil, 0, 0)
+		dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, nil, 0, 0)
 		if dbRows != nil {
 			defer func() { _ = dbRows.Close() }()
 		}
@@ -598,11 +696,20 @@ func (dao *GenericDaoSql) GdaoFetchOne(storageId string, filter interface{}) (go
 GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
 */
 func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	return dao.GdaoFetchManyWithTx(nil, nil, storageId, filter, ordering, fromOffset, numRows)
+}
+
+/*
+GdaoFetchManyWithTx is extended-implementation of godal.IGenericDao.GdaoFetchMany.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
 	if f, err := dao.BuildFilter(filter); err != nil {
 		return nil, err
 	} else {
 		o, _ := dao.BuildOrdering(ordering)
-		dbRows, err := dao.SqlSelect(nil, nil, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
+		dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
 		if dbRows != nil {
 			defer func() { _ = dbRows.Close() }()
 		}
@@ -613,119 +720,66 @@ func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, or
 	}
 }
 
-func (dao *GenericDaoSql) updateOrInsert(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (bool, error) {
-	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
-	if err != nil {
-		return false, err
-	}
-	row, err := dao.GetRowMapper().ToRow(storageId, bo)
-	if err != nil {
-		return false, err
-	}
-	colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{}))
-	if err != nil {
-		return false, err
-	}
-
-	// firstly: try to update row
-	result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter)
-	if err != nil {
-		return false, err
-	}
-	numRows, err := result.RowsAffected()
-	if numRows > 0 || err != nil {
-		// update successful or error
-		return true, err
-	}
-
-	// secondly: no row updated, try insert row
-	result, err = dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{}))
-	if err != nil {
-		return false, err
-	}
-	numRows, err = result.RowsAffected()
-	return numRows > 0, err
-}
-
 func (dao *GenericDaoSql) isErrorDuplicatedEntry(err error) bool {
+	if err == nil {
+		return false
+	}
 	switch dao.sqlFlavor {
 	case prom.FlavorMySql:
 		return regexp.MustCompile(`\W1062\W`).FindString(err.Error()) != ""
 	case prom.FlavorPgSql:
 		return regexp.MustCompile(`\W23505\W`).FindString(fmt.Sprintf("%e", err)) != ""
 	case prom.FlavorMsSql:
-		return regexp.MustCompile(`\W2627\W`).FindString(fmt.Sprintf("%e", err)) != ""
+		return regexp.MustCompile(`\W2627\W|\W2601\W`).FindString(fmt.Sprintf("%e", err)) != ""
 	case prom.FlavorOracle:
 		return regexp.MustCompile(`\WORA\-00001\W`).FindString(fmt.Sprintf("%v", err)) != ""
 	}
 	return false
 }
 
-func (dao *GenericDaoSql) insertIfNotExist(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (bool, error) {
-	// first fetch existing document from storage
-	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
-	if err != nil {
-		return false, err
-	}
-	dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), filter, nil, 0, 0)
-	if dbRows != nil {
-		defer func() { _ = dbRows.Close() }()
-	}
-	if err != nil {
-		return false, err
-	}
-
-	existingBo, err := dao.FetchOne(storageId, dbRows)
-	if err != nil || existingBo != nil {
-		// error or document already existed
-		return false, err
-	}
-
-	// insert new document
-	if row, err := dao.GetRowMapper().ToRow(storageId, bo); err != nil {
-		return false, err
-	} else if colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{})); err != nil {
-		return false, err
-	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
-			return false, nil
-		} else {
-			return false, err
-		}
-	} else {
-		numRows, err := result.RowsAffected()
-		return numRows > 0, err
-	}
-}
-
 /*
 GdaoCreate implements godal.IGenericDao.GdaoCreate.
 */
 func (dao *GenericDaoSql) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error) {
-	ctx, _ := dao.sqlConnect.NewContext()
-	var tx *sql.Tx
-	var err error
-	if dao.txMode {
-		tx, err = dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel})
-		defer func() { _ = tx.Rollback() }()
-		if err != nil {
+	return dao.GdaoCreateWithTx(nil, nil, storageId, bo)
+}
+
+/*
+GdaoCreateWithTx is extended-implementation of godal.IGenericDao.GdaoCreate.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
+	// insert new document
+	if row, err := dao.GetRowMapper().ToRow(storageId, bo); err != nil {
+		return 0, err
+	} else if colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{})); err != nil {
+		return 0, err
+	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
+		if dao.isErrorDuplicatedEntry(err) {
+			return 0, godal.GdaoErrorDuplicatedEntry
+		} else {
 			return 0, err
 		}
+	} else {
+		numRows, err := result.RowsAffected()
+		return int(numRows), err
 	}
-	result, err := dao.insertIfNotExist(ctx, tx, storageId, bo)
-	if tx != nil {
-		_ = tx.Commit()
-	}
-	if result {
-		return 1, err
-	}
-	return 0, err
 }
 
 /*
 GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
 */
 func (dao *GenericDaoSql) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error) {
+	return dao.GdaoUpdateWithTx(nil, nil, storageId, bo)
+}
+
+/*
+GdaoUpdateWithTx is extended-implementation of godal.IGenericDao.GdaoUpdate.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
 	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
 	if err != nil {
 		return 0, err
@@ -738,34 +792,122 @@ func (dao *GenericDaoSql) GdaoUpdate(storageId string, bo godal.IGenericBo) (int
 	if err != nil {
 		return 0, err
 	}
-	result, err := dao.SqlUpdate(nil, nil, storageId, colsAndVals.(map[string]interface{}), filter)
-	if err != nil {
+	if result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter); err != nil {
+		if dao.isErrorDuplicatedEntry(err) {
+			return 0, godal.GdaoErrorDuplicatedEntry
+		}
 		return 0, err
+	} else {
+		numRows, err := result.RowsAffected()
+		return int(numRows), err
 	}
-	numRows, err := result.RowsAffected()
-	return int(numRows), err
 }
 
 /*
 GdaoSave implements godal.IGenericDao.GdaoSave.
 */
 func (dao *GenericDaoSql) GdaoSave(storageId string, bo godal.IGenericBo) (int, error) {
-	ctx, _ := dao.sqlConnect.NewContext()
-	var tx *sql.Tx
+	var numRows int
 	var err error
-	if dao.txMode {
-		tx, err = dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel})
-		defer func() { _ = tx.Rollback() }()
-		if err != nil {
+	if dao.txModeOnWrite {
+		err = dao.WrapTransaction(nil, func(ctx context.Context, tx *sql.Tx) error {
+			var e error
+			numRows, e = dao.GdaoSaveWithTx(ctx, tx, storageId, bo)
+			return e
+		})
+	} else {
+		numRows, err = dao.GdaoSaveWithTx(nil, nil, storageId, bo)
+	}
+	return numRows, err
+
+	// var tx *sql.Tx
+	// var err error
+	// defer func() {
+	// 	if tx != nil {
+	// 		if err != nil {
+	// 			tx.Rollback()
+	// 		} else {
+	// 			err = tx.Commit()
+	// 		}
+	// 	}
+	// }()
+	// var ctx context.Context
+	// if dao.txModeOnWrite {
+	// 	ctx, _ = dao.sqlConnect.NewContext()
+	// 	if tx, err = dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel}); err != nil {
+	// 		return 0, err
+	// 	}
+	// }
+	// numRows, err := dao.GdaoSaveWithTx(ctx, tx, storageId, bo)
+	// return numRows, err
+}
+
+/*
+GdaoSaveWithTx is extended-implementation of godal.IGenericDao.GdaoSave.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
+	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
+	if err != nil {
+		return 0, err
+	}
+	row, err := dao.GetRowMapper().ToRow(storageId, bo)
+	if err != nil {
+		return 0, err
+	}
+	colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{}))
+	if err != nil {
+		return 0, err
+	}
+
+	// firstly: try to update row
+	if result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter); err != nil {
+		if dao.isErrorDuplicatedEntry(err) {
+			return 0, godal.GdaoErrorDuplicatedEntry
+		}
+		return 0, err
+	} else if numRows, err := result.RowsAffected(); err != nil || numRows > 0 {
+		return int(numRows), err
+	} else {
+		// secondly: no row updated, try insert row
+		if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
+			if dao.isErrorDuplicatedEntry(err) {
+				return 0, godal.GdaoErrorDuplicatedEntry
+			}
 			return 0, err
+		} else {
+			numRows, err := result.RowsAffected()
+			return int(numRows), err
 		}
 	}
-	result, err := dao.updateOrInsert(ctx, tx, storageId, bo)
-	if tx != nil {
-		_ = tx.Commit()
+}
+
+/*
+WrapTransaction wraps a function inside a transaction.
+
+	- txFunc: the function to wrap. If the function returns error, the transaction will be aborted, otherwise transaction is committed.
+
+Available: since v0.1.0
+*/
+func (dao *GenericDaoSql) WrapTransaction(ctx context.Context, txFunc func(ctx context.Context, tx *sql.Tx) error) error {
+	var tx *sql.Tx
+	var err error
+	defer func() {
+		if tx != nil {
+			if err != nil {
+				tx.Rollback()
+			} else {
+				err = tx.Commit()
+			}
+		}
+	}()
+	if ctx == nil {
+		ctx, _ = dao.sqlConnect.NewContext()
 	}
-	if result {
-		return 1, err
+	if tx, err = dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel}); err != nil {
+		return err
 	}
-	return 0, err
+	err = txFunc(ctx, tx)
+	return err
 }

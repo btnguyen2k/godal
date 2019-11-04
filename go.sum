@@ -1,6 +1,6 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/aws/aws-sdk-go v1.25.10 h1:3epJfNmP6xWkOpLOdhIIj07+9UAJwvbzq8bBzyPigI4=
-github.com/aws/aws-sdk-go v1.25.10/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
+github.com/aws/aws-sdk-go v1.25.19 h1:sp3xP91qIAVhWufyn9qM6Zhhn6kX06WJQcmhRj7QTXc=
+github.com/aws/aws-sdk-go v1.25.19/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/btnguyen2k/consu/checksum v0.1.1 h1:1EQXi0GeAJ6d6iruULCP5fTMO/6QFM4iN+gq4lBW2pM=
 github.com/btnguyen2k/consu/checksum v0.1.1/go.mod h1:Kye8gGAK2BnHsB+DmffPOLhJW/YYFAOUosXnuSmyOf8=
 github.com/btnguyen2k/consu/reddo v0.1.4 h1:AT3xH1f7O9R9RVOdSiGhAwu0cI0VWr5fg4io9uDTRB8=
@@ -9,8 +9,8 @@ github.com/btnguyen2k/consu/reddo v0.1.6 h1:NUG2Uw0HWnJjiUUzhNwpTTQheoM1JKVza+5H
 github.com/btnguyen2k/consu/reddo v0.1.6/go.mod h1:6L2l4rRFQlyGWlKxt9SiwYs/wB6SE70oxFcrTo/YLPY=
 github.com/btnguyen2k/consu/semita v0.1.4 h1:tKvH0PRcaFWumMaFFCIa+NjIotAJGGKeFhEJgm+rC6U=
 github.com/btnguyen2k/consu/semita v0.1.4/go.mod h1:EmOAKM4o+iljiR2kShq3MlIvGrzALnUW4IkgI292p10=
-github.com/btnguyen2k/prom v0.2.1 h1:Dr/ftOWmawmftiP5CapZ55np1ED56zBpb+0hE5R4Tro=
-github.com/btnguyen2k/prom v0.2.1/go.mod h1:hxvkYKi3RP+3tcgN0aszVmeOBTEibt9qRw3/nQjcszs=
+github.com/btnguyen2k/prom v0.2.3 h1:Uk2jca8K0Iv3siQBJSoFcCYVjLjz6Xi+A4Js6/P/QUs=
+github.com/btnguyen2k/prom v0.2.3/go.mod h1:WMi3eBfrWRfGErEurtUtidkPbUsYRB4dNr5arpG80D8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/denisenkom/go-mssqldb v0.0.0-20191001013358-cfbb681360f0 h1:epsH3lb7KVbXHYk7LYGN5EiE0MxcevHU85CKITJ0wUY=
 github.com/denisenkom/go-mssqldb v0.0.0-20191001013358-cfbb681360f0/go.mod h1:xbL0rPBG9cCiLr28tMa8zpbdarY27NDyej4t/EjAShU=
@@ -57,8 +57,6 @@ github.com/onsi/ginkgo v1.10.2/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+
 github.com/onsi/gomega v1.7.0 h1:XPnZz8VVBHjVsy1vzJmRwIcSwiUO+JFfrv/xGiigmME=
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/pkg/errors v0.8.1 h1:iURUrRGxPUNPdy5/HRSm+Yj6okJ6UtLINN0Q9M4+h3I=
-github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=

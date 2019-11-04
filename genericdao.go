@@ -1,5 +1,7 @@
 package godal
 
+import "errors"
+
 /*
 IRowMapper transforms a database row to IGenericBo and vice versa.
 
@@ -23,6 +25,11 @@ type IRowMapper interface {
 }
 
 /*----------------------------------------------------------------------*/
+
+var (
+	// GdaoErrorDuplicatedEntry indicates that the write operation failed because of data integrity violation: entry/key duplicated.
+	GdaoErrorDuplicatedEntry = errors.New("data integrity violation: duplicated entry/key")
+)
 
 /*
 IGenericDao defines API interface of a generic data-access-object.
@@ -66,7 +73,7 @@ type IGenericDao interface {
 	/*
 		GdaoCreate persists one BO to database store and returns the number of saved items.
 
-		If the BO already existed, this function does not modify the existing one and should return (0, nil)
+		If the BO already existed, this function does not modify the existing one and should return (nil, GdaoErrorDuplicatedEntry)
 	*/
 	GdaoCreate(storageId string, bo IGenericBo) (int, error)
 
@@ -74,6 +81,7 @@ type IGenericDao interface {
 		GdaoUpdate updates one existing BO and returns the number of updated items.
 
 		If the BO does not exist, this function does not create new BO and should return (0, nil)
+		If update causes data integrity violation, this function should return (0, GdaoErrorDuplicatedEntry)
 	*/
 	GdaoUpdate(storageId string, bo IGenericBo) (int, error)
 
@@ -81,6 +89,7 @@ type IGenericDao interface {
 		GdaoSave persists one BO to database store and returns the number of saved items.
 
 		If the BO already existed, this function replace the existing one; otherwise new BO is created.
+		If data integrity violation occurs, this function should return (0, GdaoErrorDuplicatedEntry)
 	*/
 	GdaoSave(storageId string, bo IGenericBo) (int, error)
 }
@@ -134,6 +143,8 @@ func (dao *AbstractGenericDao) SetRowMapper(rowMapper IRowMapper) *AbstractGener
 GdaoDelete implements IGenericDao.GdaoDelete.
 
 	- This function calls 'GdaoCreateFilter' and 'GdaoDeleteMany', sub-class must implement these functions.
+
+Deprecated: since v0.1.0, move this function to sub-class.
 */
 func (dao *AbstractGenericDao) GdaoDelete(storageId string, bo IGenericBo) (int, error) {
 	filter := dao.GdaoCreateFilter(storageId, bo)
