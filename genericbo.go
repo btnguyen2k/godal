@@ -55,6 +55,13 @@ type IGenericBo interface {
 	GboToJson() ([]byte, error)
 
 	/*
+		GboToJsonUnsafe serializes bo's data to JSON string, ignoring error if any.
+
+		Available: since v0.1.1
+	*/
+	GboToJsonUnsafe() []byte
+
+	/*
 		GboFromJson imports bo's data from a JSON string.
 	*/
 	GboFromJson(js []byte) error
@@ -219,21 +226,32 @@ func (bo *GenericBo) GboToJson() ([]byte, error) {
 }
 
 /*
+GboToJsonUnsafe implements IGenericBo.GboToJsonUnsafe
+*/
+func (bo *GenericBo) GboToJsonUnsafe() []byte {
+	js, _ := bo.GboToJson()
+	return js
+}
+
+/*
 GboFromJson implements IGenericBo.GboFromJson
 
-	- Existing data is removed upon importing
+	- If error occurs, existing BO data is intact.
+	- If successful, existing data is replaced.
 */
 func (bo *GenericBo) GboFromJson(js []byte) error {
 	bo.m.Lock()
 	defer bo.m.Unlock()
 	var data interface{}
-	err := json.Unmarshal(js, &data)
+	if err := json.Unmarshal(js, &data); err != nil {
+		return err
+	}
 	if data == nil {
 		data = map[string]interface{}{}
 	}
 	bo.data = data
 	bo.s = semita.NewSemita(bo.data)
-	return err
+	return nil
 }
 
 /*

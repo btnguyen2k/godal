@@ -138,15 +138,3 @@ func (dao *AbstractGenericDao) SetRowMapper(rowMapper IRowMapper) *AbstractGener
 	dao.rowMapper = rowMapper
 	return dao
 }
-
-/*
-GdaoDelete implements IGenericDao.GdaoDelete.
-
-	- This function calls 'GdaoCreateFilter' and 'GdaoDeleteMany', sub-class must implement these functions.
-
-Deprecated: since v0.1.0, move this function to sub-class.
-*/
-func (dao *AbstractGenericDao) GdaoDelete(storageId string, bo IGenericBo) (int, error) {
-	filter := dao.GdaoCreateFilter(storageId, bo)
-	return dao.GdaoDeleteMany(storageId, filter)
-}
