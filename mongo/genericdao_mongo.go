@@ -5,7 +5,7 @@ General guideline:
 
 	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
 
-Use GenericDaoMongo (and godal.IGenericBo) directly:
+Guideline: Use GenericDaoMongo (and godal.IGenericBo) directly
 
 	- Defined a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
 	- Optionally, create a helper function to create dao instances.
@@ -33,6 +33,77 @@ Use GenericDaoMongo (and godal.IGenericBo) directly:
 		dao.SetTxModeOnWrite(txModeOnWrite)
 		return dao
 	}
+
+	Since MongoDB is schema-less, GenericRowMapperMongo should be sufficient. NewGenericDaoMongo(...) creates a *GenericDaoMongo that uses GenericRowMapperMongo under-the-hood.
+
+Guideline: Implement custom MongoDB business dao and bo
+
+	- Declare / implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.)
+	- Optionally, create a helper function to create dao instances.
+	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+
+	import (
+		"github.com/btnguyen2k/godal"
+		"github.com/btnguyen2k/godal/mongo"
+		"github.com/btnguyen2k/prom"
+	)
+
+	// BoApp defines business object app
+	type BoApp struct {
+		Id            string                 `json:"id"`
+		Description   string                 `json:"desc"`
+		Value         int                    `json:"val"`
+	}
+
+	func (app *BoApp) ToGbo() godal.IGenericBo {
+		gbo := godal.NewGenericBo()
+
+		// method 1: populate attributes one by one
+		gbo.GboSetAttr("id"  , app.Id)
+		gbo.GboSetAttr("desc", app.Description)
+		gbo.GboSetAttr("val" , app.Value)
+
+		// method 2: transfer all attributes at once
+		if err := gbo.GboImportViaJson(app); err!=nil {
+			panic(err)
+		}
+
+		return gbo
+	}
+
+	func NewBoAppFromGbo(gbo godal.IGenericBo) *BoApp {
+		app := BoApp{}
+
+		// method 1: populate attributes one by one
+		app.Id          = gbo.GboGetAttrUnsafe("id", reddo.TypeString).(string)
+		app.Description = gbo.GboGetAttrUnsafe("desc", reddo.TypeString).(string)
+		app.Value       = int(gbo.GboGetAttrUnsafe("val", reddo.TypeInt).(int64))
+
+		// method 2: transfer all attributes at once
+		if err := gbo.GboTransferViaJson(&app); err!=nil {
+			panic(err)
+		}
+
+		return &app
+	}
+
+	// DaoAppMongodb is MongoDB-implementation of business dao
+	type DaoAppMongodb struct {
+		*mongo.GenericDaoMongo
+		collectionName string
+	}
+
+	// NewDaoAppMongodb is convenient method to create DaoAppMongodb instances.
+	func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string, txModeOnWrite bool) *DaoAppMongodb {
+		dao := &DaoAppMongodb{collectionName: collectionName}
+		dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+		dao.SetTxModeOnWrite(txModeOnWrite)
+		return dao
+	}
+
+	Since MongoDB is schema-less, GenericRowMapperMongo should be sufficient. NewGenericDaoMongo(...) creates a *GenericDaoMongo that uses GenericRowMapperMongo under-the-hood.
+
+See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 */
 package mongo
 
