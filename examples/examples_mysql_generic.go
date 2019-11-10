@@ -1,7 +1,7 @@
 /*
-Generic MongoDB Dao example. Run with command:
+Generic MySQL Dao example. Run with command:
 
-$ go run examples_mongo_generic.go
+$ go run examples_mysql_generic.go
 */
 package main
 
@@ -9,69 +9,118 @@ import (
 	"fmt"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/mongo"
+	"github.com/btnguyen2k/godal/sql"
 	"github.com/btnguyen2k/prom"
+	_ "github.com/go-sql-driver/mysql"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const (
 	timeZone = "Asia/Ho_Chi_Minh"
 	sep      = "================================================================================"
-	fieldId  = "_id"
+	fieldId  = "id"
 )
 
-func createMongoConnect() *prom.MongoConnect {
-	url := "mongodb://test:test@localhost:27017/test"
-	db := "test"
-	mc, err := prom.NewMongoConnect(url, db, 10000)
-	if err != nil {
-		panic(err)
+var colsSql = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "val_string",
+	"val_time", "val_list", "val_map"}
+
+func createSqlConnectForMysql() *prom.SqlConnect {
+	driver := "mysql"
+	dsn := "test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=true&loc="
+	dsn = dsn + strings.Replace(timeZone, "/", "%2f", -1)
+	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	if sqlConnect == nil || err != nil {
+		if err != nil {
+			fmt.Println("Error:", err)
+		}
+		if sqlConnect == nil {
+			panic("error creating [prom.SqlConnect] instance")
+		}
 	}
-	return mc
+	loc, _ := time.LoadLocation(timeZone)
+	sqlConnect.SetLocation(loc)
+	return sqlConnect
 }
 
-func initDataMongo(mc *prom.MongoConnect, collection string) {
-	err := mc.GetCollection(collection).Drop(nil)
+func initDataMysql(sqlC *prom.SqlConnect, table string) {
+	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
+	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
 	}
-	_, err = mc.CreateCollection(collection)
+
+	types := []string{"VARCHAR(16)", "VARCHAR(255)", "CHAR(1)", "BIGINT", "DOUBLE", "VARCHAR(256)",
+		"TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "JSON", "JSON"}
+	sql = fmt.Sprintf("CREATE TABLE %s (", table)
+	for i := range colsSql {
+		sql += colsSql[i] + " " + types[i] + ","
+	}
+	sql += "PRIMARY KEY(id))"
+	fmt.Println("Query:", sql)
+	_, err = sqlC.GetDB().Exec(sql)
 	if err != nil {
 		panic(err)
 	}
 }
 
-type myGenericDaoMongo struct {
-	*mongo.GenericDaoMongo
+type myGenericDaoMysql struct {
+	*sql.GenericDaoSql
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
 	id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
 	return map[string]interface{}{fieldId: id}
 }
 
-func newGenericDaoMongo(mc *prom.MongoConnect, txMode bool) godal.IGenericDao {
-	dao := &myGenericDaoMongo{}
-	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
-	dao.SetTxModeOnWrite(txMode)
+// custom row mapper to transform 'val_list' and 'val_list' to Go objects
+type myRowMapper struct {
+	next godal.IRowMapper
+}
+
+func (m *myRowMapper) ToRow(storageId string, bo godal.IGenericBo) (interface{}, error) {
+	row, err := m.next.ToRow(storageId, bo)
+	return row, err
+}
+
+func (m *myRowMapper) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
+	gbo, err := m.next.ToBo(storageId, row)
+	if v, e := gbo.GboGetAttrUnmarshalJson("val_list"); e == nil && v != nil {
+		gbo.GboSetAttr("val_list", v)
+	}
+	if v, e := gbo.GboGetAttrUnmarshalJson("val_map"); e == nil && v != nil {
+		gbo.GboSetAttr("val_map", v)
+	}
+	return gbo, err
+}
+
+func (m *myRowMapper) ColumnsList(storageId string) []string {
+	return []string{"*"}
+}
+
+func newGenericDaoMysql(sqlc *prom.SqlConnect, txMode bool) godal.IGenericDao {
+	dao := &myGenericDaoMysql{}
+	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
+	dao.SetTxModeOnWrite(txMode).SetSqlFlavor(prom.FlavorMySql)
+	dao.SetRowMapper(&myRowMapper{&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase}})
 	return dao
 }
 
-func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
-	mc := createMongoConnect()
-	initDataMongo(mc, collection)
-	dao := newGenericDaoMongo(mc, txMode)
+func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
+	sqlC := createSqlConnectForMysql()
+	initDataMysql(sqlC, table)
+	dao := newGenericDaoMysql(sqlC, txMode)
 
-	fmt.Printf("-== Insert documents to collection (TxMode=%v) ==-\n", txMode)
+	fmt.Printf("-== Insert rows to table (TxMode=%v) ==-\n", txMode)
 
-	// insert a document
+	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo := godal.NewGenericBo()
 	bo.GboSetAttr(fieldId, "log")
-	bo.GboSetAttr("desc", t.String())
+	bo.GboSetAttr("val_desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
 	bo.GboSetAttr("val_float", rand.Float64())
@@ -80,18 +129,18 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	bo.GboSetAttr("val_list", []interface{}{true, 0, "1", 2.3, "system", "utility"})
 	bo.GboSetAttr("val_map", map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
-	result, err := dao.GdaoCreate(collection, bo)
+	result, err := dao.GdaoCreate(table, bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	// insert another document
+	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo = godal.NewGenericBo()
 	bo.GboSetAttr(fieldId, "login")
-	bo.GboSetAttr("desc", t.String())
+	bo.GboSetAttr("val_desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
 	bo.GboSetAttr("val_float", rand.Float64())
@@ -100,20 +149,20 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	bo.GboSetAttr("val_list", []interface{}{false, 9.8, "7", 6, "system", "security"})
 	bo.GboSetAttr("val_map", map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
-	result, err = dao.GdaoCreate(collection, bo)
+	result, err = dao.GdaoCreate(table, bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	// insert another document with duplicated id
+	// insert another row with duplicated id
 	bo = godal.NewGenericBo()
 	bo.GboSetAttr(fieldId, "login")
 	bo.GboSetAttr("val_string", "Authentication application (TxMode=true)(again)")
 	bo.GboSetAttr("val_list", []interface{}{"duplicated"})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
-	result, err = dao.GdaoCreate(collection, bo)
+	result, err = dao.GdaoCreate(table, bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
 	} else {
@@ -123,13 +172,13 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	fmt.Println(sep)
 }
 
-func demoMongoFetchDocById(collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := newGenericDaoMongo(mc, false)
+func demoMysqlFetchRowById(table string, ids ...string) {
+	sqlC := createSqlConnectForMysql()
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Printf("-== Fetch documents by id ==-\n")
-	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+	fmt.Printf("-== Fetch rows by id ==-\n")
+	for _, id := range ids {
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -142,12 +191,12 @@ func demoMongoFetchDocById(collection string, docIds ...string) {
 	fmt.Println(sep)
 }
 
-func demoMongoFetchAllDocs(collection string) {
-	mc := createMongoConnect()
-	dao := newGenericDaoMongo(mc, false)
+func demoMysqlFetchAllRows(table string) {
+	sqlC := createSqlConnectForMysql()
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Println("-== Fetch all documents in collection ==-")
-	boList, err := dao.GdaoFetchMany(collection, nil, nil, 0, 0)
+	fmt.Println("-== Fetch all rows in table ==-")
+	boList, err := dao.GdaoFetchMany(table, nil, nil, 0, 0)
 	if err != nil {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
@@ -158,33 +207,33 @@ func demoMongoFetchAllDocs(collection string) {
 	fmt.Println(sep)
 }
 
-func demoMongoDeleteDocs(collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := newGenericDaoMongo(mc, false)
+func demoMysqlDeleteRow(table string, ids ...string) {
+	sqlC := createSqlConnectForMysql()
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Println("-== Delete documents from collection ==-")
-	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+	fmt.Println("-== Delete rows from table ==-")
+	for _, id := range ids {
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
 			fmt.Println("\tDeleting bo:", string(bo.GboToJsonUnsafe()))
-			result, err := dao.GdaoDelete(collection, bo)
+			result, err := dao.GdaoDelete(table, bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo1, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
 				fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
-				result, err := dao.GdaoDelete(collection, bo)
+				result, err := dao.GdaoDelete(table, bo)
 				fmt.Printf("\t\tDeleting app [%s] again: %v / %s\n", id, result, err)
 			}
 		}
@@ -193,36 +242,36 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 	fmt.Println(sep)
 }
 
-func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string) {
-	mc := createMongoConnect()
-	dao := newGenericDaoMongo(mc, false)
+func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForMysql()
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Println("-== Update documents from collection ==-")
-	for _, id := range docIds {
+	fmt.Println("-== Update rows from table ==-")
+	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
 			bo.GboSetAttr(fieldId, id)
-			bo.GboSetAttr("desc", t.String())
+			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", "(updated)")
 			bo.GboSetAttr("val_time", t)
 		} else {
 			fmt.Println("\tExisting bo:", string(bo.GboToJsonUnsafe()))
-			bo.GboSetAttr("desc", t.String())
+			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", bo.GboGetAttrUnsafe("val_string", reddo.TypeString).(string)+"(updated)")
 			bo.GboSetAttr("val_time", t)
 		}
 		fmt.Println("\t\tUpdating bo:", string(bo.GboToJsonUnsafe()))
-		result, err := dao.GdaoUpdate(collection, bo)
+		result, err := dao.GdaoUpdate(table, bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -235,36 +284,36 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 	fmt.Println(sep)
 }
 
-func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, docIds ...string) {
-	mc := createMongoConnect()
-	dao := newGenericDaoMongo(mc, txMode)
+func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForMysql()
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-", txMode)
-	for _, id := range docIds {
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
 			bo.GboSetAttr(fieldId, id)
-			bo.GboSetAttr("desc", t.String())
+			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", fmt.Sprintf("(upsert,txmode=%v)", txMode))
 			bo.GboSetAttr("val_time", t)
 		} else {
 			fmt.Println("\tExisting bo:", string(bo.GboToJsonUnsafe()))
-			bo.GboSetAttr("desc", t.String())
+			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", bo.GboGetAttrUnsafe("val_string", reddo.TypeString).(string)+fmt.Sprintf("(upsert,txmode=%v)", txMode))
 			bo.GboSetAttr("val_time", t)
 		}
 		fmt.Println("\t\tUpserting bo:", string(bo.GboToJsonUnsafe()))
-		result, err := dao.GdaoSave(collection, bo)
+		result, err := dao.GdaoSave(table, bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -277,14 +326,14 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 	fmt.Println(sep)
 }
 
-func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
-	mc := createMongoConnect()
-	initDataMongo(mc, collection)
-	dao := newGenericDaoMongo(mc, false)
+func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
+	sqlC := createSqlConnectForMysql()
+	initDataMysql(sqlC, table)
+	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Println("-== Fetch documents from collection with sorting and limit ==-")
+	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
 	n := 100
-	fmt.Printf("\tInserting %d docs...\n", n)
+	fmt.Printf("\tInserting %d rows...\n", n)
 	for i := 0; i < n; i++ {
 		id := strconv.Itoa(i)
 		for len(id) < 3 {
@@ -293,7 +342,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo := godal.NewGenericBo()
 		bo.GboSetAttr(fieldId, id)
-		bo.GboSetAttr("desc", t.String())
+		bo.GboSetAttr("val_desc", t.String())
 		bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 		bo.GboSetAttr("val_int", rand.Int())
 		bo.GboSetAttr("val_float", rand.Float64())
@@ -301,16 +350,16 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 		bo.GboSetAttr("val_time", t)
 		bo.GboSetAttr("val_list", []interface{}{rand.Int31()%2 == 0, i, id})
 		bo.GboSetAttr("val_map", map[string]interface{}{"tags": []interface{}{id, i}})
-		_, err := dao.GdaoCreate(collection, bo)
+		_, err := dao.GdaoCreate(table, bo)
 		if err != nil {
 			panic(err)
 		}
 	}
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
-	fmt.Printf("\tFetching %d docs, starting from offset %d...\n", numRows, startOffset)
+	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
 	sorting := map[string]int{fieldId: 1} // sort by "id" attribute, ascending
-	boList, err := dao.GdaoFetchMany(collection, nil, sorting, startOffset, numRows)
+	boList, err := dao.GdaoFetchMany(table, nil, sorting, startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
@@ -323,18 +372,17 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	loc, _ := time.LoadLocation(timeZone)
 	fmt.Println("Timezone:", loc)
-	collection := "apps"
-	fmt.Println("Collection:", collection)
 
-	demoMongoInsertDocs(loc, collection, true)
-	demoMongoInsertDocs(loc, collection, false)
-	demoMongoFetchDocById(collection, "login", "loggin")
-	demoMongoFetchAllDocs(collection)
-	demoMongoDeleteDocs(collection, "login", "loggin")
-	demoMongoUpdateDocs(loc, collection, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, true, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, false, "log", "loggging")
-	demoMongoSelectSortingAndLimit(loc, collection)
+	table := "tbl_app"
+	demoMysqlInsertRows(loc, table, true)
+	demoMysqlInsertRows(loc, table, false)
+	demoMysqlFetchRowById(table, "login", "loggin")
+	demoMysqlFetchAllRows(table)
+	demoMysqlDeleteRow(table, "login", "loggin")
+	demoMysqlUpdateRows(loc, table, "log", "logging")
+	demoMysqlUpsertRows(loc, table, true, "log", "logging")
+	demoMysqlUpsertRows(loc, table, false, "log", "loggging")
+	demoMysqlSelectSortingAndLimit(loc, table)
 }

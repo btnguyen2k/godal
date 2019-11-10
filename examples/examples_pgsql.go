@@ -31,7 +31,7 @@ func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
 	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorPgSql)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{ColNameTrans: sql.ColNameTransLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
 	return dao
 }
 

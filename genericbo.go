@@ -18,72 +18,55 @@ A bo's attribute value is at the leaf node, and located via a 'path', for exampl
 Sample usage: see #GenericBo
 */
 type IGenericBo interface {
-	/*
-		GboIterate iterates over all bo's top level fields.
-
-		Available: since v0.0.2
-	*/
+	// GboIterate iterates over all bo's top level fields.
+	//
+	// Available: since v0.0.2
 	GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{}))
 
-	/*
-		GboGetAttr retrieves bo's attribute.
-	*/
+	// GboGetAttr retrieves bo's attribute.
 	GboGetAttr(path string, typ reflect.Type) (interface{}, error)
 
-	/*
-		GboGetAttrUnsafe retrieves a bo's attribute, ignoring error if any.
-
-		Available: since v0.0.2
-	*/
+	// GboGetAttrUnsafe retrieves a bo's attribute, ignoring error if any.
+	//
+	// Available: since v0.0.2
 	GboGetAttrUnsafe(path string, typ reflect.Type) interface{}
 
-	/*
-		GboGetTimeWithLayout retrieves a bo's attribute as 'time.Time'.
+	// GboGetAttrUnmarshalJson retries a bo's attribute, treats attribute value as JSON-encoded and parses it back to Go type.
+	//
+	// Available: since v0.2.0
+	GboGetAttrUnmarshalJson(path string) (interface{}, error)
 
-		If value at 'path' is a datetime represented as a string, this function calls 'time.Parse(...)' to convert the value to 'time.Time' using 'layout'.
-	*/
+	// GboGetTimeWithLayout retrieves a bo's attribute as 'time.Time'.
+	//
+	// If value at 'path' is a datetime represented as a string, this function calls 'time.Parse(...)' to convert the value to 'time.Time' using 'layout'.
 	GboGetTimeWithLayout(path, layout string) (time.Time, error)
 
-	/*
-		GboSetAttr sets a bo's attribute.
-	*/
+	// GboSetAttr sets a bo's attribute.
 	GboSetAttr(path string, value interface{}) error
 
-	/*
-		GboToJson serializes bo's data to JSON string.
-	*/
+	// GboToJson serializes bo's data to JSON string.
 	GboToJson() ([]byte, error)
 
-	/*
-		GboToJsonUnsafe serializes bo's data to JSON string, ignoring error if any.
-
-		Available: since v0.1.1
-	*/
+	// GboToJsonUnsafe serializes bo's data to JSON string, ignoring error if any.
+	//
+	// Available: since v0.1.1
 	GboToJsonUnsafe() []byte
 
-	/*
-		GboFromJson imports bo's data from a JSON string.
-	*/
+	// GboFromJson imports bo's data from a JSON string.
 	GboFromJson(js []byte) error
 
-	/*
-		GboTransferViaJson transfers bo's attributes to the destination using JSON transformation.
-		Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
-
-		Note: 'dest' must be a pointer because passing value does not work.
-	*/
+	// GboTransferViaJson transfers bo's attributes to the destination using JSON transformation.
+	//	Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
+	//
+	//	Note: 'dest' must be a pointer because passing value does not work.
 	GboTransferViaJson(dest interface{}) error
 
-	/*
-		GboImportViaJson imports bo's data from an external source using JSON transformation.
-		Firstly, src is marshaled to JSON data. Then the JSON data is unmarshaled/imported to bo's attributes.
-	*/
+	// GboImportViaJson imports bo's data from an external source using JSON transformation.
+	// Firstly, src is marshaled to JSON data. Then the JSON data is unmarshaled/imported to bo's attributes.
 	GboImportViaJson(src interface{}) error
 }
 
-/*
-NewGenericBo constructs a new 'IGenericBo' instance.
-*/
+// NewGenericBo constructs a new 'IGenericBo' instance.
 func NewGenericBo() IGenericBo {
 	bo := &GenericBo{}
 	s := semita.NewSemita(bo.data)
@@ -184,6 +167,28 @@ GboGetAttrUnsafe implements IGenericBo.GboGetAttrUnsafe
 func (bo *GenericBo) GboGetAttrUnsafe(path string, typ reflect.Type) interface{} {
 	v, _ := bo.GboGetAttr(path, typ)
 	return v
+}
+
+/*
+GboGetAttrUnmarshalJson implements IGenericBo.GboGetAttrUnmarshalJson
+*/
+func (bo *GenericBo) GboGetAttrUnmarshalJson(path string) (interface{}, error) {
+	v, e := bo.GboGetAttr(path, nil)
+	if e != nil || v == nil {
+		return nil, e
+	}
+	var vj interface{}
+	switch v.(type) {
+	case []byte:
+		return vj, json.Unmarshal(v.([]byte), &vj)
+	case *[]byte:
+		return vj, json.Unmarshal(*v.(*[]byte), &vj)
+	case string:
+		return vj, json.Unmarshal([]byte(v.(string)), &vj)
+	case *string:
+		return vj, json.Unmarshal([]byte(*v.(*string)), &vj)
+	}
+	return nil, nil
 }
 
 /*

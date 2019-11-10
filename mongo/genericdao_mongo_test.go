@@ -205,7 +205,7 @@ func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOff(t *testing.T) {
 		t.Fatalf("%s failed - NumRows: %v / Error: %e", name, numRows, err)
 	}
 	bo.Version = bo.Version + 1
-	if numRows, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed - NumRows: %v / Error: %e", name, numRows, err)
 	}
 
@@ -233,7 +233,7 @@ func TestGenericDaoMongo_GdaoCreateTwiceGet_TxModeOn(t *testing.T) {
 		t.Fatalf("%s failed - NumRows: %v / Error: %e", name, numRows, err)
 	}
 	bo.Version = bo.Version + 1
-	if numRows, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed - NumRows: %v / Error: %e", name, numRows, err)
 	}
 
@@ -257,13 +257,13 @@ func TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOff(t *testing.T) {
 	for i := 0; i < numThreads; i++ {
 		wg.Add(1)
 		go func(threadNum int, bo *MyBo) {
+			defer wg.Done()
 			for j := 0; j < numLoopsPerThread; j++ {
-				if _, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil {
+				if _, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil && err != godal.GdaoErrorDuplicatedEntry {
 					t.Fatalf("%s failed - Thread: %v / Error: %e", name, threadNum, err)
 				}
 				bo.Version = bo.Version + 1
 			}
-			wg.Done()
 		}(i, &MyBo{
 			Id:       "1",
 			Username: "2",
@@ -292,13 +292,13 @@ func TestGenericDaoMongo_GdaoCreateMultiThreadsGet_TxModeOn(t *testing.T) {
 	for i := 0; i < numThreads; i++ {
 		wg.Add(1)
 		go func(threadNum int, bo *MyBo) {
+			defer wg.Done()
 			for j := 0; j < numLoopsPerThread; j++ {
-				if _, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil {
+				if _, err := dao.GdaoCreate(dao.collectionName, bo.ToGbo()); err != nil && err != godal.GdaoErrorDuplicatedEntry {
 					t.Fatalf("%s failed - Thread: %v / Error: %e", name, threadNum, err)
 				}
 				bo.Version = bo.Version + 1
 			}
-			wg.Done()
 		}(i, &MyBo{
 			Id:       "1",
 			Username: "2",

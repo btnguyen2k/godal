@@ -1,5 +1,5 @@
 /*
-Package mongo provides a generic implementation of godal.IGenericDao.
+Package mongo provides a generic MongoDB implementation of godal.IGenericDao.
 
 General guideline:
 
@@ -104,6 +104,8 @@ Guideline: Implement custom MongoDB business dao and bo
 	Since MongoDB is schema-less, GenericRowMapperMongo should be sufficient. NewGenericDaoMongo(...) creates a *GenericDaoMongo that uses GenericRowMapperMongo under-the-hood.
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
+
+To create prom.MongoConnect, see package github.com/btnguyen2k/prom
 */
 package mongo
 
@@ -295,24 +297,6 @@ Available: since v0.1.0
 func (dao *GenericDaoMongo) SetTxModeOnWrite(enabled bool) *GenericDaoMongo {
 	dao.txModeOnWrite = enabled
 	return dao
-}
-
-/*
-GetTransactionMode returns 'true' if transaction mode is enabled, 'false' otherwise.
-
-Deprecated: since v0.1.0 use GetTxModeOnWrite instead.
-*/
-func (dao *GenericDaoMongo) GetTransactionMode() bool {
-	return dao.GetTxModeOnWrite()
-}
-
-/*
-SetTransactionMode enables/disables transaction mode.
-
-Deprecated: since v0.1.0 use SetTxModeOnWrite instead.
-*/
-func (dao *GenericDaoMongo) SetTransactionMode(enabled bool) *GenericDaoMongo {
-	return dao.SetTxModeOnWrite(enabled)
 }
 
 /*

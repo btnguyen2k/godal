@@ -1,10 +1,17 @@
-# godal/mongo
+# godal/sql
 
-Generic [MongoDB](https://www.mongodb.com) DAO implementation.
+[![GoDoc](https://godoc.org/github.com/btnguyen2k/godal/sql?status.svg)](https://godoc.org/github.com/btnguyen2k/godal/sql)
 
-Examples: see directory [examples](../examples/).
+Generic [`database/sql`](https://golang.org/pkg/database/sql/) DAO implementation.
 
-Guideline:
+## Guideline
 
-- Must implement method `godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}`
-- If application uses its own BOs instead of `godal.IGenericBo`, it is recommended to implement a utility method to transform `godal.IGenericBo` to application's BO and vice versa.
+- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.`
+- Use `GenericDaoSql` (and `godal.IGenericBo`) directly:
+  - Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
+- Implement custom `database/sql` business dao and bo:
+  - Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`).
+  - Define functions to transform `godal.IGenericBo` to business bo and vice versa.
+- Optionally, create a helper function to create dao instances.
+
+**Examples**: see directory [examples](../examples/).

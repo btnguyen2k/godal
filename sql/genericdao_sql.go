@@ -1,9 +1,130 @@
+/*
+Package sql provides a generic 'database/sql' implementation of godal.IGenericDao.
+
+General guideline:
+
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+
+Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
+
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Optionally, create a helper function to create dao instances.
+
+	// Remember to import database driver. The following example uses MySQL hence driver "github.com/go-sql-driver/mysql".
+	import (
+		"github.com/btnguyen2k/godal"
+		"github.com/btnguyen2k/godal/sql"
+		"github.com/btnguyen2k/prom"
+		_ "github.com/go-sql-driver/mysql"
+	)
+
+	type myGenericDaoMysql struct {
+		*sql.GenericDaoSql
+	}
+
+	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
+	func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
+		return map[string]interface{}{fieldId: id}
+	}
+
+	func newGenericDaoMysql(sqlc *prom.SqlConnect, txModeOnWrite bool) godal.IGenericDao {
+		dao := &myGenericDaoMysql{}
+		dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
+		dao.SetTxModeOnWrite(txModeOnWrite).SetSqlFlavor(prom.FlavorMySql)
+		dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase})
+		return dao
+	}
+
+	In most cases, GenericRowMapperSql should be sufficient:
+
+		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
+		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
+		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator
+
+Guideline: Implement custom 'database/sql' business dao and bo
+
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Optionally, create a helper function to create dao instances.
+	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+
+	// Remember to import database driver. The following example uses MySQL hence driver "github.com/go-sql-driver/mysql".
+	import (
+		"github.com/btnguyen2k/godal"
+		"github.com/btnguyen2k/godal/sql"
+		"github.com/btnguyen2k/prom"
+		_ "github.com/go-sql-driver/mysql"
+	)
+
+	// BoApp defines business object app
+	type BoApp struct {
+		Id            string                 `json:"id"`
+		Description   string                 `json:"desc"`
+		Value         int                    `json:"val"`
+	}
+
+	func (app *BoApp) ToGbo() godal.IGenericBo {
+		gbo := godal.NewGenericBo()
+
+		// method 1: populate attributes one by one
+		gbo.GboSetAttr("id"  , app.Id)
+		gbo.GboSetAttr("desc", app.Description)
+		gbo.GboSetAttr("val" , app.Value)
+
+		// method 2: transfer all attributes at once
+		if err := gbo.GboImportViaJson(app); err!=nil {
+			panic(err)
+		}
+
+		return gbo
+	}
+
+	func NewBoAppFromGbo(gbo godal.IGenericBo) *BoApp {
+		app := BoApp{}
+
+		// method 1: populate attributes one by one
+		app.Id          = gbo.GboGetAttrUnsafe("id", reddo.TypeString).(string)
+		app.Description = gbo.GboGetAttrUnsafe("desc", reddo.TypeString).(string)
+		app.Value       = int(gbo.GboGetAttrUnsafe("val", reddo.TypeInt).(int64))
+
+		// method 2: transfer all attributes at once
+		if err := gbo.GboTransferViaJson(&app); err!=nil {
+			panic(err)
+		}
+
+		return &app
+	}
+
+	// DaoAppMysql is MySQL-implementation of business dao
+	type DaoAppMysql struct {
+		*sql.GenericDaoSql
+		tableName string
+	}
+
+	// NewDaoAppMysql is convenient method to create DaoAppMysql instances.
+	func NewDaoAppMysql(sqlc *prom.SqlConnect, taleName string, txModeOnWrite bool) *DaoAppMysql {
+		dao := &DaoAppMysql{tableName: taleName}
+		dao.GenericDaoSql = mongo.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
+		dao.SetTxModeOnWrite(txModeOnWrite).SetSqlFlavor(prom.FlavorMySql)
+		dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase})
+		return dao
+	}
+
+	In most cases, GenericRowMapperSql should be sufficient:
+
+		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
+		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
+		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator
+
+See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
+
+To create prom.SqlConnect, see package github.com/btnguyen2k/prom
+*/
 package sql
 
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/btnguyen2k/consu/reddo"
@@ -11,217 +132,7 @@ import (
 	"github.com/btnguyen2k/prom"
 	"reflect"
 	"regexp"
-	"strings"
-	"time"
 )
-
-var allColumns = []string{"*"}
-
-/*
-ColummNameTransformation specifies how database column name is transformed.
-*/
-type ColummNameTransformation int
-
-/*
-Predefined column name transformations
-*/
-const (
-	/*
-		ColNameTransIntact specifies that table column names are kept intact.
-	*/
-	ColNameTransIntact ColummNameTransformation = iota
-
-	/*
-		ColNameTransUpperCase specifies that table column names are upper-cased.
-	*/
-	ColNameTransUpperCase
-
-	/*
-		ColNameTransLowerCase specifies that table column names are lower-cased.
-	*/
-	ColNameTransLowerCase
-)
-
-/*
-GenericRowMapperSql is a generic implementation of godal.IRowMapper for 'database/sql'.
-
-Implementation rules:
-
-	- ToRow: transform godal.IGenericBo to map[string]interface{}.
-	  - Only top level fields are converted. Field names are transform according to 'ColNameTrans' setting.
-	  - If field is bool or string or time.Time: its value is converted as-is
-	  - If field is int, int32 or int64: its value is converted to int64
-	  - If field is uint, uint32 or uint64: its value is converted to uint64
-	  - If field is float32 or float64: its value is converted to float64
-	  - Field is one of other types: its value is converted to JSON string
-	- ToBo: expect input is a map[string]interface{}, transform it to godal.IGenericBo. Field names are transform according to 'ColNameTrans' setting.
-*/
-type GenericRowMapperSql struct {
-	/*
-		ColNameTrans specifies how field/column names are transformed. Default value: ColNameTransIntact
-	*/
-	ColNameTrans ColummNameTransformation
-
-	/*
-		ColumnsListMap holds mappings of {table-name:[list of column names]}
-	*/
-	ColumnsListMap map[string][]string
-}
-
-var typeTime = reflect.TypeOf(time.Time{})
-
-func (mapper *GenericRowMapperSql) transformColumnName(colName string) string {
-	if mapper.ColNameTrans == ColNameTransLowerCase {
-		return strings.ToLower(colName)
-	} else if mapper.ColNameTrans == ColNameTransUpperCase {
-		return strings.ToUpper(colName)
-	}
-	return colName
-}
-
-/*
-ToRow implements godal.IRowMapper.ToRow.
-This function transforms godal.IGenericBo to map[string]interface{}:
-
-	- Only top level fields are converted. Field names are transform according to 'ColNameTrans' setting.
-	- If field is bool or string or time.Time: its value is converted as-is
-	- If field is int, int32 or int64: its value is converted to int64
-	- If field is uint, uint32 or uint64: its value is converted to uint64
-	- If field is float32 or float64: its value is converted to float64
-	- Field is one of other types: its value is converted to JSON string
-*/
-func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo) (interface{}, error) {
-	if gbo == nil {
-		return nil, nil
-	}
-	var row = make(map[string]interface{})
-	var err error
-	gbo.GboIterate(func(kind reflect.Kind, field interface{}, value interface{}) {
-		if err != nil {
-			return
-		}
-		var k string
-		if k, err = reddo.ToString(field); err != nil {
-			return
-		} else {
-			k = mapper.transformColumnName(k)
-		}
-
-		v := reflect.ValueOf(value)
-		for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-		}
-		switch v.Kind() {
-		case reflect.Bool:
-			row[k] = v.Bool()
-		case reflect.String:
-			row[k] = v.String()
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			row[k] = v.Int()
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			row[k] = v.Uint()
-		case reflect.Float32, reflect.Float64:
-			row[k] = v.Float()
-		default:
-			if v.Type() == typeTime {
-				row[k] = v.Interface().(time.Time)
-			} else {
-				if js, e := json.Marshal(v.Interface()); e != nil {
-					err = e
-				} else {
-					row[k] = string(js)
-				}
-			}
-		}
-	})
-	return row, err
-}
-
-/*
-ToBo implements godal.IRowMapper.ToBo.
-This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo. Field names are transform according to 'ColNameTrans' setting.
-*/
-func (mapper *GenericRowMapperSql) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
-	if row == nil {
-		return nil, nil
-	}
-	switch row.(type) {
-	case map[string]interface{}:
-		bo := godal.NewGenericBo()
-		for k, v := range row.(map[string]interface{}) {
-			bo.GboSetAttr(mapper.transformColumnName(k), v)
-		}
-		return bo, nil
-	case string:
-		var data interface{}
-		json.Unmarshal([]byte(row.(string)), &data)
-		return mapper.ToBo(storageId, data)
-	case *string:
-		var data interface{}
-		json.Unmarshal([]byte(*row.(*string)), &data)
-		return mapper.ToBo(storageId, data)
-	case []byte:
-		var data interface{}
-		json.Unmarshal(row.([]byte), &data)
-		return mapper.ToBo(storageId, data)
-	case *[]byte:
-		var data interface{}
-		json.Unmarshal(*row.(*[]byte), &data)
-		return mapper.ToBo(storageId, data)
-	}
-
-	v := reflect.ValueOf(row)
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-	}
-	switch v.Kind() {
-	case reflect.Map:
-		bo := godal.NewGenericBo()
-		for iter := v.MapRange(); iter.Next(); {
-			key, _ := reddo.ToString(iter.Key().Interface())
-			bo.GboSetAttr(mapper.transformColumnName(key), iter.Value().Interface())
-		}
-		return bo, nil
-	case reflect.String:
-		var data interface{}
-		json.Unmarshal([]byte(v.Interface().(string)), &data)
-		return mapper.ToBo(storageId, data)
-	case reflect.Slice, reflect.Array:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			// input is []byte
-			zero := make([]byte, 0)
-			arr, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(zero))
-			if err != nil {
-				return nil, err
-			}
-			var data interface{}
-			json.Unmarshal(arr.([]byte), &data)
-			return mapper.ToBo(storageId, data)
-		}
-	}
-	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
-}
-
-/*
-ColumnsList implements godal.IRowMapper.ColumnsList.
-This function lookups column-list from a 'columns-list map', returns []string{"*"} if not found
-*/
-func (mapper *GenericRowMapperSql) ColumnsList(storageId string) []string {
-	if result, ok := mapper.ColumnsListMap[storageId]; ok {
-		return result
-	}
-	if result, ok := mapper.ColumnsListMap["*"]; ok {
-		return result
-	}
-	return allColumns
-}
-
-var (
-	/*
-		GenericRowMapperSqlInstance is a pre-created instance of GenericRowMapperSql that is ready to use.
-	*/
-	GenericRowMapperSqlInstance godal.IRowMapper = &GenericRowMapperSql{ColNameTrans: ColNameTransIntact, ColumnsListMap: nil}
-)
-
-/*----------------------------------------------------------------------*/
 
 /*
 NewGenericDaoSql constructs a new GenericDaoSql with 'txModeOnWrite=true'.
@@ -237,7 +148,7 @@ func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericD
 		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
 	}
 	if dao.GetRowMapper() == nil {
-		dao.SetRowMapper(GenericRowMapperSqlInstance)
+		dao.SetRowMapper(&GenericRowMapperSql{NameTransformation: NameTransfIntact})
 	}
 	return dao
 }
@@ -427,10 +338,10 @@ BuildFilter builds IFilter instance based on the following rules:
 	- Otherwise, return error
 */
 func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
-	if filter == nil {
+	v := reflect.ValueOf(filter)
+	if filter == nil || v.IsNil() {
 		return nil, nil
 	}
-	v := reflect.ValueOf(filter)
 	if v.Type().AssignableTo(ifilterType) {
 		return filter.(IFilter), nil
 	}
@@ -463,10 +374,10 @@ BuildOrdering builds elements for 'ORDER BY' clause, based on the following rule
 Available since v0.0.2
 */
 func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) {
-	if ordering == nil {
+	v := reflect.ValueOf(ordering)
+	if ordering == nil || v.IsNil() {
 		return nil, nil
 	}
-	v := reflect.ValueOf(ordering)
 	if v.Type().AssignableTo(isortingType) {
 		return ordering.(ISorting), nil
 	}
@@ -497,9 +408,18 @@ func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sqlStm str
 		ctx, _ = dao.sqlConnect.NewContext()
 	}
 	if tx != nil {
-		return tx.ExecContext(ctx, sqlStm, values...)
+		if pstm, err := tx.PrepareContext(ctx, sqlStm); err != nil {
+			return nil, err
+		} else {
+			return pstm.ExecContext(ctx, values...)
+		}
 	}
-	return dao.sqlConnect.GetDB().ExecContext(ctx, sqlStm, values...)
+	db := dao.sqlConnect.GetDB()
+	if pstm, err := db.PrepareContext(ctx, sqlStm); err != nil {
+		return nil, err
+	} else {
+		return pstm.ExecContext(ctx, values...)
+	}
 }
 
 /*
@@ -514,9 +434,18 @@ func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sqlStm strin
 		ctx, _ = dao.sqlConnect.NewContext()
 	}
 	if tx != nil {
-		return tx.QueryContext(ctx, sqlStm, values...)
+		if pstm, err := tx.PrepareContext(ctx, sqlStm); err != nil {
+			return nil, err
+		} else {
+			return pstm.QueryContext(ctx, values...)
+		}
 	}
-	return dao.sqlConnect.GetDB().QueryContext(ctx, sqlStm, values...)
+	db := dao.sqlConnect.GetDB()
+	if pstm, err := db.PrepareContext(ctx, sqlStm); err != nil {
+		return nil, err
+	} else {
+		return pstm.QueryContext(ctx, values...)
+	}
 }
 
 /*

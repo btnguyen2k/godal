@@ -54,7 +54,7 @@ func initDataOracle(sqlc *prom.SqlConnect, table string) {
 func createDaoOracle(sqlc *prom.SqlConnect, tableName string) *MyDaoOracle {
 	dao := &MyDaoOracle{tableName: tableName}
 	dao.GenericDaoSql = NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorOracle).SetRowMapper(&GenericRowMapperSql{ColNameTrans: ColNameTransLowerCase, ColumnsListMap: nil})
+	dao.SetSqlFlavor(prom.FlavorOracle).SetRowMapper(&GenericRowMapperSql{NameTransformation: NameTransfLowerCase, ColumnsListMap: nil})
 	return dao
 }
 

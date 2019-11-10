@@ -67,7 +67,7 @@ func (dao *DaoAppMongodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo
 
 // EnableTxMode implements IDaoApp.EnableTxMode
 func (dao *DaoAppMongodb) EnableTxMode(txMode bool) {
-    dao.SetTransactionMode(txMode)
+    dao.SetTxModeOnWrite(txMode)
 }
 
 // Delete implements IDaoApp.Delete
