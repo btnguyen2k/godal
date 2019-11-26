@@ -41,6 +41,7 @@ Implementation rules:
 	  - If field is float32 or float64: its value is converted to float64
 	  - Field is one of other types: its value is converted to JSON string
 	- ToBo: expect input is a map[string]interface{}, transform it to godal.IGenericBo. Column/Field names are transformed according to 'NameTransformation' setting and 'ColNameToGboFieldTranslator'
+	- ColumnsList: lookup column-list from a 'columns-list map', returns []string{"*"} if not found
 */
 type GenericRowMapperSql struct {
 	// NameTransformation specifies how field/column names are transformed. Default value: NameTransfIntact
@@ -158,7 +159,8 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo)
 //
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo. Field names are transform according to 'NameTransformation' setting.
 func (mapper *GenericRowMapperSql) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
-	if row == nil {
+	v := reflect.ValueOf(row)
+	if row == nil || v.IsNil() {
 		return nil, nil
 	}
 	switch row.(type) {
@@ -186,7 +188,6 @@ func (mapper *GenericRowMapperSql) ToBo(storageId string, row interface{}) (goda
 		return mapper.ToBo(storageId, data)
 	}
 
-	v := reflect.ValueOf(row)
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {

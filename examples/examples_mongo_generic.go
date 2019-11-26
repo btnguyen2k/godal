@@ -323,7 +323,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
+	loc, _ := time.LoadLocation(timeZone)
 	fmt.Println("Timezone:", loc)
 	collection := "apps"
 	fmt.Println("Collection:", collection)

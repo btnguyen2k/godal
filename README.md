@@ -9,11 +9,29 @@ Generic Database Access Layer implementation in Golang.
 
 - [GoDoc](https://godoc.org/github.com/btnguyen2k/godal)
 - [Examples](examples/)
+- [Generic AWS DynamoDB DAO](dynamodb/DYNAMODB.md)
 - [Generic MongoDB DAO](mongo/MONGO.md)
 - [Generic database/sql DAO](sql/SQL.md)
 
 
 ## History
+
+### 2019-11-25 - v0.2.0
+
+- New package [`dynamodb`](dynamodb/): provides a generic AWS DynamoDB implementation of `godal.IGenericDao`.
+- `GenericDaoSql`:
+  - Fix nil-pointer bug when passing `nil` filter/sorting.
+  - `SqlExecute()` and `SqlQuery()`: always use prepared statement (also fix a bug that int/float columns are returned as []byte)
+- `GenericRowMapperSql`:
+  - Add `GboFieldToColNameTranslator` and `ColNameToGboFieldTranslator`: define rules to translate column names to field names and vice versa.
+- *Breaking changes:*
+  - `ColummNameTransformation` renamed to `NameTransformation`
+  - Constants `ColNameTransIntact`, `ColNameTransUpperCase` and `ColNameTransLowerCase` renamed to `NameTransfIntact`, `NameTransfUpperCase` and `NameTransfLowerCase`.
+  - `GenericRowMapperSql.ColNameTrans` renamed to `NameTransformation`.
+- Update docs & dependency libs.
+- Removed deprecated functions.
+- Other fixes & enhancements.
+
 
 ### 2019-11-03 - v0.1.0
 

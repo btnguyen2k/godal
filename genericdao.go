@@ -56,7 +56,7 @@ type IGenericDao interface {
 
 	// GdaoCreate persists one BO to database store and returns the number of saved items.
 	//
-	// If the BO already existed, this function does not modify the existing one and should return (nil, GdaoErrorDuplicatedEntry)
+	// If the BO already existed, this function does not modify the existing one and should return (0, GdaoErrorDuplicatedEntry)
 	GdaoCreate(storageId string, bo IGenericBo) (int, error)
 
 	// GdaoUpdate updates one existing BO and returns the number of updated items.

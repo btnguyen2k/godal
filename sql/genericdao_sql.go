@@ -12,6 +12,7 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 
 	// Remember to import database driver. The following example uses MySQL hence driver "github.com/go-sql-driver/mysql".
 	import (
+		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
@@ -50,6 +51,7 @@ Guideline: Implement custom 'database/sql' business dao and bo
 
 	// Remember to import database driver. The following example uses MySQL hence driver "github.com/go-sql-driver/mysql".
 	import (
+		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
@@ -748,27 +750,6 @@ func (dao *GenericDaoSql) GdaoSave(storageId string, bo godal.IGenericBo) (int, 
 		numRows, err = dao.GdaoSaveWithTx(nil, nil, storageId, bo)
 	}
 	return numRows, err
-
-	// var tx *sql.Tx
-	// var err error
-	// defer func() {
-	// 	if tx != nil {
-	// 		if err != nil {
-	// 			tx.Rollback()
-	// 		} else {
-	// 			err = tx.Commit()
-	// 		}
-	// 	}
-	// }()
-	// var ctx context.Context
-	// if dao.txModeOnWrite {
-	// 	ctx, _ = dao.sqlConnect.NewContext()
-	// 	if tx, err = dao.sqlConnect.GetDB().BeginTx(ctx, &sql.TxOptions{Isolation: dao.txIsolationLevel}); err != nil {
-	// 		return 0, err
-	// 	}
-	// }
-	// numRows, err := dao.GdaoSaveWithTx(ctx, tx, storageId, bo)
-	// return numRows, err
 }
 
 /*
