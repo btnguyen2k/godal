@@ -2,6 +2,7 @@ package sql
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
 	"testing"
@@ -19,6 +20,114 @@ func TestGenericRowMapperSql_ColumnsList(t *testing.T) {
 	cols := rm.ColumnsList("dummy")
 	if cols == nil || len(cols) != 1 || cols[0] != "*" {
 		t.Fatalf("%s failed. StorageId: %s / Column list: %#v", name, "test", cols)
+	}
+}
+
+func testToBo(t *testing.T, name string, rowmapper godal.IRowMapper, table string, row interface{}) {
+	colA, colB, colC, col1, col2 := "cola", "ColB", "colC", "Col1", "coL2"
+	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
+
+	bo, err := rowmapper.ToBo(table, row)
+	if err != nil || bo == nil {
+		t.Fatalf("%s failed: %e / %v", name, err, bo)
+	}
+	if bo.GboGetAttrUnsafe(colA, reddo.TypeString) != valA ||
+		bo.GboGetAttrUnsafe(colB, reddo.TypeString) != valB ||
+		bo.GboGetAttrUnsafe(colC, reddo.TypeString) != nil ||
+		bo.GboGetAttrUnsafe(col1, reddo.TypeInt).(int64) != val1 ||
+		bo.GboGetAttrUnsafe(col2, reddo.TypeInt).(int64) != val2 {
+		t.Fatalf("%s failed, Row: %v - Bo: %v", name, row, bo)
+	}
+}
+
+func TestGenericRowMapperSql_ToBo(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBo"
+	table := "table"
+	colA, colB, col1, col2 := "cola", "ColB", "Col1", "coL2"
+	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
+	rowmapper := &GenericRowMapperSql{}
+
+	{
+		row := map[string]interface{}{colA: valA, colB: valB, col1: val1, col2: val2}
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		row := fmt.Sprintf(`{"%s": "%v", "%s": "%v", "%s": %v, "%s": %v}`, colA, valA, colB, valB, col1, val1, col2, val2)
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		row := []byte(fmt.Sprintf(`{"%s": "%v", "%s": "%v", "%s": %v, "%s": %v}`, colA, valA, colB, valB, col1, val1, col2, val2))
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		var row interface{} = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row *string = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row []byte = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row *[]byte = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
 	}
 }
 

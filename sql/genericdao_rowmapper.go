@@ -158,62 +158,79 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo)
 // ToBo implements godal.IRowMapper.ToBo.
 //
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo. Field names are transform according to 'NameTransformation' setting.
-func (mapper *GenericRowMapperSql) ToBo(storageId string, row interface{}) (godal.IGenericBo, error) {
-	v := reflect.ValueOf(row)
-	if row == nil || v.IsNil() {
+func (mapper *GenericRowMapperSql) ToBo(table string, row interface{}) (godal.IGenericBo, error) {
+	if row == nil {
 		return nil, nil
 	}
 	switch row.(type) {
 	case map[string]interface{}:
+		if row.(map[string]interface{}) == nil {
+			return nil, nil
+		}
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
-			bo.GboSetAttr(mapper.translateColNameToGboField(storageId, mapper.transformName(k)), v)
+			bo.GboSetAttr(mapper.translateColNameToGboField(table, mapper.transformName(k)), v)
 		}
 		return bo, nil
 	case string:
 		var data interface{}
 		json.Unmarshal([]byte(row.(string)), &data)
-		return mapper.ToBo(storageId, data)
+		return mapper.ToBo(table, data)
 	case *string:
+		if row.(*string) == nil {
+			return nil, nil
+		}
 		var data interface{}
 		json.Unmarshal([]byte(*row.(*string)), &data)
-		return mapper.ToBo(storageId, data)
+		return mapper.ToBo(table, data)
 	case []byte:
+		if row.([]byte) == nil {
+			return nil, nil
+		}
 		var data interface{}
 		json.Unmarshal(row.([]byte), &data)
-		return mapper.ToBo(storageId, data)
+		return mapper.ToBo(table, data)
 	case *[]byte:
-		var data interface{}
-		json.Unmarshal(*row.(*[]byte), &data)
-		return mapper.ToBo(storageId, data)
+		if row.(*[]byte) == nil {
+			return nil, nil
+		}
+		return mapper.ToBo(table, *row.(*[]byte))
 	}
 
+	v := reflect.ValueOf(row)
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {
 	case reflect.Map:
+		if v.IsNil() {
+			return nil, nil
+		}
 		bo := godal.NewGenericBo()
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
-			bo.GboSetAttr(mapper.translateColNameToGboField(storageId, mapper.transformName(key)), iter.Value().Interface())
+			bo.GboSetAttr(mapper.translateColNameToGboField(table, mapper.transformName(key)), iter.Value().Interface())
 		}
 		return bo, nil
 	case reflect.String:
 		var data interface{}
 		json.Unmarshal([]byte(v.Interface().(string)), &data)
-		return mapper.ToBo(storageId, data)
+		return mapper.ToBo(table, data)
 	case reflect.Slice, reflect.Array:
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			// input is []byte
 			zero := make([]byte, 0)
 			arr, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(zero))
-			if err != nil {
+			if err != nil || arr.([]byte) == nil || len(arr.([]byte)) == 0 {
 				return nil, err
 			}
 			var data interface{}
 			json.Unmarshal(arr.([]byte), &data)
-			return mapper.ToBo(storageId, data)
+			return mapper.ToBo(table, data)
 		}
+	case reflect.Interface:
+		return mapper.ToBo(table, v.Interface())
+	case reflect.Invalid:
+		return nil, nil
 	}
 	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
 }

@@ -145,6 +145,161 @@ func initDao() *MyDaoDynamodb {
 	return createDaoDynamodb(adc, tableName)
 }
 
+func TestGenericRowMapperDynamodb_ColumnsList(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ColumnsList"
+	table := "table"
+	colA, colB, colC := "cola", "ColB", "colC"
+	cols := []string{colA, colB, colC}
+	rowmapper := &GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{table: cols}}
+
+	colList := rowmapper.ColumnsList(table)
+	if len(colList) != 3 || colList[0] != colA || colList[1] != colB || colList[2] != colC {
+		t.Fatalf("%s failed, expect table [%s] has columns %#v but received %#v", name, table, []string{colA, colB, colC}, cols)
+	}
+
+	if rowmapper.ColumnsList("not_exists") != nil {
+		t.Fatalf("%s failed", table)
+	}
+}
+
+func testToBo(t *testing.T, name string, rowmapper godal.IRowMapper, table string, row interface{}) {
+	colA, colB, colC, col1, col2 := "cola", "ColB", "colC", "Col1", "coL2"
+	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
+
+	bo, err := rowmapper.ToBo(table, row)
+	if err != nil || bo == nil {
+		t.Fatalf("%s failed: %e / %v", name, err, bo)
+	}
+	if bo.GboGetAttrUnsafe(colA, reddo.TypeString) != valA ||
+		bo.GboGetAttrUnsafe(colB, reddo.TypeString) != valB ||
+		bo.GboGetAttrUnsafe(colC, reddo.TypeString) != nil ||
+		bo.GboGetAttrUnsafe(col1, reddo.TypeInt).(int64) != val1 ||
+		bo.GboGetAttrUnsafe(col2, reddo.TypeInt).(int64) != val2 {
+		t.Fatalf("%s failed, Row: %v - Bo: %v", name, row, bo)
+	}
+}
+
+func TestGenericRowMapperDynamodb_ToBo(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ToBo"
+	table := "table"
+	colA, colB, colC, col1, col2 := "cola", "ColB", "colC", "Col1", "coL2"
+	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
+	cols := []string{colA, colB, colC}
+	rowmapper := &GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{table: cols}}
+
+	{
+		row := map[string]interface{}{colA: valA, colB: valB, col1: val1, col2: val2}
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		row := fmt.Sprintf(`{"%s": "%v", "%s": "%v", "%s": %v, "%s": %v}`, colA, valA, colB, valB, col1, val1, col2, val2)
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		row := []byte(fmt.Sprintf(`{"%s": "%v", "%s": "%v", "%s": %v, "%s": %v}`, colA, valA, colB, valB, col1, val1, col2, val2))
+		testToBo(t, name, rowmapper, table, row)
+		testToBo(t, name, rowmapper, table, &row)
+		testToBo(t, name, rowmapper, table+"-not-exists", row)
+		row2 := &row
+		testToBo(t, name, rowmapper, table, &row2)
+	}
+
+	{
+		var row interface{} = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row *string = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row []byte = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+
+	{
+		var row *[]byte = nil
+		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+		row2 := &row
+		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
+			t.Fatalf("%s failed: %e / %v", name, err, bo)
+		}
+	}
+}
+
+func TestGenericRowMapperDynamodb_ToRow(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ToRow"
+	table := "table"
+	colA, colB, colC, col1, col2 := "cola", "ColB", "colC", "Col1", "coL2"
+	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
+	cols := []string{colA, colB, colC}
+	rowmapper := &GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{table: cols}}
+
+	{
+		bo := godal.NewGenericBo()
+		bo.GboSetAttr(colA, valA)
+		bo.GboSetAttr(colB, valB)
+		bo.GboSetAttr(col1, val1)
+		bo.GboSetAttr(col2, val2)
+
+		row, err := rowmapper.ToRow(table, bo)
+		if err != nil || row == nil {
+			t.Fatalf("%s failed: %e / %v", name, err, row)
+		}
+		if bo.GboGetAttrUnsafe(colA, reddo.TypeString) != valA ||
+			bo.GboGetAttrUnsafe(colB, reddo.TypeString) != valB ||
+			bo.GboGetAttrUnsafe(colC, reddo.TypeString) != nil ||
+			bo.GboGetAttrUnsafe(col1, reddo.TypeInt).(int64) != val1 ||
+			bo.GboGetAttrUnsafe(col2, reddo.TypeInt).(int64) != val2 {
+			t.Fatalf("%s failed, Row: %v - Bo: %v", name, row, bo)
+		}
+	}
+}
+
 func TestGenericDaoDynamodb_Empty(t *testing.T) {
 	name := "TestGenericDaoDynamodb_Empty"
 	dao := initDao()

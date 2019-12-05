@@ -16,6 +16,13 @@ Generic Database Access Layer implementation in Golang.
 
 ## History
 
+### 2019-12-04 - v0.2.1
+
+- More tests.
+- Bug fixes & enhancements.
+- Update docs & dependency libs.
+
+
 ### 2019-11-25 - v0.2.0
 
 - New package [`dynamodb`](dynamodb/): provides a generic AWS DynamoDB implementation of `godal.IGenericDao`.
