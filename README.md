@@ -16,6 +16,11 @@ Generic Database Access Layer implementation in Golang.
 
 ## History
 
+### 2019-12-08 - v0.2.1.1
+
+- Bug fixes.
+
+
 ### 2019-12-04 - v0.2.1
 
 - More tests.

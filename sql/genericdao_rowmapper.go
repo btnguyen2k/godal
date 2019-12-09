@@ -70,7 +70,7 @@ func (mapper *GenericRowMapperSql) transformName(name string) string {
 
 func (mapper *GenericRowMapperSql) translateGboFieldToColName(storageId, fieldName string) string {
 	mapping, ok := mapper.GboFieldToColNameTranslator[storageId]
-	if ok || mapping == nil {
+	if !ok || mapping == nil {
 		mapping, ok = mapper.GboFieldToColNameTranslator["*"]
 	}
 	if ok && mapping != nil {

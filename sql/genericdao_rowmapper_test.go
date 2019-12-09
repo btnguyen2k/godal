@@ -161,6 +161,30 @@ func TestGenericRowMapperSql_ToRow_Intact(t *testing.T) {
 		}
 	}
 
+	rm.GboFieldToColNameTranslator = map[string]map[string]interface{}{"table_name": {"ColA": "a", "colb": "b", "COLC": "c", "colD": "d"}}
+	{
+		row, err := rm.ToRow("table_name", gbo)
+		if err != nil || row == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		m, ok := row.(map[string]interface{})
+		if !ok || len(m) != 4 {
+			t.Fatalf("%s failed: row: %#v", name, row)
+		}
+		if v, e := reddo.ToInt(m["a"]); e != nil || v != 1 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "a", 1, m["a"])
+		}
+		if v, e := reddo.ToString(m["b"]); e != nil || v != "a string" {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "b", "a string", m["b"])
+		}
+		if v, e := reddo.ToFloat(m["c"]); e != nil || v != 2.3 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "c", 2.3, m["c"])
+		}
+		if v, e := reddo.ToBool(m["d"]); e != nil || v != true {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "d", true, m["d"])
+		}
+	}
+
 	rm.GboFieldToColNameTranslator = map[string]map[string]interface{}{"*": {"ColA": "a", "colb": "b", "COLC": "c", "colD": "d"}}
 	{
 		row, err := rm.ToRow("", gbo)
@@ -216,6 +240,30 @@ func TestGenericRowMapperSql_ToRow_LowerCase(t *testing.T) {
 		}
 	}
 
+	rm.GboFieldToColNameTranslator = map[string]map[string]interface{}{"table_name": {"cola": "a", "colb": "b", "colc": "c", "cold": "d"}}
+	{
+		row, err := rm.ToRow("table_name", gbo)
+		if err != nil || row == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		m, ok := row.(map[string]interface{})
+		if !ok || len(m) != 4 {
+			t.Fatalf("%s failed: row: %#v", name, row)
+		}
+		if v, e := reddo.ToInt(m["a"]); e != nil || v != 1 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "a", 1, m["a"])
+		}
+		if v, e := reddo.ToString(m["b"]); e != nil || v != "a string" {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "b", "a string", m["b"])
+		}
+		if v, e := reddo.ToFloat(m["c"]); e != nil || v != 2.3 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "c", 2.3, m["c"])
+		}
+		if v, e := reddo.ToBool(m["d"]); e != nil || v != true {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "d", true, m["d"])
+		}
+	}
+
 	rm.GboFieldToColNameTranslator = map[string]map[string]interface{}{"*": {"cola": "a", "colb": "b", "colc": "c", "cold": "d"}}
 	{
 		row, err := rm.ToRow("", gbo)
@@ -268,6 +316,30 @@ func TestGenericRowMapperSql_ToRow_UpperCase(t *testing.T) {
 		}
 		if v, e := reddo.ToBool(m["COLD"]); e != nil || v != true {
 			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "COLD", true, m["COLD"])
+		}
+	}
+
+	rm.GboFieldToColNameTranslator = map[string]map[string]interface{}{"table_name": {"COLA": "a", "COLB": "b", "COLC": "c", "COLD": "d"}}
+	{
+		row, err := rm.ToRow("table_name", gbo)
+		if err != nil || row == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		m, ok := row.(map[string]interface{})
+		if !ok || len(m) != 4 {
+			t.Fatalf("%s failed: row: %#v", name, row)
+		}
+		if v, e := reddo.ToInt(m["a"]); e != nil || v != 1 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "a", 1, m["a"])
+		}
+		if v, e := reddo.ToString(m["b"]); e != nil || v != "a string" {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "b", "a string", m["b"])
+		}
+		if v, e := reddo.ToFloat(m["c"]); e != nil || v != 2.3 {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "c", 2.3, m["c"])
+		}
+		if v, e := reddo.ToBool(m["d"]); e != nil || v != true {
+			t.Fatalf("%s failed: expected data[%s] to be %#v but received %#v", name, "d", true, m["d"])
 		}
 	}
 
