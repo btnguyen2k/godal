@@ -394,6 +394,26 @@ func TestGenericRowMapperSql_ToGbo_Intact(t *testing.T) {
 		}
 	}
 
+	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"table_name": {"ColA": "a", "colb": "b", "COLC": "c", "colD": "d"}}
+	{
+		gbo, err := rm.ToBo("table_name", row)
+		if err != nil || gbo == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		if v, e := gbo.GboGetAttr("a", reddo.TypeInt); e != nil || v.(int64) != 1 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "a", 1, v)
+		}
+		if v, e := gbo.GboGetAttr("b", reddo.TypeString); e != nil || v.(string) != "a string" {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "b", "a string", v)
+		}
+		if v, e := gbo.GboGetAttr("c", reddo.TypeFloat); e != nil || v.(float64) != 2.3 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "c", 2.3, v)
+		}
+		if v, e := gbo.GboGetAttr("d", reddo.TypeBool); e != nil || v.(bool) != true {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "d", true, v)
+		}
+	}
+
 	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"*": {"ColA": "a", "colb": "b", "COLC": "c", "colD": "d"}}
 	{
 		gbo, err := rm.ToBo("", row)
@@ -441,6 +461,26 @@ func TestGenericRowMapperSql_ToGbo_LowerCase(t *testing.T) {
 		}
 	}
 
+	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"table_name": {"cola": "a", "colb": "b", "colc": "c", "cold": "d"}}
+	{
+		gbo, err := rm.ToBo("table_name", row)
+		if err != nil || gbo == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		if v, e := gbo.GboGetAttr("a", reddo.TypeInt); e != nil || v.(int64) != 1 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "a", 1, v)
+		}
+		if v, e := gbo.GboGetAttr("b", reddo.TypeString); e != nil || v.(string) != "a string" {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "b", "a string", v)
+		}
+		if v, e := gbo.GboGetAttr("c", reddo.TypeFloat); e != nil || v.(float64) != 2.3 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "c", 2.3, v)
+		}
+		if v, e := gbo.GboGetAttr("d", reddo.TypeBool); e != nil || v.(bool) != true {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "d", true, v)
+		}
+	}
+
 	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"*": {"cola": "a", "colb": "b", "colc": "c", "cold": "d"}}
 	{
 		gbo, err := rm.ToBo("", row)
@@ -485,6 +525,26 @@ func TestGenericRowMapperSql_ToGbo_UpperCase(t *testing.T) {
 		}
 		if v, e := gbo.GboGetAttr("COLD", reddo.TypeBool); e != nil || v.(bool) != true {
 			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "COLD", true, v)
+		}
+	}
+	
+	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"table_name": {"COLA": "a", "COLB": "b", "COLC": "c", "COLD": "d"}}
+	{
+		gbo, err := rm.ToBo("table_name", row)
+		if err != nil || gbo == nil {
+			t.Fatalf("%s failed: error: %#v", name, err)
+		}
+		if v, e := gbo.GboGetAttr("a", reddo.TypeInt); e != nil || v.(int64) != 1 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "a", 1, v)
+		}
+		if v, e := gbo.GboGetAttr("b", reddo.TypeString); e != nil || v.(string) != "a string" {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "b", "a string", v)
+		}
+		if v, e := gbo.GboGetAttr("c", reddo.TypeFloat); e != nil || v.(float64) != 2.3 {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "c", 2.3, v)
+		}
+		if v, e := gbo.GboGetAttr("d", reddo.TypeBool); e != nil || v.(bool) != true {
+			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "d", true, v)
 		}
 	}
 
