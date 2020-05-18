@@ -19,6 +19,8 @@ Latest release [v0.2.3](RELEASE-NOTES.md).
   - Oracle
   - PostgreSQL
 
+See [examples](examples/).
+
 ## Installation
 
 ```go
@@ -28,7 +30,6 @@ go get github.com/btnguyen2k/godal
 ## Documentation
 
 - [GoDoc](https://godoc.org/github.com/btnguyen2k/godal)
-- [Examples](examples/)
 - [Generic AWS DynamoDB DAO](dynamodb/DYNAMODB.md)
 - [Generic MongoDB DAO](mongo/MONGO.md)
 - [Generic database/sql DAO](sql/SQL.md)
@@ -36,7 +37,7 @@ go get github.com/btnguyen2k/godal
 
 ## Contributing
 
-Use [Github issues](/btnguyen2k/godal/issues) for bug reports and feature requests.
+Use [Github issues](https://github.com/btnguyen2k/godal/issues) for bug reports and feature requests.
 
 Contribute by Pull Request:
 
