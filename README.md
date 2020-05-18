@@ -3,7 +3,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/btnguyen2k/godal)](https://goreportcard.com/report/github.com/btnguyen2k/godal)
 [![GoDoc](https://godoc.org/github.com/btnguyen2k/godal?status.svg)](https://pkg.go.dev/github.com/btnguyen2k/godal?tab=doc)
 
-Generic Database Access Layer implementation in Golang.
+Generic Database Access Layer library for Go (Golang).
 
 Latest release [v0.2.3](RELEASE-NOTES.md).
 
