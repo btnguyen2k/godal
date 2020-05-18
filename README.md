@@ -36,7 +36,7 @@ go get github.com/btnguyen2k/godal
 
 ## Contributing
 
-Use [Github issues](./issues) for bug reports and feature requests.
+Use [Github issues](/btnguyen2k/godal/issues) for bug reports and feature requests.
 
 Contribute by Pull Request:
 
