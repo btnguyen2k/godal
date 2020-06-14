@@ -31,7 +31,7 @@ IGenericDao defines API interface of a generic data-access-object.
 Sample usage: see #AbstractGenericDao for an abstract implementation of IGenericDao, and see samples of concrete implementations in folder examples/
 */
 type IGenericDao interface {
-	// GdaoCreateFilter creates a filter to match exactly a specific BO.
+	// GdaoCreateFilter creates a filter object to match exactly one specific BO.
 	GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
 
 	// GdaoDelete removes the specified BO from database store and returns the number of effected items.
@@ -67,7 +67,7 @@ type IGenericDao interface {
 
 	// GdaoSave persists one BO to database store and returns the number of saved items.
 	//
-	// If the BO already existed, this function replace the existing one; otherwise new BO is created.
+	// If the BO already existed, this function replaces the existing one; otherwise new BO is created.
 	// If data integrity violation occurs, this function should return (0, GdaoErrorDuplicatedEntry)
 	GdaoSave(storageId string, bo IGenericBo) (int, error)
 }
@@ -83,7 +83,7 @@ AbstractGenericDao is an abstract implementation of IGenericDao.
 Function implementations (n = No, y = Yes, i = inherited):
 
 	(n) GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
-	(y) GdaoDelete(storageId string, bo IGenericBo) (int, error)
+	(n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
 	(n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
 	(n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
 	(n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)

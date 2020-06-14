@@ -126,15 +126,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/prom"
-	"reflect"
-	"strconv"
-	"strings"
+
+	"github.com/btnguyen2k/godal"
 )
 
 /*
@@ -157,7 +159,7 @@ type GenericRowMapperDynamodb struct {
 ToRow implements godal.IRowMapper.ToRow.
 This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 */
-func (mapper *GenericRowMapperDynamodb) ToRow(table string, bo godal.IGenericBo) (interface{}, error) {
+func (mapper *GenericRowMapperDynamodb) ToRow(_ string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
 		return nil, nil
 	}
@@ -327,6 +329,9 @@ toConditionBuilder builds a ConditionBuilder from input.
 	- if input is a map: build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry
 */
 func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error) {
+	if input == nil {
+		return nil, nil
+	}
 	switch input.(type) {
 	case expression.ConditionBuilder:
 		result := input.(expression.ConditionBuilder)
@@ -335,9 +340,6 @@ func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error)
 		return input.(*expression.ConditionBuilder), nil
 	}
 	v := reflect.ValueOf(input)
-	if input == nil || v.IsNil() {
-		return nil, nil
-	}
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {
@@ -380,6 +382,9 @@ func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error)
 }
 
 func toMap(input interface{}) (map[string]interface{}, error) {
+	if input == nil {
+		return nil, nil
+	}
 	switch input.(type) {
 	case map[string]interface{}:
 		return input.(map[string]interface{}), nil
@@ -387,9 +392,6 @@ func toMap(input interface{}) (map[string]interface{}, error) {
 		return *input.(*map[string]interface{}), nil
 	}
 	v := reflect.ValueOf(input)
-	if input == nil || v.IsNil() {
-		return nil, nil
-	}
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	switch v.Kind() {
@@ -430,8 +432,16 @@ func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table stri
 	if keyFilter, err := toMap(dao.GdaoCreateFilter(table, bo)); err != nil {
 		return 0, err
 	} else {
-		_, err := dao.dynamodbConnect.DeleteItem(ctx, table, keyFilter, nil)
-		return 1, err
+		if deleteInput, err := dao.dynamodbConnect.BuildDeleteItemInput(table, keyFilter, nil); err != nil {
+			return 0, err
+		} else {
+			deleteResult, err := dao.dynamodbConnect.DeleteItemWithInput(ctx, deleteInput.SetReturnValues("ALL_OLD"))
+			numRows := 0
+			if deleteResult != nil && deleteResult.Attributes != nil {
+				numRows = 1
+			}
+			return numRows, err
+		}
 	}
 }
 
@@ -591,8 +601,8 @@ func (dao *GenericDaoDynamodb) GdaoCreateWithContext(ctx aws.Context, table stri
 	if item, err := dao.GetRowMapper().ToRow(table, bo); err != nil {
 		return 0, err
 	} else {
-		_, err := dao.dynamodbConnect.PutItemIfNotExist(ctx, table, item, pkAttrs)
-		if prom.IsAwsError(err, dynamodb.ErrCodeConditionalCheckFailedException) {
+		createResult, err := dao.dynamodbConnect.PutItemIfNotExist(ctx, table, item, pkAttrs)
+		if prom.IsAwsError(err, dynamodb.ErrCodeConditionalCheckFailedException) || createResult == nil {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 1, err

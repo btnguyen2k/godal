@@ -2,17 +2,28 @@ package godal
 
 import (
 	"encoding/json"
-	"github.com/btnguyen2k/consu/checksum"
-	"github.com/btnguyen2k/consu/semita"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/btnguyen2k/consu/checksum"
+	"github.com/btnguyen2k/consu/semita"
 )
+
+// Available: since v0.2.4
+type nilValue []byte
+
+/*
+NilValue represents a nil/null value.
+
+Available: since v0.2.4
+*/
+var NilValue nilValue = nil
 
 /*
 IGenericBo defines API interface of a generic business object.
 
-The API interface assume bo's data is stored in a hierarchy structure.
+The API interface assumes bo's data is stored in a hierarchy structure.
 A bo's attribute value is at the leaf node, and located via a 'path', for example "options.workhour[0].value"
 
 Sample usage: see #GenericBo
@@ -31,7 +42,7 @@ type IGenericBo interface {
 	// Available: since v0.0.2
 	GboGetAttrUnsafe(path string, typ reflect.Type) interface{}
 
-	// GboGetAttrUnmarshalJson retries a bo's attribute, treats attribute value as JSON-encoded and parses it back to Go type.
+	// GboGetAttrUnmarshalJson retrieves a bo's attribute, treats attribute value as JSON-encoded and parses it back to Go type.
 	//
 	// Available: since v0.2.0
 	GboGetAttrUnmarshalJson(path string) (interface{}, error)
@@ -55,10 +66,10 @@ type IGenericBo interface {
 	// GboFromJson imports bo's data from a JSON string.
 	GboFromJson(js []byte) error
 
-	// GboTransferViaJson transfers bo's attributes to the destination using JSON transformation.
-	//	Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
+	// GboTransferViaJson copies bo's data to the destination using JSON transformation.
+	// Firstly, bo's data is marshaled to JSON data. Then the JSON data is unmarshaled to 'dest'.
 	//
-	//	Note: 'dest' must be a pointer because passing value does not work.
+	// Note: 'dest' must be a pointer because passing value does not work.
 	GboTransferViaJson(dest interface{}) error
 
 	// GboImportViaJson imports bo's data from an external source using JSON transformation.
@@ -135,12 +146,12 @@ func (bo *GenericBo) GboIterate(callback func(kind reflect.Kind, field interface
 		v = v.Elem()
 	}
 	if v.Kind() == reflect.Map {
-		for iter := v.MapRange(); iter.Next(); callback(reflect.Map, iter.Key(), iter.Value().Interface()) {
+		for iter := v.MapRange(); iter.Next(); callback(reflect.Map, iter.Key().Interface(), iter.Value().Interface()) {
 		}
 	}
 	if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
-		for i := 0; i < v.Len(); i++ {
-			callback(reflect.Map, i, v.Index(i).Interface())
+		for i, n := 0, v.Len(); i < n; i++ {
+			callback(reflect.Slice, i, v.Index(i).Interface())
 		}
 	}
 }
