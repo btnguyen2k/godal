@@ -1,157 +1,155 @@
 package sql
 
 import (
-	"database/sql"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
+	"os"
+	"testing"
+
 	"github.com/btnguyen2k/prom"
 	_ "github.com/denisenkom/go-mssqldb"
-	"testing"
-	"time"
 )
 
-func createMssqlConnect() *prom.SqlConnect {
-	driver := "sqlserver"
-	dsn := "sqlserver://test:Test1Test1@localhost:1433?database=tempdb"
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
-	if sqlConnect == nil || err != nil {
-		if err != nil {
-			fmt.Println("Error:", err)
-		}
-		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
-		}
-	}
-	loc, _ := time.LoadLocation(timeZone)
-	sqlConnect.SetLocation(loc)
-	return sqlConnect
-}
-
-func initDataMssql(sqlc *prom.SqlConnect, table string) {
+func prepareTableMssql(sqlc *prom.SqlConnect, table string) error {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
-		panic(err)
+		return err
 	}
-	sql = fmt.Sprintf("CREATE TABLE %s (id NVARCHAR(64), username NVARCHAR(64), data NTEXT, PRIMARY KEY (id))", table)
+	sql = fmt.Sprintf("CREATE TABLE %s (%s NVARCHAR(64), %s NVARCHAR(64), %s NTEXT, PRIMARY KEY (%s))", table, colSqlId, colSqlUsername, colSqlData, colSqlId)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
-		panic(err)
+		return err
 	}
-	sql = fmt.Sprintf("CREATE UNIQUE INDEX uidx_%s_username ON %s(username)", table, table)
+	sql = fmt.Sprintf("CREATE UNIQUE INDEX uidx_%s_username ON %s(%s)", table, table, colSqlUsername)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
-		panic(err)
+		return err
+	}
+	return nil
+}
+
+/*---------------------------------------------------------------*/
+
+const (
+	envMssqlDriver = "MSSQL_DRIVER"
+	envMssqlUrl    = "MSSQL_URL"
+)
+
+func TestGenericDaoMssql_SetGetSqlConnect(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_SetGetSqlConnect"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+
+	sqlc, _ := newSqlConnect(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTimeZone, prom.FlavorMsSql)
+	if sqlc == dao.GetSqlConnect() {
+		t.Fatalf("%s failed: should not equal", name)
+	}
+	dao.SetSqlConnect(sqlc)
+	if sqlc != dao.GetSqlConnect() {
+		t.Fatalf("%s failed: should equal", name)
 	}
 }
 
-func createDaoMssql(sqlc *prom.SqlConnect, tableName string) *MyDaoMssql {
-	dao := &MyDaoMssql{tableName: tableName}
-	dao.GenericDaoSql = NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorMsSql).SetRowMapper(&MyRowMapperSql{})
-	return dao
+func TestGenericDaoMssql_GdaoDelete(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoSql_GdaoDelete"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoDelete(t, name, dao)
 }
 
-type MyDaoMssql struct {
-	*GenericDaoSql
-	tableName string
+func TestGenericDaoMssql_GdaoDeleteMany(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoDeleteMany"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoDeleteMany(t, name, dao)
 }
 
-// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *MyDaoMssql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{colId: bo.GboGetAttrUnsafe(fieldGboId, reddo.TypeString)}
+func TestGenericDaoMssql_GdaoFetchOne(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoDeleteMany"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoFetchOne(t, name, dao)
 }
 
-// /*----------------------------------------------------------------------*/
-func initDaoMssql() *MyDaoMssql {
-	sqlc := createMssqlConnect()
-	initDataMssql(sqlc, tableName)
-	return createDaoMssql(sqlc, tableName)
+func TestGenericDaoMssql_GdaoFetchMany(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoFetchMany"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoFetchMany(t, name, dao)
 }
 
-func TestGenericDaoMssql_Empty(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_Empty(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateDuplicated(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateDuplicated(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateGet(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateGet(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateTwiceGet(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateTwiceGet(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateMultiThreadsGet(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateMultiThreadsGet(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateDelete(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateDelete(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateDeleteAll(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateDeleteAll(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoCreateDeleteMany(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoCreateDeleteMany(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoFetchAllWithSorting(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoFetchAllWithSorting(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoFetchManyWithPaging(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoFetchManyWithPaging(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoUpdateNotExist(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoUpdateNotExist(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoUpdateDuplicated(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoUpdateDuplicated(dao, dao.tableName, t)
+func TestGenericDaoMssql_GdaoCreate(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoCreate"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoCreate(t, name, dao)
 }
 
 func TestGenericDaoMssql_GdaoUpdate(t *testing.T) {
-	dao := initDaoMssql()
-	testGenericDao_GdaoUpdate(dao, dao.tableName, t)
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoUpdate"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoUpdate(t, name, dao)
 }
 
-func TestGenericDaoMssql_GdaoSaveDuplicated_TxModeOff(t *testing.T) {
-	dao := initDaoMssql()
-	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(sql.LevelDefault)
-	testGenericDao_GdaoSaveDuplicated_TxModeOff(dao, dao.tableName, t)
+func TestGenericDaoMssql_GdaoSave(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoSave"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dotestGenericDaoSql_GdaoSave(t, name, dao)
 }
 
-func TestGenericDaoMssql_GdaoSaveDuplicated_TxModeOn(t *testing.T) {
-	dao := initDaoMssql()
-	dao.SetTxModeOnWrite(true).SetTxIsolationLevel(sql.LevelDefault)
-	testGenericDao_GdaoSaveDuplicated_TxModeOn(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoSave_TxModeOff(t *testing.T) {
-	dao := initDaoMssql()
-	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(sql.LevelDefault)
-	testGenericDao_GdaoSave_TxModeOff(dao, dao.tableName, t)
-}
-
-func TestGenericDaoMssql_GdaoSave_TxModeOn(t *testing.T) {
-	dao := initDaoMssql()
-	dao.SetTxModeOnWrite(true).SetTxIsolationLevel(sql.LevelDefault)
-	testGenericDao_GdaoSave_TxModeOn(dao, dao.tableName, t)
+func TestGenericDaoMssql_GdaoSaveTxModeOnWrite(t *testing.T) {
+	if os.Getenv(envMssqlDriver) == "" || os.Getenv(envMssqlUrl) == "" {
+		return
+	}
+	name := "TestGenericDaoMssql_GdaoSaveTxModeOnWrite"
+	dao := initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+	}
+	dao.SetTxModeOnWrite(true)
+	dotestGenericDaoSql_GdaoSave(t, name, dao)
 }

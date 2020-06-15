@@ -2,10 +2,11 @@ package sql
 
 import (
 	"fmt"
-	"github.com/btnguyen2k/prom"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/btnguyen2k/prom"
 )
 
 /*

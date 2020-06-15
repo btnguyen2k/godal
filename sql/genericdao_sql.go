@@ -129,11 +129,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/prom"
 	"reflect"
 	"regexp"
+
+	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/prom"
+
+	"github.com/btnguyen2k/godal"
 )
 
 /*
@@ -221,26 +223,6 @@ func (dao *GenericDaoSql) SetSqlFlavor(sqlFlavor prom.DbFlavor) *GenericDaoSql {
 	case prom.FlavorDefault:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorQuestion
 	}
-	return dao
-}
-
-/*
-GetTransactionMode returns transaction mode settings.
-
-Deprecated: since v0.1.0 use GetTxIsolationLevel/GetTxModeOnWrite instead.
-*/
-func (dao *GenericDaoSql) GetTransactionMode() (bool, sql.IsolationLevel) {
-	return dao.txModeOnWrite, dao.txIsolationLevel
-}
-
-/*
-SetTransactionMode enables/disables transaction mode.
-
-Deprecated: since v0.1.0 use SetTxIsolationLevel/SetTxModeOnWrite instead.
-*/
-func (dao *GenericDaoSql) SetTransactionMode(enabled bool, txIsolationLevel sql.IsolationLevel) *GenericDaoSql {
-	dao.txModeOnWrite = enabled
-	dao.txIsolationLevel = txIsolationLevel
 	return dao
 }
 
@@ -340,10 +322,10 @@ BuildFilter builds IFilter instance based on the following rules:
 	- Otherwise, return error
 */
 func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
-	v := reflect.ValueOf(filter)
-	if filter == nil || v.IsNil() {
+	if filter == nil {
 		return nil, nil
 	}
+	v := reflect.ValueOf(filter)
 	if v.Type().AssignableTo(ifilterType) {
 		return filter.(IFilter), nil
 	}
