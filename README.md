@@ -5,7 +5,7 @@
 
 Generic Database Access Layer library for Go (Golang).
 
-Latest release [v0.2.3](RELEASE-NOTES.md).
+Latest release [v0.2.4](RELEASE-NOTES.md).
 
 ## Feature overview
 

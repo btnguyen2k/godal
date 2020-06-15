@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -12,6 +13,7 @@ import (
 	"github.com/btnguyen2k/godal/dynamodb"
 )
 
+// convenient function to create prom.AwsDynamodbConnect instance
 func createAwsDynamodbConnect(region string) *prom.AwsDynamodbConnect {
 	// AWS credentials are provided via environment variables
 	cfg := &aws.Config{
@@ -26,35 +28,40 @@ func createAwsDynamodbConnect(region string) *prom.AwsDynamodbConnect {
 	return adc
 }
 
-func createUserDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string, rowMapper godal.IRowMapper) *UserDaoDynamodb {
-	dao := &UserDaoDynamodb{tableName: tableName}
+// convenient function to create MyGenericDaoDynamodb instance
+func createMyGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+	dao := &MyGenericDaoDynamodb{}
 	dao.GenericDaoDynamodb = dynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
 	return dao
 }
 
-const tableUser = "tbl_user"
-const fieldUserId = "id"
+const (
+	tableUser         = "test_user"
+	fieldUserId       = "id"
+	fieldUserUsername = "username"
+	fieldUserName     = "name"
+	fieldUserVersion  = "version"
+	fieldUserActived  = "actived"
+)
 
-type UserBo struct {
-	Id       string `json:"id"`
-	Username string `json:"username"`
-	Name     string `json:"name"`
-	Version  int    `json:"version"`
-	Actived  int    `json:"actived"`
-}
-
-// UserDaoDynamodb is DAO for UserBo
-type UserDaoDynamodb struct {
+type MyGenericDaoDynamodb struct {
 	*dynamodb.GenericDaoDynamodb
-	tableName string
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *UserDaoDynamodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{
-		fieldUserId: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString),
+func (dao *MyGenericDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
+	if tableName == tableUser {
+		// should match all primary keys
+		return map[string]interface{}{
+			fieldUserId: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString),
+		}
 	}
+
+	// primary key filtering for other database tables
+	// ...
+
+	return nil
 }
 
 func main() {
@@ -68,8 +75,49 @@ func main() {
 		},
 	}
 
-	// create new UserDaoDynamodb
-	daoUser := createUserDaoDynamodb(adc, tableUser, rowMapper)
+	// create new MyGenericDaoDynamodb
+	myDao := createMyGenericDaoDynamodb(adc, rowMapper)
 
-	fmt.Println(daoUser)
+	bo := godal.NewGenericBo()
+	bo.GboSetAttr(fieldUserId, "1")
+	bo.GboSetAttr(fieldUserUsername, "btnguyen2k")
+	bo.GboSetAttr(fieldUserName, "Nguyễn Bá Thành")
+	bo.GboSetAttr(fieldUserVersion, time.Now().Unix())
+	bo.GboSetAttr(fieldUserActived, true)
+
+	{
+		// CREATE
+		_, err := myDao.GdaoCreate(tableUser, bo)
+		fmt.Printf("Creating user [%s]...: %e\n", bo.GboToJsonUnsafe(), err)
+	}
+
+	{
+		// READ
+		filterBo := godal.NewGenericBo()
+		filterBo.GboSetAttr(fieldUserId, "1")
+		myBo, err := myDao.GdaoFetchOne(tableUser, myDao.GdaoCreateFilter(tableUser, filterBo))
+		fmt.Printf("Fetched user [%s]: %e\n", myBo.GboToJsonUnsafe(), err)
+	}
+
+	{
+		fmt.Scanln()
+
+		// UPDATE
+		bo.GboSetAttr(fieldUserVersion, godal.NilValue)
+		bo.GboSetAttr("new_field", "a value")
+		bo.GboSetAttr(fieldUserActived, false)
+		_, err := myDao.GdaoUpdate(tableUser, bo)
+		fmt.Printf("Updated user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
+		fmt.Scanln()
+
+		_, err = myDao.GdaoSave(tableUser, bo)
+		fmt.Printf("Saved user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
+		fmt.Scanln()
+	}
+
+	{
+		// DELETE
+		_, err := myDao.GdaoDelete(tableUser, bo)
+		fmt.Printf("Deleted user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
+	}
 }

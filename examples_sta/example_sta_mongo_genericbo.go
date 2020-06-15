@@ -4,79 +4,67 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/dynamodb"
+	"github.com/btnguyen2k/godal/mongo"
 )
 
-// convenient function to create prom.AwsDynamodbConnect instance
-func createAwsDynamodbConnect(region string) *prom.AwsDynamodbConnect {
-	// AWS credentials are provided via environment variables
-	cfg := &aws.Config{
-		Region:      aws.String(region),
-		Credentials: credentials.NewEnvCredentials(),
-	}
+// convenient function to create prom.MongoConnect instance
+func createMongoConnect(url, db string) *prom.MongoConnect {
 	timeoutMs := 10000
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, timeoutMs)
+	mgc, err := prom.NewMongoConnect(url, db, timeoutMs)
 	if err != nil {
 		panic(err)
 	}
-	return adc
+	return mgc
 }
 
-// convenient function to create MyGenericDaoDynamodb instance
-func createMyGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
-	dao := &MyGenericDaoDynamodb{}
-	dao.GenericDaoDynamodb = dynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+// convenient function to create MyGenericDaoMongo instance
+func createMyGenericDaoMongo(mgc *prom.MongoConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+	dao := &MyGenericDaoMongo{}
+	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mgc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
 	return dao
 }
 
 const (
-	tableUser         = "test_user"
-	fieldUserId       = "id"
+	collectionUser    = "test_user"
+	fieldUserId       = "_id"
 	fieldUserUsername = "username"
 	fieldUserName     = "name"
 	fieldUserVersion  = "version"
 	fieldUserActived  = "actived"
 )
 
-type MyGenericDaoDynamodb struct {
-	*dynamodb.GenericDaoDynamodb
+type MyGenericDaoMongo struct {
+	*mongo.GenericDaoMongo
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *MyGenericDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
-	if tableName == tableUser {
-		// should match all primary keys
+func (dao *MyGenericDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) interface{} {
+	if collectionName == collectionUser {
+		// should match row id or unique index
 		return map[string]interface{}{
 			fieldUserId: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString),
 		}
 	}
 
-	// primary key filtering for other database tables
+	// id/unique index filtering for other collections
 	// ...
 
 	return nil
 }
 
 func main() {
-	// create new prom.AwsDynamodbConnect connecting to SouthEast region
-	adc := createAwsDynamodbConnect("ap-southeast-1")
+	// create new prom.MongoConnect
+	mgc := createMongoConnect("mongodb://test:test@localhost:27017/test", "test")
 
-	rowMapper := &dynamodb.GenericRowMapperDynamodb{
-		ColumnsListMap: map[string][]string{
-			tableUser: {fieldUserId}, // primary keys of tableUser or UserBo
-			// column lists for other BOs/tables
-		},
-	}
+	rowMapper := mongo.GenericRowMapperMongoInstance
 
-	// create new MyGenericDaoDynamodb
-	myDao := createMyGenericDaoDynamodb(adc, rowMapper)
+	// create new MyGenericDaoMongo
+	myDao := createMyGenericDaoMongo(mgc, rowMapper)
 
 	bo := godal.NewGenericBo()
 	bo.GboSetAttr(fieldUserId, "1")
@@ -87,7 +75,7 @@ func main() {
 
 	{
 		// CREATE
-		_, err := myDao.GdaoCreate(tableUser, bo)
+		_, err := myDao.GdaoCreate(collectionUser, bo)
 		fmt.Printf("Creating user [%s]...: %e\n", bo.GboToJsonUnsafe(), err)
 	}
 
@@ -95,7 +83,7 @@ func main() {
 		// READ
 		filterBo := godal.NewGenericBo()
 		filterBo.GboSetAttr(fieldUserId, "1")
-		myBo, err := myDao.GdaoFetchOne(tableUser, myDao.GdaoCreateFilter(tableUser, filterBo))
+		myBo, err := myDao.GdaoFetchOne(collectionUser, myDao.GdaoCreateFilter(collectionUser, filterBo))
 		fmt.Printf("Fetched user [%s]: %e\n", myBo.GboToJsonUnsafe(), err)
 	}
 
@@ -104,16 +92,16 @@ func main() {
 		bo.GboSetAttr(fieldUserVersion, nil)
 		bo.GboSetAttr("new_field", "a value")
 		bo.GboSetAttr(fieldUserActived, false)
-		_, err := myDao.GdaoUpdate(tableUser, bo)
+		_, err := myDao.GdaoUpdate(collectionUser, bo)
 		fmt.Printf("Updated user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
 
-		_, err = myDao.GdaoSave(tableUser, bo)
+		_, err = myDao.GdaoSave(collectionUser, bo)
 		fmt.Printf("Saved user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
 	}
 
 	{
 		// DELETE
-		_, err := myDao.GdaoDelete(tableUser, bo)
+		_, err := myDao.GdaoDelete(collectionUser, bo)
 		fmt.Printf("Deleted user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
 	}
 }

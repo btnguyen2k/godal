@@ -4,41 +4,34 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/dynamodb"
+	"github.com/btnguyen2k/godal/mongo"
 )
 
-// convenient function to create prom.AwsDynamodbConnect instance
-func createAwsDynamodbConnect(region string) *prom.AwsDynamodbConnect {
-	// AWS credentials are provided via environment variables
-	cfg := &aws.Config{
-		Region:      aws.String(region),
-		Credentials: credentials.NewEnvCredentials(),
-	}
+// convenient function to create prom.MongoConnect instance
+func createMongoConnect(url, db string) *prom.MongoConnect {
 	timeoutMs := 10000
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, timeoutMs)
+	mgc, err := prom.NewMongoConnect(url, db, timeoutMs)
 	if err != nil {
 		panic(err)
 	}
-	return adc
+	return mgc
 }
 
-// convenient function to create UserDaoDynamodb instance
-func createUserDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string, rowMapper godal.IRowMapper) IUserDao {
-	dao := &UserDaoDynamodb{tableName: tableName}
-	dao.GenericDaoDynamodb = dynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+// convenient function to create UserDaoMongo instance
+func createUserDaoMongo(mgc *prom.MongoConnect, collectionName string, rowMapper godal.IRowMapper) IUserDao {
+	dao := &UserDaoMongo{collectionName: collectionName}
+	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mgc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
 	return dao
 }
 
 const (
-	tableUser         = "test_user"
-	fieldUserId       = "id"
+	collectionUser    = "test_user"
+	fieldUserId       = "_id"
 	fieldUserUsername = "username"
 	fieldUserName     = "name"
 	fieldUserVersion  = "version"
@@ -47,7 +40,7 @@ const (
 
 // UserBo is a custom BO that encapsulates an application user object
 type UserBo struct {
-	Id       string `json:"id"`
+	Id       string `json:"_id"`
 	Username string `json:"username"`
 	Name     string `json:"name"`
 	Version  int    `json:"version"`
@@ -63,14 +56,14 @@ type IUserDao interface {
 	Delete(bo *UserBo) (bool, error)
 }
 
-// UserDaoDynamodb is AWS DynamoDB implementation of IUserDao
-type UserDaoDynamodb struct {
-	*dynamodb.GenericDaoDynamodb
-	tableName string
+// UserDaoMongo is MongoDB implementation of IUserDao
+type UserDaoMongo struct {
+	*mongo.GenericDaoMongo
+	collectionName string
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *UserDaoDynamodb) GdaoCreateFilter(_ string, bo godal.IGenericBo) interface{} {
+func (dao *UserDaoMongo) GdaoCreateFilter(_ string, bo godal.IGenericBo) interface{} {
 	return map[string]interface{}{
 		fieldUserId: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString),
 	}
@@ -78,7 +71,7 @@ func (dao *UserDaoDynamodb) GdaoCreateFilter(_ string, bo godal.IGenericBo) inte
 
 // toGbo converts a UserBo to godal.IGenericBo
 // (*) it is recommended that DAO provides method to convert BO to IGenericBo
-func (dao *UserDaoDynamodb) toGbo(bo *UserBo) godal.IGenericBo {
+func (dao *UserDaoMongo) toGbo(bo *UserBo) godal.IGenericBo {
 	if bo == nil {
 		return nil
 	}
@@ -99,13 +92,13 @@ func (dao *UserDaoDynamodb) toGbo(bo *UserBo) godal.IGenericBo {
 
 // toBo converts a godal.IGenericBo to UserBo
 // (*) it is recommended that DAO provides method to convert IGenericBo to BO
-func (dao *UserDaoDynamodb) toBo(gbo godal.IGenericBo) *UserBo {
+func (dao *UserDaoMongo) toBo(gbo godal.IGenericBo) *UserBo {
 	if gbo == nil {
 		return nil
 	}
 	bo := UserBo{}
 
-	bo.Id = gbo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString).(string)             // assume field "id" is not nil
+	bo.Id = gbo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString).(string)             // assume field "_id" is not nil
 	bo.Username = gbo.GboGetAttrUnsafe(fieldUserUsername, reddo.TypeString).(string) // assume field "username" is not nil
 	bo.Name = gbo.GboGetAttrUnsafe(fieldUserName, reddo.TypeString).(string)         // assume field "name" is not nil
 	bo.Version = int(gbo.GboGetAttrUnsafe(fieldUserVersion, reddo.TypeInt).(int64))  // assume field "version" is not nil
@@ -120,50 +113,45 @@ func (dao *UserDaoDynamodb) toBo(gbo godal.IGenericBo) *UserBo {
 }
 
 // Create implements IUserDao.Create
-func (dao *UserDaoDynamodb) Create(bo *UserBo) (bool, error) {
-	numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(bo))
+func (dao *UserDaoMongo) Create(bo *UserBo) (bool, error) {
+	numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(bo))
 	return numRows > 0, err
 }
 
 // Get implements IUserDao.Get
-func (dao *UserDaoDynamodb) Get(id string) (*UserBo, error) {
+func (dao *UserDaoMongo) Get(id string) (*UserBo, error) {
 	filterGbo := godal.NewGenericBo()
 	filterGbo.GboSetAttr(fieldUserId, id)
-	gbo, err := dao.GdaoFetchOne(dao.tableName, dao.GdaoCreateFilter(dao.tableName, filterGbo))
+	gbo, err := dao.GdaoFetchOne(dao.collectionName, dao.GdaoCreateFilter(dao.collectionName, filterGbo))
 	return dao.toBo(gbo), err
 }
 
 // Update implements IUserDao.Update
-func (dao *UserDaoDynamodb) Update(bo *UserBo) (bool, error) {
-	numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(bo))
+func (dao *UserDaoMongo) Update(bo *UserBo) (bool, error) {
+	numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(bo))
 	return numRows > 0, err
 }
 
 // Save implements IUserDao.Save
-func (dao *UserDaoDynamodb) Save(bo *UserBo) (bool, error) {
-	numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(bo))
+func (dao *UserDaoMongo) Save(bo *UserBo) (bool, error) {
+	numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(bo))
 	return numRows > 0, err
 }
 
 // Delete implements IUserDao.Delete
-func (dao *UserDaoDynamodb) Delete(bo *UserBo) (bool, error) {
-	numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(bo))
+func (dao *UserDaoMongo) Delete(bo *UserBo) (bool, error) {
+	numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(bo))
 	return numRows > 0, err
 }
 
 func main() {
-	// create new prom.AwsDynamodbConnect connecting to SouthEast region
-	adc := createAwsDynamodbConnect("ap-southeast-1")
+	// create new prom.MongoConnect
+	mgc := createMongoConnect("mongodb://test:test@localhost:27017/test", "test")
 
-	rowMapper := &dynamodb.GenericRowMapperDynamodb{
-		ColumnsListMap: map[string][]string{
-			tableUser: {fieldUserId}, // primary keys of tableUser or UserBo
-			// column lists for other BOs/tables
-		},
-	}
+	rowMapper := mongo.GenericRowMapperMongoInstance
 
-	// create new UserDaoDynamodb
-	daoUser := createUserDaoDynamodb(adc, tableUser, rowMapper)
+	// create new UserDaoMongo
+	daoUser := createUserDaoMongo(mgc, collectionUser, rowMapper)
 
 	bo := &UserBo{
 		Id:       "1",

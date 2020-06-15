@@ -1,5 +1,13 @@
 # godal release notes
 
+## 2020-06-15 - v0.2.4
+
+- More tests.
+- Bug fixes & Enhancements.
+- Update docs & dependency libs.
+- Removed deprecated functions.
+
+
 ## 2019-12-08 - v0.2.3
 
 - Bug fixes.
