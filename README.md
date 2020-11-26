@@ -1,7 +1,9 @@
 # godal
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/btnguyen2k/godal)](https://goreportcard.com/report/github.com/btnguyen2k/godal)
-[![GoDoc](https://godoc.org/github.com/btnguyen2k/godal?status.svg)](https://pkg.go.dev/github.com/btnguyen2k/godal?tab=doc)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal)](https://pkg.go.dev/github.com/btnguyen2k/godal)
+[![Actions Status](https://github.com/btnguyen2k/godal/workflows/godal/badge.svg)](https://github.com/btnguyen2k/godal/actions)
+[![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/master/graph/badge.svg?token=0L23UTJHOZ)](https://codecov.io/gh/btnguyen2k/godal)
 
 Generic Database Access Layer library for Go (Golang).
 
