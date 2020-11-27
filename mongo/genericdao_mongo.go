@@ -547,7 +547,8 @@ func isErrorDuplicatedKey(err error) bool {
 	if err == nil {
 		return false
 	}
-	return regexp.MustCompile(`\WE11000\W`).FindString(err.Error()) != ""
+	return err == godal.GdaoErrorDuplicatedEntry ||
+		regexp.MustCompile(`\WE11000\W`).FindString(err.Error()) != ""
 }
 
 func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName string, bo godal.IGenericBo) (bool, error) {

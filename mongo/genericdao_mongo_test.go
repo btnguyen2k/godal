@@ -34,6 +34,16 @@ func prepareMongoCollection(mc *prom.MongoConnect, collectionName string) error 
 	if _, err := mc.CreateCollection(collectionName); err != nil {
 		return err
 	}
+	indexes := []interface{}{
+		map[string]interface{}{
+			"key":    map[string]interface{}{"username": 1},
+			"name":   "uidx_username",
+			"unique": true,
+		},
+	}
+	if _, err := mc.CreateCollectionIndexes(collectionName, indexes); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -625,6 +635,40 @@ func TestGenericDaoMongo_GdaoUpdate(t *testing.T) {
 	}
 }
 
+func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
+	name := "TestGenericDaoMongo_GdaoUpdateDuplicated"
+	dao := _initDao(t, name, testMongoCollectionName)
+	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+	}
+
+	user1 := &UserBoMongo{
+		Id:       "1",
+		Username: "user1",
+	}
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user1)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+	}
+
+	user2 := &UserBoMongo{
+		Id:       "2",
+		Username: "user2",
+	}
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user2)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+	}
+
+	user2.Username = "user1"
+	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+	}
+}
+
 func TestGenericDaoMongo_GdaoSave(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoSave"
 	dao := _initDao(t, name, testMongoCollectionName)
@@ -713,5 +757,39 @@ func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
 		if !reflect.DeepEqual(data2, data) {
 			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", data2, data)
 		}
+	}
+}
+
+func TestGenericDaoMongo_GdaoSaveDuplicated(t *testing.T) {
+	name := "TestGenericDaoMongo_GdaoSaveDuplicated"
+	dao := _initDao(t, name, testMongoCollectionName)
+	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+	}
+
+	user1 := &UserBoMongo{
+		Id:       "1",
+		Username: "user1",
+	}
+	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+	}
+
+	user2 := &UserBoMongo{
+		Id:       "2",
+		Username: "user2",
+	}
+	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+	}
+
+	user2.Username = "user1"
+	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 }
