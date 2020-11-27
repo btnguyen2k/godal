@@ -30,10 +30,9 @@ go get github.com/btnguyen2k/godal
 
 ## Usage & Documentation
 
-- [GoDoc](https://pkg.go.dev/github.com/btnguyen2k/godal?tab=doc)
-- [Examples](examples/)
-- [Wiki](https://github.com/btnguyen2k/godal/wiki)
-
+- [![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal)](https://pkg.go.dev/github.com/btnguyen2k/godal).
+- Samples: see [examples](../examples/) and [examples_sta](../examples_sta/).
+- [Wiki](https://github.com/btnguyen2k/godal/wiki).
 
 ## Contributing
 
@@ -46,7 +45,6 @@ Contribute by Pull Request:
 3. Implement your change
 4. Push to your branch (`git push origin my_branch`)
 5. Post a pull request on github (https://help.github.com/articles/creating-a-pull-request/)
-
 
 ## License
 
