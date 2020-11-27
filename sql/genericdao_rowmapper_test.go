@@ -3,9 +3,11 @@ package sql
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
 	"testing"
+
+	"github.com/btnguyen2k/consu/reddo"
+
+	"github.com/btnguyen2k/godal"
 )
 
 func TestGenericRowMapperSql_ColumnsList(t *testing.T) {
@@ -527,7 +529,7 @@ func TestGenericRowMapperSql_ToGbo_UpperCase(t *testing.T) {
 			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "COLD", true, v)
 		}
 	}
-	
+
 	rm.ColNameToGboFieldTranslator = map[string]map[string]interface{}{"table_name": {"COLA": "a", "COLB": "b", "COLC": "c", "COLD": "d"}}
 	{
 		gbo, err := rm.ToBo("table_name", row)
