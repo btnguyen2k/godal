@@ -14,15 +14,19 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/prom"
+
 	"github.com/btnguyen2k/godal"
 	gdaodynamod "github.com/btnguyen2k/godal/dynamodb"
-	"github.com/btnguyen2k/prom"
-	"math/rand"
-	"time"
 )
 
 type DaoAppDynamodb struct {
@@ -158,10 +162,21 @@ func (dao *DaoAppDynamodb) GetN(startOffset, numRows int) ([]*BoApp, error) {
 
 /*----------------------------------------------------------------------*/
 func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
-	region := "ap-southeast-1"
+	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
+	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
+	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
+	if awsRegion == "" || awsAccessKeyId == "" || awsSecretAccessKey == "" {
+		panic("Please define env AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and optionally AWS_DYNAMODB_ENDPOINT")
+	}
 	cfg := &aws.Config{
-		Region:      aws.String(region),
+		Region:      aws.String(awsRegion),
 		Credentials: credentials.NewEnvCredentials(),
+	}
+	if awsDynamodbEndpoint := strings.ReplaceAll(os.Getenv("AWS_DYNAMODB_ENDPOINT"), `"`, ""); awsDynamodbEndpoint != "" {
+		cfg.Endpoint = aws.String(awsDynamodbEndpoint)
+		if strings.HasPrefix(awsDynamodbEndpoint, "http://") {
+			cfg.DisableSSL = aws.Bool(true)
+		}
 	}
 	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {

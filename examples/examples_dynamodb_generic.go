@@ -7,31 +7,46 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/prom"
+
 	"github.com/btnguyen2k/godal"
 	gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
-	"github.com/btnguyen2k/prom"
-	"math/rand"
-	"time"
 )
 
 const (
-	timeZone      = "Asia/Ho_Chi_Minh"
-	sep           = "================================================================================"
-	fieldId       = "id"
-	fieldUsername = "username"
-	fieldVersion  = "version"
-	fieldActived  = "actived"
+	timeZoneGeneric = "Asia/Ho_Chi_Minh"
+	sepGeneric      = "================================================================================"
+	fieldIdGeneric  = "id"
+	fieldUsername   = "username"
+	fieldVersion    = "version"
+	fieldActived    = "actived"
 )
 
-func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
-	region := "ap-southeast-1"
+func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
+	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
+	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
+	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
+	if awsRegion == "" || awsAccessKeyId == "" || awsSecretAccessKey == "" {
+		panic("Please define env AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and optionally AWS_DYNAMODB_ENDPOINT")
+	}
 	cfg := &aws.Config{
-		Region:      aws.String(region),
+		Region:      aws.String(awsRegion),
 		Credentials: credentials.NewEnvCredentials(),
+	}
+	if awsDynamodbEndpoint := strings.ReplaceAll(os.Getenv("AWS_DYNAMODB_ENDPOINT"), `"`, ""); awsDynamodbEndpoint != "" {
+		cfg.Endpoint = aws.String(awsDynamodbEndpoint)
+		if strings.HasPrefix(awsDynamodbEndpoint, "http://") {
+			cfg.DisableSSL = aws.Bool(true)
+		}
 	}
 	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
@@ -40,17 +55,17 @@ func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
 	return adc
 }
 
-func initDataDynamodb(adc *prom.AwsDynamodbConnect, tableName, indexName string) {
+func initDataDynamodbGeneric(adc *prom.AwsDynamodbConnect, tableName, indexName string) {
 	var schema, key []prom.AwsDynamodbNameAndType
 
 	if ok, err := adc.HasTable(nil, tableName); err != nil {
 		panic(err)
 	} else if !ok {
 		schema = []prom.AwsDynamodbNameAndType{
-			{fieldId, prom.AwsAttrTypeString},
+			{fieldIdGeneric, prom.AwsAttrTypeString},
 		}
 		key = []prom.AwsDynamodbNameAndType{
-			{fieldId, prom.AwsKeyTypePartition},
+			{fieldIdGeneric, prom.AwsKeyTypePartition},
 		}
 		if err := adc.CreateTable(nil, tableName, 2, 2, schema, key); err != nil {
 			panic(err)
@@ -86,7 +101,7 @@ func initDataDynamodb(adc *prom.AwsDynamodbConnect, tableName, indexName string)
 	}
 
 	// delete all items
-	pkAttrs := []string{fieldId}
+	pkAttrs := []string{fieldIdGeneric}
 	adc.ScanItemsWithCallback(nil, tableName, nil, prom.AwsDynamodbNoIndex, nil, func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
 		keyFilter := make(map[string]interface{})
 		for _, v := range pkAttrs {
@@ -107,19 +122,19 @@ type myGenericDaoDynamodb struct {
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
+	return map[string]interface{}{fieldIdGeneric: bo.GboGetAttrUnsafe(fieldIdGeneric, reddo.TypeString)}
 }
 
 func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal.IGenericDao {
 	dao := &myGenericDaoDynamodb{}
 	dao.GenericDaoDynamodb = gdaodynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-	dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
+	dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldIdGeneric}}})
 	return dao
 }
 
 func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
-	adc := createAwsDynamodbConnect()
-	initDataDynamodb(adc, tableName, indexName)
+	adc := createAwsDynamodbConnectGeneric()
+	initDataDynamodbGeneric(adc, tableName, indexName)
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	fmt.Printf("-== Insert items to table ==-\n")
@@ -127,7 +142,7 @@ func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
 	// insert an item
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo := godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "log")
+	bo.GboSetAttr(fieldIdGeneric, "log")
 	bo.GboSetAttr(fieldUsername, t.String())
 	bo.GboSetAttr(fieldVersion, rand.Int31n(123456))
 	bo.GboSetAttr(fieldActived, 1)
@@ -149,7 +164,7 @@ func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
 	// insert another item
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(fieldIdGeneric, "login")
 	bo.GboSetAttr(fieldUsername, t.String())
 	bo.GboSetAttr(fieldVersion, rand.Int31n(123456))
 	bo.GboSetAttr(fieldActived, 1)
@@ -170,7 +185,7 @@ func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
 
 	// insert another document with duplicated id
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(fieldIdGeneric, "login")
 	bo.GboSetAttr("val_string", "Authentication application (again)")
 	bo.GboSetAttr("val_list", []interface{}{"duplicated"})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
@@ -181,16 +196,16 @@ func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
-func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
-	adc := createAwsDynamodbConnect()
+func demoDynamodbFetchItemByIdGeneric(tableName string, itemIds ...string) {
+	adc := createAwsDynamodbConnectGeneric()
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	fmt.Printf("-== Fetch items by id ==-\n")
 	for _, id := range itemIds {
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -200,11 +215,11 @@ func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
-func demoDynamodbFetchAllItems(tableName, indexName string) {
-	adc := createAwsDynamodbConnect()
+func demoDynamodbFetchAllItemsGeneric(tableName, indexName string) {
+	adc := createAwsDynamodbConnectGeneric()
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	table := tableName
@@ -221,16 +236,16 @@ func demoDynamodbFetchAllItems(tableName, indexName string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
-func demoDynamodbDeleteItems(tableName string, itemIds ...string) {
-	adc := createAwsDynamodbConnect()
+func demoDynamodbDeleteItemsGeneric(tableName string, itemIds ...string) {
+	adc := createAwsDynamodbConnectGeneric()
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	fmt.Println("-== Delete items from table ==-")
 	for _, id := range itemIds {
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -243,7 +258,7 @@ func demoDynamodbDeleteItems(tableName string, itemIds ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+			bo1, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -256,23 +271,23 @@ func demoDynamodbDeleteItems(tableName string, itemIds ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
-func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...string) {
-	adc := createAwsDynamodbConnect()
+func demoDynamodbUpdateItemsGeneric(loc *time.Location, tableName string, itemIds ...string) {
+	adc := createAwsDynamodbConnectGeneric()
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	fmt.Println("-== Update items from table ==-")
 	for _, id := range itemIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(fieldIdGeneric, id)
 			bo.GboSetAttr(fieldUsername, t.String())
 			bo.GboSetAttr(fieldVersion, rand.Int31n(123456))
 			bo.GboSetAttr(fieldActived, 1)
@@ -289,7 +304,7 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -299,23 +314,23 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
 func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...string) {
-	adc := createAwsDynamodbConnect()
+	adc := createAwsDynamodbConnectGeneric()
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	fmt.Printf("-== Upsert items to collection ==-\n")
 	for _, id := range itemIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(fieldIdGeneric, id)
 			bo.GboSetAttr(fieldUsername, t.String())
 			bo.GboSetAttr(fieldVersion, rand.Int31n(123456))
 			bo.GboSetAttr(fieldActived, 1)
@@ -332,7 +347,7 @@ func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...str
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{fieldIdGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -342,12 +357,12 @@ func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...str
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
-func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName, indexNameInit, indexNameFetch string) {
-	adc := createAwsDynamodbConnect()
-	initDataDynamodb(adc, tableName, indexNameInit)
+func demoDynamodbSelectSortingAndLimitGeneric(loc *time.Location, tableName, indexNameInit, indexNameFetch string) {
+	adc := createAwsDynamodbConnectGeneric()
+	initDataDynamodbGeneric(adc, tableName, indexNameInit)
 	dao := newGenericDaoDynamodb(adc, tableName)
 
 	table := tableName
@@ -362,7 +377,7 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName, indexNameI
 		id := fmt.Sprintf("%03d", i)
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo := godal.NewGenericBo()
-		bo.GboSetAttr(fieldId, id)
+		bo.GboSetAttr(fieldIdGeneric, id)
 		bo.GboSetAttr(fieldUsername, t.String())
 		bo.GboSetAttr(fieldVersion, i)
 		bo.GboSetAttr(fieldActived, 1)
@@ -389,24 +404,24 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName, indexNameI
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepGeneric)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
+	loc, _ := time.LoadLocation(timeZoneGeneric)
+	fmt.Println("timeZoneGeneric:", loc)
 	tableName := "test"
 	indexName := "idx_sorted"
 	fmt.Println("Table & Index:", tableName, indexName)
 
 	demoDynamodbInsertItem(loc, tableName, indexName)
-	demoDynamodbFetchItemById(tableName, "login", "loggin")
-	demoDynamodbFetchAllItems(tableName, "")
-	demoDynamodbFetchAllItems(tableName, indexName)
-	demoDynamodbDeleteItems(tableName, "login", "loggin")
-	demoDynamodbUpdateItems(loc, tableName, "log", "logging")
+	demoDynamodbFetchItemByIdGeneric(tableName, "login", "loggin")
+	demoDynamodbFetchAllItemsGeneric(tableName, "")
+	demoDynamodbFetchAllItemsGeneric(tableName, indexName)
+	demoDynamodbDeleteItemsGeneric(tableName, "login", "loggin")
+	demoDynamodbUpdateItemsGeneric(loc, tableName, "log", "logging")
 	demoDynamodbUpsertItem(loc, tableName, "log", "logging")
-	demoDynamodbSelectSortingAndLimit(loc, tableName, indexName, "")
-	demoDynamodbSelectSortingAndLimit(loc, tableName, indexName, indexName)
+	demoDynamodbSelectSortingAndLimitGeneric(loc, tableName, indexName, "")
+	demoDynamodbSelectSortingAndLimitGeneric(loc, tableName, indexName, indexName)
 }
