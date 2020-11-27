@@ -25,4 +25,4 @@ Generic [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO implementation.
 
 > Optionally, create a helper function to create dao instances.
 
-**Examples**: see directory [examples](../examples/).
+**Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).

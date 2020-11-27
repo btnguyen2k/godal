@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -15,13 +17,23 @@ import (
 
 // convenient function to create prom.AwsDynamodbConnect instance
 func createAwsDynamodbConnect(region string) *prom.AwsDynamodbConnect {
-	// AWS credentials are provided via environment variables
+	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
+	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
+	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
+	if awsRegion == "" || awsAccessKeyId == "" || awsSecretAccessKey == "" {
+		panic("Please define env AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and optionally AWS_DYNAMODB_ENDPOINT")
+	}
 	cfg := &aws.Config{
-		Region:      aws.String(region),
+		Region:      aws.String(awsRegion),
 		Credentials: credentials.NewEnvCredentials(),
 	}
-	timeoutMs := 10000
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, timeoutMs)
+	if awsDynamodbEndpoint := strings.ReplaceAll(os.Getenv("AWS_DYNAMODB_ENDPOINT"), `"`, ""); awsDynamodbEndpoint != "" {
+		cfg.Endpoint = aws.String(awsDynamodbEndpoint)
+		if strings.HasPrefix(awsDynamodbEndpoint, "http://") {
+			cfg.DisableSSL = aws.Bool(true)
+		}
+	}
+	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		panic(err)
 	}
