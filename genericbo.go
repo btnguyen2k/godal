@@ -13,21 +13,17 @@ import (
 // Available: since v0.2.4
 type nilValue []byte
 
-/*
-NilValue represents a nil/null value.
-
-Available: since v0.2.4
-*/
+// NilValue represents a nil/null value.
+//
+// Available: since v0.2.4
 var NilValue nilValue = nil
 
-/*
-IGenericBo defines API interface of a generic business object.
-
-The API interface assumes bo's data is stored in a hierarchy structure.
-A bo's attribute value is at the leaf node, and located via a 'path', for example "options.workhour[0].value"
-
-Sample usage: see #GenericBo
-*/
+// IGenericBo defines API interface of a generic business object.
+//
+// The API interface assumes bo's data is stored in a hierarchy structure.
+// A bo's attribute value is at the leaf node, and located via a 'path', for example "options.workhour[0].value".
+//
+// Sample usage: see GenericBo.
 type IGenericBo interface {
 	// GboIterate iterates over all bo's top level fields.
 	//
@@ -122,22 +118,18 @@ type GenericBo struct {
 	m    sync.RWMutex
 }
 
-/*
-Checksum returns checksum value of the BO.
-
-Available: since v0.0.4
-*/
+// Checksum returns checksum value of the BO.
+//
+// Available: since v0.0.4
 func (bo *GenericBo) Checksum() []byte {
 	return checksum.Md5Checksum(bo.data)
 }
 
-/*
-GboIterate implements IGenericBo.GboIterate
-
-	If the underlying data is a map, 'callback' is called for each map's entry with reflect.Map is passed as 'kind' parameter.
-	If the underlying data is a slice or array, 'callback' is called for each entry with reflect.Slice is passed as 'kind' parameter.
-	This function of type GenericBo does not support iterating on other data types.
-*/
+// GboIterate implements IGenericBo.GboIterate.
+//
+//   - If the underlying data is a map, 'callback' is called for each map's entry with reflect.Map is passed as 'kind' parameter.
+//   - If the underlying data is a slice or array, 'callback' is called for each entry with reflect.Slice is passed as 'kind' parameter.
+//   - This function of type GenericBo does not support iterating on other data types.
 func (bo *GenericBo) GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{})) {
 	bo.m.RLock()
 	defer bo.m.RUnlock()
@@ -156,11 +148,9 @@ func (bo *GenericBo) GboIterate(callback func(kind reflect.Kind, field interface
 	}
 }
 
-/*
-GboGetAttr implements IGenericBo.GboGetAttr
-
-	- 'type' can be nil. In that case, this function returns the result of type 'interface{}'
-*/
+// GboGetAttr implements IGenericBo.GboGetAttr.
+//
+// 'type' can be nil. In that case, this function returns the result of type 'interface{}'.
 func (bo *GenericBo) GboGetAttr(path string, typ reflect.Type) (interface{}, error) {
 	bo.m.RLock()
 	defer bo.m.RUnlock()
@@ -170,19 +160,15 @@ func (bo *GenericBo) GboGetAttr(path string, typ reflect.Type) (interface{}, err
 	return bo.s.GetValueOfType(path, typ)
 }
 
-/*
-GboGetAttrUnsafe implements IGenericBo.GboGetAttrUnsafe
-
-	- 'type' can be nil. In that case, this function returns the result of type 'interface{}'
-*/
+// GboGetAttrUnsafe implements IGenericBo.GboGetAttrUnsafe.
+//
+// 'type' can be nil. In that case, this function returns the result of type 'interface{}'.
 func (bo *GenericBo) GboGetAttrUnsafe(path string, typ reflect.Type) interface{} {
 	v, _ := bo.GboGetAttr(path, typ)
 	return v
 }
 
-/*
-GboGetAttrUnmarshalJson implements IGenericBo.GboGetAttrUnmarshalJson
-*/
+// GboGetAttrUnmarshalJson implements IGenericBo.GboGetAttrUnmarshalJson.
 func (bo *GenericBo) GboGetAttrUnmarshalJson(path string) (interface{}, error) {
 	v, e := bo.GboGetAttr(path, nil)
 	if e != nil || v == nil {
@@ -202,11 +188,9 @@ func (bo *GenericBo) GboGetAttrUnmarshalJson(path string) (interface{}, error) {
 	return nil, nil
 }
 
-/*
-GboGetTimeWithLayout implements IGenericBo.GboGetTimeWithLayout
-
-	- If value does not exist at 'path', this function returns 'zero' time (e.g. time.Time{})
-*/
+// GboGetTimeWithLayout implements IGenericBo.GboGetTimeWithLayout.
+//
+// If value does not exist at 'path', this function returns 'zero' time (e.g. time.Time{}).
 func (bo *GenericBo) GboGetTimeWithLayout(path, layout string) (time.Time, error) {
 	bo.m.RLock()
 	defer bo.m.RUnlock()
@@ -216,11 +200,9 @@ func (bo *GenericBo) GboGetTimeWithLayout(path, layout string) (time.Time, error
 	return bo.s.GetTimeWithLayout(path, layout)
 }
 
-/*
-GboSetAttr implements IGenericBo.GboSetAttr
-
-	- Intermediate nodes along the path are automatically created.
-*/
+// GboSetAttr implements IGenericBo.GboSetAttr.
+//
+// Intermediate nodes along the path are automatically created.
 func (bo *GenericBo) GboSetAttr(path string, value interface{}) error {
 	bo.m.Lock()
 	defer bo.m.Unlock()
@@ -232,29 +214,23 @@ func (bo *GenericBo) GboSetAttr(path string, value interface{}) error {
 	return bo.s.SetValue(path, value)
 }
 
-/*
-GboToJson implements IGenericBo.GboToJson
-*/
+// GboToJson implements IGenericBo.GboToJson.
 func (bo *GenericBo) GboToJson() ([]byte, error) {
 	bo.m.RLock()
 	defer bo.m.RUnlock()
 	return json.Marshal(bo.data)
 }
 
-/*
-GboToJsonUnsafe implements IGenericBo.GboToJsonUnsafe
-*/
+// GboToJsonUnsafe implements IGenericBo.GboToJsonUnsafe.
 func (bo *GenericBo) GboToJsonUnsafe() []byte {
 	js, _ := bo.GboToJson()
 	return js
 }
 
-/*
-GboFromJson implements IGenericBo.GboFromJson
-
-	- If error occurs, existing BO data is intact.
-	- If successful, existing data is replaced.
-*/
+// GboFromJson implements IGenericBo.GboFromJson.
+//
+//   - If error occurs, existing BO data is intact.
+// 	 - If successful, existing data is replaced.
 func (bo *GenericBo) GboFromJson(js []byte) error {
 	bo.m.Lock()
 	defer bo.m.Unlock()
@@ -270,11 +246,9 @@ func (bo *GenericBo) GboFromJson(js []byte) error {
 	return nil
 }
 
-/*
-GboTransferViaJson implements IGenericBo.GboTransferViaJson
-
-	- Passing by value wont work, so 'dest' should be a pointer
-*/
+// GboTransferViaJson implements IGenericBo.GboTransferViaJson.
+//
+// Passing by value won't work, so 'dest' must be a pointer.
 func (bo *GenericBo) GboTransferViaJson(dest interface{}) error {
 	js, err := bo.GboToJson()
 	if err != nil {
@@ -283,11 +257,9 @@ func (bo *GenericBo) GboTransferViaJson(dest interface{}) error {
 	return json.Unmarshal(js, dest)
 }
 
-/*
-GboImportViaJson implements IGenericBo.GboImportViaJson
-
-	- Existing data is removed upon importing
-*/
+// GboImportViaJson implements IGenericBo.GboImportViaJson.
+//
+// Existing data is removed upon importing.
 func (bo *GenericBo) GboImportViaJson(src interface{}) error {
 	js, err := json.Marshal(src)
 	if err != nil {
