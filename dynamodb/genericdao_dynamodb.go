@@ -423,10 +423,14 @@ func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table stri
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
 //
-//   - this function uses "scan" operation, hence it has performance impact if table has large number of items.
-//   - filter can be a expression.ConditionBuilder (or pointer to it) or a map[string]interface{} (it can be a string/[]byte representing map[string]interface{} in JSON)
+//   - table name format: <table_name>[:<index_name>]:
+//       - table_name: name of the table to delete rows from.
+//       - index_name: (optional) name of the table's index (local or global) to search for rows.
+//   - filter can be a expression.ConditionBuilder (or pointer to it) or a map[string]interface{} (it can be a string/[]byte representing map[string]interface{} in JSON).
 //     If filter is a map[string]interface{}, it is used to build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
 //     nil filter means "match all".
+//
+// This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
 func (dao *GenericDaoDynamodb) GdaoDeleteMany(table string, filter interface{}) (int, error) {
 	return dao.GdaoDeleteManyWithContext(nil, table, filter)
 }
@@ -437,16 +441,32 @@ func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table 
 	if err != nil {
 		return 0, err
 	}
-	counter := 0
-	err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, table, f, "", nil, func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
-		keyFilter := dao.extractKeysAttributes(table, item)
-		_, err := dao.dynamodbConnect.DeleteItem(ctx, table, keyFilter, nil)
+	tokens := strings.Split(table, ":")
+	tableName := tokens[0]
+	useScan := true
+	if strings.HasPrefix(tableName, "@") {
+		useScan = false
+		tableName = strings.TrimPrefix(tableName, "@")
+	}
+	indexName := ""
+	if len(tokens) > 1 {
+		indexName = tokens[1]
+	}
+	count := 0
+	callbackFunc := func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+		keyFilter := dao.extractKeysAttributes(tableName, item)
+		_, err := dao.dynamodbConnect.DeleteItem(ctx, tableName, keyFilter, nil)
 		if err == nil {
-			counter++
+			count++
 		}
 		return true, err
-	})
-	return counter, err
+	}
+	if useScan {
+		err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, callbackFunc)
+	} else {
+		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc)
+	}
+	return count, err
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
@@ -469,8 +489,7 @@ func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table st
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
 //
-//   - this function uses "scan" operation, hence it has performance impact if table has large number of items.
-//   - table's format: <table_name>[:<index_name>[:<refetch-from-table:true/false>]]:
+//   - table name format: <table_name>[:<index_name>[:<refetch-from-table:true/false>]]:
 //       - table_name: name of the table to fetch data from.
 //       - index_name: (optional) name of the table's index (local or global) to fetch data from.
 //       - refetch-from-table: (optional) true/false - default: false; when fetching data from index, if 'false' only projected fields are returned,.
@@ -479,6 +498,8 @@ func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table st
 //     If filter is a map[string]interface{}, it is used to build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
 //     nil filter means "match all".
 //   - sorting will not be used as DynamoDB does not currently support custom sorting of queried items.
+//
+// This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
 func (dao *GenericDaoDynamodb) GdaoFetchMany(table string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, table, filter, sorting, startOffset, numItems)
 }
@@ -492,6 +513,11 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 	result := make([]godal.IGenericBo, 0)
 	tokens := strings.Split(table, ":")
 	tableName := tokens[0]
+	useScan := true
+	if strings.HasPrefix(tableName, "@") {
+		useScan = false
+		tableName = strings.TrimPrefix(tableName, "@")
+	}
 	indexName := ""
 	if len(tokens) > 1 {
 		indexName = tokens[1]
@@ -505,7 +531,7 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 
 	myOffset := -1
 	myCounter := 0
-	err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+	callbackFunc := func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
 		myOffset++
 		if myOffset < startOffset {
 			return true, nil
@@ -526,7 +552,12 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 			return false, nil
 		}
 		return true, nil
-	})
+	}
+	if useScan {
+		err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, callbackFunc)
+	} else {
+		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc)
+	}
 
 	return result, err
 }
