@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,8 +16,15 @@ import (
 	"github.com/btnguyen2k/godal"
 )
 
-func createMongoConnect(url, db string) (*prom.MongoConnect, error) {
-	return prom.NewMongoConnect(url, db, 10000)
+func _createMongoConnect(t *testing.T, testName string) *prom.MongoConnect {
+	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
+	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
+	if mongoDb == "" || mongoUrl == "" {
+		t.Skipf("%s skipped", testName)
+		return nil
+	}
+	mc, _ := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	return mc
 }
 
 func prepareMongoCollection(mc *prom.MongoConnect, collectionName string) error {
@@ -80,8 +88,8 @@ func (dao *UserDaoMongo) toUser(gbo godal.IGenericBo) *UserBoMongo {
 }
 
 /*----------------------------------------------------------------------*/
-func initDao(url, db, collectionName string) *UserDaoMongo {
-	mc, _ := createMongoConnect(url, db)
+func _initDao(t *testing.T, testName, collectionName string) *UserDaoMongo {
+	mc := _createMongoConnect(t, testName)
 	return createDaoMongo(mc, collectionName)
 }
 
@@ -232,14 +240,9 @@ func TestGenericRowMapperMongo_ToRow(t *testing.T) {
 	}
 }
 
-const (
-	envMongoUrl = "MONGO_URL"
-	envMongoDb  = "MONGO_DB"
-)
-
 func TestNewGenericDaoMongo(t *testing.T) {
 	name := "TestNewGenericDaoMongo"
-	dao := initDao("mongodb://test:test@localhost:27017/test", "test", testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	if dao == nil {
 		t.Fatalf("%s failed: nil", name)
 	}
@@ -247,14 +250,12 @@ func TestNewGenericDaoMongo(t *testing.T) {
 
 func TestGenericDaoMongo_SetGetMongoConnect(t *testing.T) {
 	name := "TestGenericDaoMongo_SetGetMongoConnect"
-	url := "mongodb://test:test@localhost:27017/test"
-	db := "test"
-	dao := initDao(url, db, testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	if dao == nil {
 		t.Fatalf("%s failed: nil", name)
 	}
 
-	mc, _ := createMongoConnect(url, db)
+	mc := _createMongoConnect(t, name)
 	dao.SetMongoConnect(mc)
 	if dao.GetMongoConnect() != mc {
 		t.Fatalf("%s failed", name)
@@ -263,9 +264,7 @@ func TestGenericDaoMongo_SetGetMongoConnect(t *testing.T) {
 
 func TestGenericDaoMongo_SetGetTxModeOnWrite(t *testing.T) {
 	name := "TestGenericDaoMongo_SetGetTxModeOnWrite"
-	url := "mongodb://test:test@localhost:27017/test"
-	db := "test"
-	dao := initDao(url, db, testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	if dao == nil {
 		t.Fatalf("%s failed: nil", name)
 	}
@@ -334,11 +333,8 @@ func TestToSortingMap(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoDelete"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -378,11 +374,8 @@ func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoDeleteMany(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoDeleteMany"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -419,11 +412,8 @@ func TestGenericDaoMongo_GdaoDeleteMany(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoFetchOne(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoFetchOne"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -463,11 +453,8 @@ func TestGenericDaoMongo_GdaoFetchOne(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoFetchMany"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -512,11 +499,8 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoCreate(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoCreate"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -553,14 +537,14 @@ func TestGenericDaoMongo_GdaoCreate(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoCreate_TxOn(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoCreate_TxOn"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+	}
+	if strings.Index(dao.mongoConnect.GetUrl(), "replicaSet=") < 0 {
+		t.Skipf("%s skipped", name)
 	}
 	dao.SetTxModeOnWrite(true)
 
@@ -595,11 +579,8 @@ func TestGenericDaoMongo_GdaoCreate_TxOn(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoUpdate(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoUpdate"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -645,11 +626,8 @@ func TestGenericDaoMongo_GdaoUpdate(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoSave(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoSave"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
@@ -690,11 +668,8 @@ func TestGenericDaoMongo_GdaoSave(t *testing.T) {
 }
 
 func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
-	if os.Getenv(envMongoUrl) == "" || os.Getenv(envMongoDb) == "" {
-		return
-	}
 	name := "TestGenericDaoMongo_GdaoSaveShouldReplace"
-	dao := initDao(os.Getenv(envMongoUrl), os.Getenv(envMongoDb), testMongoCollectionName)
+	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
