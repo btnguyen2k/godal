@@ -7,7 +7,7 @@
 
 Generic Database Access Layer library for Go (Golang).
 
-Latest release [v0.2.4](RELEASE-NOTES.md).
+Latest release [v0.2.5](RELEASE-NOTES.md).
 
 ## Feature overview
 
@@ -20,6 +20,7 @@ Latest release [v0.2.4](RELEASE-NOTES.md).
   - MySQL
   - Oracle
   - PostgreSQL
+  - SQLite3
 
 ## Installation
 

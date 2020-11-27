@@ -1,5 +1,12 @@
 # godal release notes
 
+## 2020-10-xx - v0.2.5
+
+- `GenericDaoSql`: add SQLite flavor
+- More tests.
+- Bug fixes & Enhancements.
+- Update docs & dependency libs.
+
 ## 2020-06-15 - v0.2.4
 
 - More tests.
@@ -7,18 +14,15 @@
 - Update docs & dependency libs.
 - Removed deprecated functions.
 
-
 ## 2019-12-08 - v0.2.3
 
 - Bug fixes.
-
 
 ## 2019-12-04 - v0.2.1
 
 - More tests.
 - Bug fixes & enhancements.
 - Update docs & dependency libs.
-
 
 ## 2019-11-25 - v0.2.0
 
@@ -36,7 +40,6 @@
 - Removed deprecated functions.
 - Other fixes & enhancements.
 
-
 ## 2019-11-03 - v0.1.0
 
 - Breaking changes:
@@ -48,7 +51,6 @@
 - More tests
 - Update dependency libs
 - Other fixes & enhancements
-
 
 ## 2019-10-25 - v0.0.4
 
@@ -63,17 +65,14 @@
 - Update dependency libs
 - Other fixes & enhancements
 
-
 ## 2019-09-14 - v0.0.3
 
 - Upgrade dependency libs.
-
 
 ## 2019-04-09 - v0.0.2
 
 - Migrate to Go modular design.
 - Generic [database/sql](https://golang.org/pkg/database/sql/) DAO implementation: `GenericDaoSql`
-
 
 ## 2019-03-12 - v0.0.1
 

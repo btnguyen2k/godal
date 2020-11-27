@@ -1,8 +1,8 @@
 name: godal
 
 on:
-  push:
-    branches: [ '*' ]
+#  push:
+#    branches: [ '*' ]
   pull_request:
     branches: [ master ]
 
@@ -80,7 +80,7 @@ jobs:
         export MONGO_URL="mongodb://root:test@localhost:27017/?authSource=admin&replicaSet=replicaset"
         go test -cover -coverprofile=coverage_mongo_replicaset.txt -v ./mongo
         bash <(curl -s https://codecov.io/bash) -cF mongo_replicaset
-  
+
   testMssql:
     name: Test with MSSQL
     runs-on: ubuntu-latest
