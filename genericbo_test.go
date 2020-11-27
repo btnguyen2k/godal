@@ -197,6 +197,30 @@ func TestGenericBo_GboGetAttr_Slice(t *testing.T) {
 	}
 }
 
+func TestGenericBo_GboGetAttrUnmarshalJson(t *testing.T) {
+	name := "TestGenericBo_GboGetAttrUnmarshalJson"
+
+	bo := NewGenericBo()
+	data := map[string]interface{}{"str": "a string", "b": true}
+	jsBytes, _ := json.Marshal(data)
+	jsString := string(jsBytes)
+	bo.GboSetAttr("jsonstr", jsString)
+	bo.GboSetAttr("pjsonstr", &jsString)
+	bo.GboSetAttr("jsonbytes", jsBytes)
+	bo.GboSetAttr("pjsonbytes", &jsBytes)
+
+	if v, err := bo.GboGetAttrUnmarshalJson("not_found"); err != nil || v != nil {
+		t.Fatalf("%s failed: there should be no data at path [not_found] - %s / %#v", name, err, v)
+	}
+	for _, p := range []string{"jsonstr", "pjsonstr", "jsonbytes", "pjsonbytes"} {
+		if v, err := bo.GboGetAttrUnmarshalJson(p); err != nil {
+			t.Fatalf("%s failed: %s", name, err)
+		} else if !reflect.DeepEqual(data, v) {
+			t.Fatalf("%s failed: expected %#v but received %#v", name+"/"+p, data, v)
+		}
+	}
+}
+
 func TestGenericBo_GboGetAttrUnmarshalJson_Map(t *testing.T) {
 	name := "TestGenericBo_GboGetAttr_Map"
 

@@ -116,35 +116,32 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"regexp"
+
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/prom"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
-	"reflect"
-	"regexp"
+
+	"github.com/btnguyen2k/godal"
 )
 
-/*
-GenericRowMapperMongo is a generic implementation of godal.IRowMapper for MongoDB.
-
-Implementation rules:
-
-	- ToRow: transform godal.IGenericBo "as-is" to map[string]interface{}.
-	- ToBo: expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-	- ColumnsList: return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
-
-Available: since v0.0.2.
-*/
+// GenericRowMapperMongo is a generic implementation of godal.IRowMapper for MongoDB.
+//
+// Implementation rules:
+//   - ToRow: transform godal.IGenericBo "as-is" to map[string]interface{}.
+//   - ToBo: expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+//   - ColumnsList: return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
+//
+// Available: since v0.0.2.
 type GenericRowMapperMongo struct {
 }
 
-/*
-ToRow implements godal.IRowMapper.ToRow.
-This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
-*/
+// ToRow implements godal.IRowMapper.ToRow.
+// This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 func (mapper *GenericRowMapperMongo) ToRow(collectionName string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
 		return nil, nil
@@ -153,10 +150,8 @@ func (mapper *GenericRowMapperMongo) ToRow(collectionName string, bo godal.IGene
 	return result, bo.GboTransferViaJson(&result)
 }
 
-/*
-ToBo implements godal.IRowMapper.ToBo.
-This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
-*/
+// ToBo implements godal.IRowMapper.ToBo.
+// This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
 func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
 		return nil, nil
@@ -229,10 +224,8 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
 }
 
-/*
-ColumnsList implements godal.IRowMapper.ColumnsList.
-This function returns []string{"*"} since MongoDB is schema-free (hence column-list is not used).
-*/
+// ColumnsList implements godal.IRowMapper.ColumnsList.
+// This function returns []string{"*"} since MongoDB is schema-free (hence column-list is not used).
 func (mapper *GenericRowMapperMongo) ColumnsList(collectionName string) []string {
 	return []string{"*"}
 }
@@ -244,9 +237,7 @@ var (
 
 /*--------------------------------------------------------------------------------*/
 
-/*
-NewGenericDaoMongo constructs a new MongoDB implementation of 'godal.IGenericDao' with 'txModeOnWrite=false'.
-*/
+// NewGenericDaoMongo constructs a new MongoDB implementation of godal.IGenericDao with 'txModeOnWrite=false'.
 func NewGenericDaoMongo(mongoConnect *prom.MongoConnect, agdao *godal.AbstractGenericDao) *GenericDaoMongo {
 	dao := &GenericDaoMongo{AbstractGenericDao: agdao, mongoConnect: mongoConnect, txModeOnWrite: false}
 	if dao.GetRowMapper() == nil {
@@ -255,102 +246,83 @@ func NewGenericDaoMongo(mongoConnect *prom.MongoConnect, agdao *godal.AbstractGe
 	return dao
 }
 
-/*
-GenericDaoMongo is MongoDB implementation of godal.IGenericDao.
-
-Function implementations (n = No, y = Yes, i = inherited):
-
-	(n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
-	(y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-	(y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-	(y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-	(y) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error)
-	(y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
-	(y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
-	(y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
-*/
+// GenericDaoMongo is MongoDB implementation of godal.IGenericDao.
+//
+// Function implementations (n = No, y = Yes, i = inherited):
+//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+// 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
+// 	 - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
 type GenericDaoMongo struct {
 	*godal.AbstractGenericDao
 	mongoConnect  *prom.MongoConnect
 	txModeOnWrite bool
 }
 
-/*
-GetMongoConnect returns the '*prom.MongoConnect' instance attached to this DAO.
-*/
+// GetMongoConnect returns the '*prom.MongoConnect' instance attached to this DAO.
 func (dao *GenericDaoMongo) GetMongoConnect() *prom.MongoConnect {
 	return dao.mongoConnect
 }
 
-/*
-SetMongoConnect attaches a '*prom.MongoConnect' instance to this DAO.
-
-Available since v0.0.2
-*/
+// SetMongoConnect attaches a '*prom.MongoConnect' instance to this DAO.
+//
+// Available since v0.0.2
 func (dao *GenericDaoMongo) SetMongoConnect(mc *prom.MongoConnect) *GenericDaoMongo {
 	dao.mongoConnect = mc
 	return dao
 }
 
-/*
-GetTxModeOnWrite returns 'true' if transaction mode is enabled on write operations, 'false' otherwise.
-
-MongoDB's implementation of GdaoCreate is "get/check and write". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
-
-Available: since v0.1.0
-*/
+// GetTxModeOnWrite returns 'true' if transaction mode is enabled on write operations, 'false' otherwise.
+//
+// MongoDB's implementation of GdaoCreate is "get/check and write". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GetTxModeOnWrite() bool {
 	return dao.txModeOnWrite
 }
 
-/*
-SetTxModeOnWrite enables/disables transaction mode on write operations.
-
-MongoDB's implementation of GdaoCreate is "get/check and write". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
-As of MongoDB 4.0, transactions are available for replica set deployments only. Since MongoDB 4.2, transactions are also available for sharded cluster.
-By default, GenericDaoMongo is created with 'txModeOnWrite=false'. However, it is recommended to set 'txModeOnWrite=true' whenever possible.
-
-Available: since v0.1.0
-*/
+// SetTxModeOnWrite enables/disables transaction mode on write operations.
+//
+// MongoDB's implementation of GdaoCreate is "get/check and write". It can be done either in transaction (txModeOnWrite=true) or non-transaction (txModeOnWrite=false) mode.
+// As of MongoDB 4.0, transactions are available for replica set deployments only. Since MongoDB 4.2, transactions are also available for sharded cluster.
+// By default, GenericDaoMongo is created with 'txModeOnWrite=false'. However, it is recommended to set 'txModeOnWrite=true' whenever possible.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) SetTxModeOnWrite(enabled bool) *GenericDaoMongo {
 	dao.txModeOnWrite = enabled
 	return dao
 }
 
-/*
-GetMongoCollection returns the MongoDB collection object specified by 'collectionName'.
-*/
+// GetMongoCollection returns the MongoDB collection object specified by 'collectionName'.
 func (dao *GenericDaoMongo) GetMongoCollection(collectionName string, opts ...*options.CollectionOptions) *mongo.Collection {
 	return dao.mongoConnect.GetCollection(collectionName, opts...)
 }
 
-/*
-MongoDeleteMany performs a MongoDB's delete-many command on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// MongoDeleteMany performs a MongoDB's delete-many command on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
+//   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoDeleteMany(ctx context.Context, collectionName string, filter map[string]interface{}) (*mongo.DeleteResult, error) {
 	return dao.GetMongoCollection(collectionName).DeleteMany(ctx, filter)
 }
 
-/*
-MongoFetchOne performs a MongoDB's find-one command on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// MongoFetchOne performs a MongoDB's find-one command on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
+//   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoFetchOne(ctx context.Context, collectionName string, filter map[string]interface{}) *mongo.SingleResult {
 	return dao.GetMongoCollection(collectionName).FindOne(ctx, filter)
 }
 
-/*
-MongoFetchMany performs a MongoDB's find command on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-	- sorting: see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc)
-*/
+// MongoFetchMany performs a MongoDB's find command on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
+//   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
+//   - sorting: see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
 func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName string, filter map[string]interface{}, sorting map[string]int, startOffset, numItems int) (*mongo.Cursor, error) {
 	opt := &options.FindOptions{}
 	if sorting != nil && len(sorting) > 0 {
@@ -365,38 +337,31 @@ func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName s
 	return dao.GetMongoCollection(collectionName).Find(ctx, filter, opt)
 }
 
-/*
-MongoInsertOne performs a MongoDB's insert-one command on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-*/
+// MongoInsertOne performs a MongoDB's insert-one command on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
 func (dao *GenericDaoMongo) MongoInsertOne(ctx context.Context, collectionName string, doc interface{}) (*mongo.InsertOneResult, error) {
 	return dao.GetMongoCollection(collectionName).InsertOne(ctx, doc)
 }
 
-/*
-MongoUpdateOne performs a MongoDB's find-one-and-replace command with 'upsert=false' on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// MongoUpdateOne performs a MongoDB's find-one-and-replace command with 'upsert=false' on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
+//   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoUpdateOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
 	upsert := false
 	opt := options.FindOneAndReplaceOptions{Upsert: &upsert}
 	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, filter, doc, &opt)
 }
 
-/*
-MongoSaveOne performs a MongoDB's find-one-and-replace command with 'upsert=true' on the specified collection.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// MongoSaveOne performs a MongoDB's find-one-and-replace command with 'upsert=true' on the specified collection.
+//
+//   - ctx: can be used to pass a transaction down to the operation.
+//   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoSaveOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
 	upsert := true
 	opt := options.FindOneAndReplaceOptions{Upsert: &upsert}
 	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, filter, doc, &opt)
-
 }
 
 /*----------------------------------------------------------------------*/
@@ -465,54 +430,37 @@ func toSortingMap(input interface{}) (map[string]int, error) {
 	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]int", input))
 }
 
-/*
-GdaoDelete implements godal.IGenericDao.GdaoDelete.
-
-Available: since v0.1.0
-*/
+// GdaoDelete implements godal.IGenericDao.GdaoDelete.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoDelete(collectionName string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoDeleteWithContext(nil, collectionName, bo)
 }
 
-/*
-GdaoDeleteWithContext is extended-implementation of godal.IGenericDao.GdaoDelete.
-
-	- ctx: can be used to pass a transaction down to the operation
-
-Available: since v0.1.0
-*/
+// GdaoDeleteWithContext is is MongoDB variant of GdaoDelete.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoDeleteWithContext(ctx context.Context, collectionName string, bo godal.IGenericBo) (int, error) {
 	filter := dao.GdaoCreateFilter(collectionName, bo)
 	return dao.GdaoDeleteManyWithContext(ctx, collectionName, filter)
 }
 
-/*
-GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
+//
+//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
+//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) GdaoDeleteMany(collectionName string, filter interface{}) (int, error) {
 	return dao.GdaoDeleteManyWithContext(nil, collectionName, filter)
 }
 
-/*
-GdaoDeleteManyWithContext is extended-implementation of godal.IGenericDao.GdaoDeleteMany.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-
-Available: since v0.1.0
-*/
+// GdaoDeleteManyWithContext is is MongoDB variant of GdaoDeleteMany.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, collectionName string, filter interface{}) (int, error) {
 	if f, err := toMap(filter); err != nil {
 		return 0, err
 	} else {
-		if ctx == nil {
-			ctx, _ = dao.mongoConnect.NewContext()
-		}
-		if dbResult, err := dao.MongoDeleteMany(ctx, collectionName, f); err != nil {
+		if dbResult, err := dao.MongoDeleteMany(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f); err != nil {
 			return 0, err
 		} else {
 			return int(dbResult.DeletedCount), nil
@@ -520,33 +468,22 @@ func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, colle
 	}
 }
 
-/*
-GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-*/
+// GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
+//
+//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
+//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) GdaoFetchOne(collectionName string, filter interface{}) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithContext(nil, collectionName, filter)
 }
 
-/*
-GdaoFetchOneWithContext is extended-implementation of godal.IGenericDao.GdaoFetchOne.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-
-Available: since v0.1.0
-*/
+// GdaoFetchOneWithContext is is MongoDB variant of GdaoFetchOne.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collectionName string, filter interface{}) (godal.IGenericBo, error) {
 	if f, err := toMap(filter); err != nil {
 		return nil, err
 	} else {
-		if ctx == nil {
-			ctx, _ = dao.mongoConnect.NewContext()
-		}
-		dbResult := dao.MongoFetchOne(ctx, collectionName, f)
+		dbResult := dao.MongoFetchOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
 		if jsData, err := dao.mongoConnect.DecodeSingleResultRaw(dbResult); err != nil || jsData == nil {
 			return nil, err
 		} else {
@@ -555,31 +492,20 @@ func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collect
 	}
 }
 
-/*
-GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- nil filter means "match all"
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-	- sorting should be a map[string]int, or it can be a string/[]byte representing map[string]int in JSON, then it is unmarshalled to map[string]int
-	- see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc)
-*/
+// GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
+//
+//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
+//   - nil filter means "match all".
+//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
+//   - sorting should be a map[string]int, or it can be a string/[]byte representing map[string]int in JSON, then it is unmarshalled to map[string]int.
+//   - see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
 func (dao *GenericDaoMongo) GdaoFetchMany(collectionName string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, collectionName, filter, sorting, startOffset, numItems)
 }
 
-/*
-GdaoFetchManyWithContext is extended-implementation of godal.IGenericDao.GdaoFetchMany.
-
-	- ctx: can be used to pass a transaction down to the operation
-	- filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}
-	- nil filter means "match all"
-	- see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors)
-	- sorting should be a map[string]int, or it can be a string/[]byte representing map[string]int in JSON, then it is unmarshalled to map[string]int
-	- see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc)
-
-Available: since v0.1.0
-*/
+// GdaoFetchManyWithContext is is MongoDB variant of GdaoFetchMany.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collectionName string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	f, err := toMap(filter)
 	if err != nil {
@@ -589,9 +515,7 @@ func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collec
 	if err != nil {
 		return nil, err
 	}
-	if ctx == nil {
-		ctx, _ = dao.mongoConnect.NewContext()
-	}
+	ctx = dao.mongoConnect.NewContextIfNil(ctx)
 	cursor, err := dao.MongoFetchMany(ctx, collectionName, f, s, startOffset, numItems)
 	if cursor != nil {
 		defer func() { _ = cursor.Close(ctx) }()
@@ -650,19 +574,14 @@ func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName
 	return true, nil
 }
 
-/*
-WrapTransaction wraps a function inside a transaction.
-
-	- txFunc: the function to wrap. If the function returns error, the transaction will be aborted, otherwise transaction is committed.
-
-Available: since v0.0.4
-*/
+// WrapTransaction wraps a function inside a transaction.
+//
+//   - txFunc: the function to wrap. If the function returns error, the transaction will be aborted, otherwise transaction is committed.
+//
+// Available: since v0.0.4
 func (dao *GenericDaoMongo) WrapTransaction(ctx context.Context, txFunc func(sctx mongo.SessionContext) error) error {
-	if ctx == nil {
-		ctx, _ = dao.mongoConnect.NewContext()
-	}
 	// UseSession will close open session and pending transaction
-	return dao.mongoConnect.GetMongoClient().UseSession(ctx, func(sctx mongo.SessionContext) error {
+	return dao.mongoConnect.GetMongoClient().UseSession(dao.mongoConnect.NewContextIfNil(ctx), func(sctx mongo.SessionContext) error {
 		if err := sctx.StartTransaction(options.Transaction().
 			SetReadConcern(readconcern.Snapshot()).
 			SetWriteConcern(writeconcern.New(writeconcern.WMajority()))); err != nil {
@@ -676,24 +595,16 @@ func (dao *GenericDaoMongo) WrapTransaction(ctx context.Context, txFunc func(sct
 	})
 }
 
-/*
-GdaoCreate implements godal.IGenericDao.GdaoCreate.
-*/
+// GdaoCreate implements godal.IGenericDao.GdaoCreate.
 func (dao *GenericDaoMongo) GdaoCreate(collectionName string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoCreateWithContext(nil, collectionName, bo)
 }
 
-/*
-GdaoCreateWithContext is extended-implementation of godal.IGenericDao.GdaoCreate.
-
-	- ctx: can be used to pass a transaction down to the operation
-
-Available: since v0.1.0
-*/
+// GdaoCreateWithContext is is MongoDB variant of GdaoCreate.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoCreateWithContext(ctx context.Context, collectionName string, bo godal.IGenericBo) (int, error) {
-	if ctx == nil {
-		ctx, _ = dao.mongoConnect.NewContext()
-	}
+	ctx = dao.mongoConnect.NewContextIfNil(ctx)
 	if dao.txModeOnWrite {
 		numRows := 0
 		err := dao.WrapTransaction(ctx, func(sctx mongo.SessionContext) error {
@@ -721,24 +632,15 @@ func (dao *GenericDaoMongo) GdaoCreateWithContext(ctx context.Context, collectio
 	}
 }
 
-/*
-GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
-*/
+// GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
 func (dao *GenericDaoMongo) GdaoUpdate(collectionName string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoUpdateWithContext(nil, collectionName, bo)
 }
 
-/*
-GdaoUpdateWithContext is extended-implementation of godal.IGenericDao.GdaoUpdate.
-
-	- ctx: can be used to pass a transaction down to the operation
-
-Available: since v0.1.0
-*/
+// GdaoUpdateWithContext is is MongoDB variant of GdaoUpdate.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoUpdateWithContext(ctx context.Context, collectionName string, bo godal.IGenericBo) (int, error) {
-	if ctx == nil {
-		ctx, _ = dao.mongoConnect.NewContext()
-	}
 	doc, err := dao.GetRowMapper().ToRow(collectionName, bo)
 	if err != nil {
 		return 0, err
@@ -747,7 +649,7 @@ func (dao *GenericDaoMongo) GdaoUpdateWithContext(ctx context.Context, collectio
 	if err != nil {
 		return 0, err
 	}
-	result := dao.MongoUpdateOne(ctx, collectionName, filter, doc)
+	result := dao.MongoUpdateOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter, doc)
 	if _, err := result.DecodeBytes(); err == mongo.ErrNoDocuments {
 		return 0, nil
 	} else if isErrorDuplicatedKey(err) {
@@ -757,24 +659,15 @@ func (dao *GenericDaoMongo) GdaoUpdateWithContext(ctx context.Context, collectio
 	}
 }
 
-/*
-GdaoSave implements godal.IGenericDao.GdaoSave.
-*/
+// GdaoSave implements godal.IGenericDao.GdaoSave.
 func (dao *GenericDaoMongo) GdaoSave(collectionName string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoSaveWithContext(nil, collectionName, bo)
 }
 
-/*
-GdaoSaveWithContext is extended-implementation of godal.IGenericDao.GdaoSave.
-
-	- ctx: can be used to pass a transaction down to the operation
-
-Available: since v0.1.0
-*/
+// GdaoSaveWithContext is is MongoDB variant of GdaoSave.
+//
+// Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoSaveWithContext(ctx context.Context, collectionName string, bo godal.IGenericBo) (int, error) {
-	if ctx == nil {
-		ctx, _ = dao.mongoConnect.NewContext()
-	}
 	doc, err := dao.GetRowMapper().ToRow(collectionName, bo)
 	if err != nil {
 		return 0, err
@@ -783,7 +676,7 @@ func (dao *GenericDaoMongo) GdaoSaveWithContext(ctx context.Context, collectionN
 	if err != nil {
 		return 0, err
 	}
-	result := dao.MongoSaveOne(ctx, collectionName, filter, doc)
+	result := dao.MongoSaveOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter, doc)
 	if err = result.Err(); err == nil || err == mongo.ErrNoDocuments {
 		return 1, nil
 	} else {

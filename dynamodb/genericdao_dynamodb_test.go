@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,12 +19,29 @@ import (
 	"github.com/btnguyen2k/godal"
 )
 
-func createAwsDynamodbConnect(region string) (*prom.AwsDynamodbConnect, error) {
+func _createAwsDynamodbConnect(t *testing.T, testName string) *prom.AwsDynamodbConnect {
+	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
+	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
+	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
+	if awsRegion == "" || awsAccessKeyId == "" || awsSecretAccessKey == "" {
+		t.Skipf("%s skipped", testName)
+		return nil
+	}
 	cfg := &aws.Config{
-		Region:      aws.String(region),
+		Region:      aws.String(awsRegion),
 		Credentials: credentials.NewEnvCredentials(),
 	}
-	return prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	if awsDynamodbEndpoint := strings.ReplaceAll(os.Getenv("AWS_DYNAMODB_ENDPOINT"), `"`, ""); awsDynamodbEndpoint != "" {
+		cfg.Endpoint = aws.String(awsDynamodbEndpoint)
+		if strings.HasPrefix(awsDynamodbEndpoint, "http://") {
+			cfg.DisableSSL = aws.Bool(true)
+		}
+	}
+	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	if err != nil {
+		t.Fatalf("%s/%s failed: %s", testName, "NewAwsDynamodbConnect", err)
+	}
+	return adc
 }
 
 func inSlide(item string, slide []string) bool {
@@ -55,21 +73,40 @@ func waitForGsi(adc *prom.AwsDynamodbConnect, table, index string, statusList []
 	}
 }
 
-func prepareAwsDynamodbTable(adc *prom.AwsDynamodbConnect, table string) error {
-	err := adc.DeleteTable(nil, table)
+func prepareAwsDynamodbTable(adc *prom.AwsDynamodbConnect, tableName string) error {
+	err := adc.DeleteTable(nil, tableName)
 	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	fmt.Printf("  Deleted table [%s]\n", table)
-	waitForTable(adc, table, []string{""}, 1)
+	fmt.Printf("  Deleted table [%s]\n", tableName)
+	waitForTable(adc, tableName, []string{""}, 1)
 
-	err = adc.CreateTable(nil, table, 2, 2,
+	err = adc.CreateTable(nil, tableName, 2, 2,
 		[]prom.AwsDynamodbNameAndType{{fieldId, prom.AwsAttrTypeString}},
 		[]prom.AwsDynamodbNameAndType{{fieldId, prom.AwsKeyTypePartition}})
 	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	waitForTable(adc, table, []string{"ACTIVE"}, 1)
+	waitForTable(adc, tableName, []string{"ACTIVE"}, 1)
+
+	gsiName := "gsi_" + tableName + "_" + fieldUsername
+	err = adc.CreateGlobalSecondaryIndex(nil, tableName, gsiName, 2, 2,
+		[]prom.AwsDynamodbNameAndType{{fieldUsername, prom.AwsAttrTypeString}},
+		[]prom.AwsDynamodbNameAndType{{fieldUsername, prom.AwsKeyTypePartition}})
+	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		return err
+	}
+	waitForGsi(adc, tableName, gsiName, []string{"ACTIVE"}, 1)
+
+	gsiName = "gsi_" + tableName + "_" + fieldSubject + "_" + fieldLevel
+	err = adc.CreateGlobalSecondaryIndex(nil, tableName, gsiName, 2, 2,
+		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsAttrTypeString}, {fieldLevel, prom.AwsAttrTypeNumber}},
+		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsKeyTypePartition}, {fieldLevel, prom.AwsKeyTypeSort}})
+	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		return err
+	}
+	waitForGsi(adc, tableName, gsiName, []string{"ACTIVE"}, 1)
+
 	return nil
 }
 
@@ -84,13 +121,18 @@ type UserBoDynamodb struct {
 	Id       string    `json:"id"`
 	Username string    `json:"username"`
 	Name     string    `json:"name"`
+	Subject  string    `json:"subject"`
+	Level    int       `json:"level"`
 	Version  int       `json:"version"`
 	Active   bool      `json:"active"`
 	Created  time.Time `json:"created"`
 }
 
 const (
-	fieldId = "id"
+	fieldId       = "id"
+	fieldUsername = "username"
+	fieldSubject  = "subject"
+	fieldLevel    = "level"
 )
 
 type MyUserDaoDynamodb struct {
@@ -123,8 +165,8 @@ func (dao *MyUserDaoDynamodb) toUser(gbo godal.IGenericBo) *UserBoDynamodb {
 }
 
 /*----------------------------------------------------------------------*/
-func initDao(tableName string) *MyUserDaoDynamodb {
-	adc, _ := createAwsDynamodbConnect("ap-southeast-1")
+func _initDao(t *testing.T, testName, tableName string) *MyUserDaoDynamodb {
+	adc := _createAwsDynamodbConnect(t, testName)
 	return createDaoDynamodb(adc, tableName)
 }
 
@@ -284,15 +326,12 @@ func TestGenericRowMapperDynamodb_ToRow(t *testing.T) {
 }
 
 const (
-	envAwsDynamodbAccessKeyId     = "AWS_ACCESS_KEY_ID"
-	envAwsDynamodbSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
-	envAwsDynamodbTestTableName   = "DYNAMODB_TEST_TABLE_NAME"
-	envAwsDynamodbTestGsiName     = "DYNAMODB_TEST_GSI_NAME"
+	envAwsDynamodbTestTableName = "DYNAMODB_TEST_TABLE_NAME"
+	envAwsDynamodbTestGsiName   = "DYNAMODB_TEST_GSI_NAME"
 )
 
 var (
-	testDynamodbTableName = "test_user"
-	testDynamodbGsiName   = "gsi_test_user_email"
+	testDynamodbTableName = "test_godal"
 )
 
 func TestNewGenericDaoDynamodb(t *testing.T) {
@@ -301,7 +340,7 @@ func TestNewGenericDaoDynamodb(t *testing.T) {
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	dao := initDao(envAwsDynamodbTestTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	if dao == nil {
 		t.Fatalf("%s failed: nil", name)
 	}
@@ -313,8 +352,8 @@ func TestGenericDaoDynamodb_SetGetAwsDynamodbConnect(t *testing.T) {
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	dao := initDao(envAwsDynamodbTestTableName)
-	adc, _ := createAwsDynamodbConnect("ap-southeast-1")
+	dao := _initDao(t, name, testDynamodbTableName)
+	adc := _createAwsDynamodbConnect(t, name)
 	dao.SetAwsDynamodbConnect(adc)
 	if dao.GetAwsDynamodbConnect() != adc {
 		t.Fatalf("%s failed", name)
@@ -375,18 +414,23 @@ func TestToMap(t *testing.T) {
 	if m, err := toMap(&inputBytes); err != nil || m == nil {
 		t.Fatalf("%s failed: %#v / %e", name, m, err)
 	}
+
+	inputMap := map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}
+	if m, err := toMap(inputMap); err != nil || m == nil {
+		t.Fatalf("%s failed: %#v / %e", name, m, err)
+	}
+	if m, err := toMap(&inputMap); err != nil || m == nil {
+		t.Fatalf("%s failed: %#v / %e", name, m, err)
+	}
 }
 
 func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoDelete"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoDelete"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -399,6 +443,8 @@ func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 		Version:  int(time.Now().Unix()),
 		Active:   false,
 		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
 	}
 	_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 	if err != nil {
@@ -426,15 +472,12 @@ func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoDeleteMany(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoDeleteMany"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoDeleteMany"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -456,6 +499,8 @@ func TestGenericDaoDynamodb_GdaoDeleteMany(t *testing.T) {
 			Version:  int(time.Now().UnixNano()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
+			Subject:  "Subject" + strconv.Itoa(i%4),
+			Level:    i,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
@@ -471,15 +516,12 @@ func TestGenericDaoDynamodb_GdaoDeleteMany(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoFetchOne"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoFetchOne"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -499,6 +541,8 @@ func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
 		Version:  int(time.Now().Unix()),
 		Active:   false,
 		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
 	}
 	_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 	if err != nil {
@@ -519,36 +563,27 @@ func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoFetchMany(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoFetchMany"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoFetchMany"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 1, 2); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
-	} else if dbRows == nil || len(dbRows) != 0 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 0, dbRows)
-	}
-
 	for i := 0; i < 10; i++ {
-		id := strconv.Itoa(i)
 		user := &UserBoDynamodb{
-			Id:       id,
-			Username: "user" + id,
-			Name:     "Thanh " + id,
+			Id:       strconv.Itoa(i),
+			Username: "user" + strconv.Itoa(9-i),
+			Name:     "Thanh",
 			Version:  int(time.Now().UnixNano()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
+			Subject:  "Subject" + strconv.Itoa(i%4),
+			Level:    i,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
@@ -556,23 +591,98 @@ func TestGenericDaoDynamodb_GdaoFetchMany(t *testing.T) {
 		}
 	}
 
+	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else {
+		for _, row := range dbRows {
+			if user := dao.toUser(row); user.Id < "5" {
+				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			}
+		}
+	}
+
+	filter = expression.Name(fieldUsername).GreaterThanEqual(expression.Value("user5"))
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	} else if dbRows == nil || len(dbRows) != 3 {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else {
+		for _, row := range dbRows {
+			if user := dao.toUser(row); user.Username < "user5" {
+				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			}
+		}
+	}
+}
+
+func TestGenericDaoDynamodb_GdaoFetchManyGSI(t *testing.T) {
+	name := "TestGenericDaoDynamodb_GdaoFetchManyGSI"
+
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	dao := _initDao(t, name, testDynamodbTableName)
+	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		user := &UserBoDynamodb{
+			Id:       strconv.Itoa(i),
+			Username: "user" + strconv.Itoa(9-i),
+			Name:     "Thanh",
+			Version:  int(time.Now().UnixNano()),
+			Active:   i%3 == 0,
+			Created:  time.Now(),
+			Subject:  "Subject" + strconv.Itoa(i%4),
+			Level:    i,
+		}
+		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		if err != nil {
+			t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		}
+	}
+
+	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
+
+	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	} else if dbRows == nil || len(dbRows) != 3 {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else {
+		for _, row := range dbRows {
+			if user := dao.toUser(row); user.Id < "5" || user.Name != "" {
+				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			}
+		}
+	}
+
+	filter = expression.Name(fieldUsername).GreaterThanEqual(expression.Value("user5"))
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	} else if dbRows == nil || len(dbRows) != 3 {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else {
+		for _, row := range dbRows {
+			if user := dao.toUser(row); user.Username < "user5" || user.Name != "Thanh" {
+				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			}
+		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoCreate"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoCreate"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -585,6 +695,8 @@ func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
 		Version:  int(time.Now().Unix()),
 		Active:   false,
 		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
 	}
 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
@@ -609,15 +721,12 @@ func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoUpdate"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoUpdate"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -630,6 +739,8 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 		Version:  int(time.Now().Unix()),
 		Active:   false,
 		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
 	}
 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoUpdate", err)
@@ -663,15 +774,12 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoSave"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoSave"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
@@ -684,6 +792,8 @@ func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
 		Version:  int(time.Now().Unix()),
 		Active:   false,
 		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
 	}
 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
@@ -712,15 +822,12 @@ func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
 }
 
 func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
-	if os.Getenv(envAwsDynamodbAccessKeyId) == "" || os.Getenv(envAwsDynamodbSecretAccessKey) == "" {
-		return
-	}
+	name := "TestGenericDaoDynamodb_GdaoSaveShouldReplace"
+
 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
-	name := "TestGenericDaoDynamodb_GdaoSaveShouldReplace"
-
-	dao := initDao(testDynamodbTableName)
+	dao := _initDao(t, name, testDynamodbTableName)
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)

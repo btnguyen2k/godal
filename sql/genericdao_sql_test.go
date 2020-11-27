@@ -14,9 +14,17 @@ import (
 	"github.com/btnguyen2k/godal"
 )
 
-func newSqlConnect(driver, url, timezone string, flavor prom.DbFlavor) (*prom.SqlConnect, error) {
+func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, flavor prom.DbFlavor) (*prom.SqlConnect, error) {
 	driver = strings.Trim(driver, "\"")
 	url = strings.Trim(url, "\"")
+	if driver == "" || url == "" {
+		t.Skipf("%s skilled", testName)
+	}
+
+	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")
+	url = strings.ReplaceAll(url, "${loc}", urlTimezone)
+	url = strings.ReplaceAll(url, "${tz}", urlTimezone)
+	url = strings.ReplaceAll(url, "${timezone}", urlTimezone)
 	sqlc, err := prom.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
 	if err == nil && sqlc != nil {
 		loc, _ := time.LoadLocation(timezone)
@@ -45,8 +53,8 @@ func createDaoSql(sqlc *prom.SqlConnect, tableName string) *UserDaoSql {
 	return dao
 }
 
-func initDao(driver, url, tableName string, flavor prom.DbFlavor) *UserDaoSql {
-	sqlc, _ := newSqlConnect(driver, url, testTimeZone, flavor)
+func initDao(t *testing.T, testName string, driver, url, tableName string, flavor prom.DbFlavor) *UserDaoSql {
+	sqlc, _ := newSqlConnect(t, testName, driver, url, testTimeZone, flavor)
 	return createDaoSql(sqlc, tableName)
 }
 
