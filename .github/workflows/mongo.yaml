@@ -3,6 +3,8 @@ name: mongo
 on:
   push:
     branches: [ mongo ]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   testGeneral:
