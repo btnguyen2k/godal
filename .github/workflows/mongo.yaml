@@ -20,8 +20,8 @@ jobs:
         go test -cover -coverprofile=coverage_general.txt -v .
         bash <(curl -s https://codecov.io/bash) -cF general
 
-  testWithMongoStandalone:
-    name: Test with MongoDB (Standalone)
+  testMongoStandalone:
+    name: Test MongoDB (Standalone)
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
@@ -39,8 +39,8 @@ jobs:
         go test -cover -coverprofile=coverage_mongo_singleserver.txt -v ./mongo
         bash <(curl -s https://codecov.io/bash) -cF mongo_singleserver
 
-  testWithMongoReplicaSet:
-    name: Test with MongoDB (ReplicaSet)
+  testMongoReplicaSet:
+    name: Test MongoDB (ReplicaSet)
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env

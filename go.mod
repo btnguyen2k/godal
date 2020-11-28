@@ -13,6 +13,6 @@ require (
 	github.com/godror/godror v0.20.9
 	github.com/jackc/pgx/v4 v4.9.2
 	github.com/lib/pq v1.8.0
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	go.mongodb.org/mongo-driver v1.4.3
-	gopkg.in/goracle.v2 v2.24.1
 )

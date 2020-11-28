@@ -13,14 +13,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/sql"
-	"github.com/btnguyen2k/prom"
-	_ "github.com/go-sql-driver/mysql"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/btnguyen2k/prom"
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/godal/sql"
 )
 
 type DaoAppMysql struct {
@@ -39,9 +42,19 @@ func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 /*----------------------------------------------------------------------*/
 
 func createSqlConnectForMysql() *prom.SqlConnect {
-	driver := "mysql"
-	dsn := "test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=true&loc="
-	dsn = dsn + strings.Replace(timeZone, "/", "%2f", -1)
+	driver := strings.ReplaceAll(os.Getenv("MYSQL_DRIVER"), `"`, "")
+	dsn := strings.ReplaceAll(os.Getenv("MYSQL_URL"), `"`, "")
+	if driver == "" || dsn == "" {
+		panic("Please define env MYSQL_DRIVER, MYSQL_DRIVER and optionally TIMEZONE")
+	}
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
+	if timeZone == "" {
+		timeZone = "UTC"
+	}
+	urlTimezone := strings.ReplaceAll(timeZone, "/", "%2f")
+	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
@@ -405,8 +418,8 @@ func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
 
 	table := "tbl_app"
 	demoMysqlInsertRows(loc, table, true)

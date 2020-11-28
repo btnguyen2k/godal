@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
 	"time"
+
+	"github.com/btnguyen2k/consu/reddo"
+
+	"github.com/btnguyen2k/godal"
 )
 
 var (
-	timeZone = "Asia/Kabul"
-	sep      = "================================================================================"
+	sep = "================================================================================"
 )
 
 func printApp(app *BoApp) {
