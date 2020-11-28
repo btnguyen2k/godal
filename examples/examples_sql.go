@@ -4,8 +4,8 @@ Base code for SQL-dao example.
 package main
 
 import (
-	sql2 "database/sql"
 	"github.com/btnguyen2k/consu/reddo"
+
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/sql"
 )
@@ -48,7 +48,7 @@ func (dao *DaoAppSql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) in
 
 // EnableTxMode implements IDaoApp.EnableTxMode
 func (dao *DaoAppSql) EnableTxMode(txMode bool) {
-	dao.SetTransactionMode(txMode, sql2.LevelDefault)
+	dao.SetTxModeOnWrite(txMode)
 }
 
 // Delete implements IDaoApp.Delete

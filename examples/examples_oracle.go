@@ -13,13 +13,17 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/btnguyen2k/prom"
+	_ "github.com/godror/godror"
+
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/sql"
-	"github.com/btnguyen2k/prom"
-	_ "gopkg.in/goracle.v2"
-	"math/rand"
-	"strconv"
-	"time"
 )
 
 type DaoAppOracle struct {
@@ -38,8 +42,19 @@ func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 /*----------------------------------------------------------------------*/
 
 func createSqlConnectForOracle() *prom.SqlConnect {
-	driver := "goracle"
-	dsn := "test/Test1@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=tcp)(HOST=localhost)(PORT=1521)))(CONNECT_DATA=(SID=ORCLCDB)))"
+	driver := strings.ReplaceAll(os.Getenv("ORACLE_DRIVER"), `"`, "")
+	dsn := strings.ReplaceAll(os.Getenv("ORACLE_URL"), `"`, "")
+	if driver == "" || dsn == "" {
+		panic("Please define env ORACLE_DRIVER, ORACLE_URL and optionally TIMEZONE")
+	}
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
+	if timeZone == "" {
+		timeZone = "UTC"
+	}
+	urlTimezone := strings.ReplaceAll(timeZone, "/", "%2f")
+	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
@@ -51,11 +66,6 @@ func createSqlConnectForOracle() *prom.SqlConnect {
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
-	sql := "ALTER SESSION SET TIME_ZONE='" + timeZone + "'"
-	_, err = sqlConnect.GetDB().Exec(sql)
-	if err != nil {
-		panic(err)
-	}
 	return sqlConnect
 }
 
@@ -408,8 +418,8 @@ func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
 
 	table := "tbl_app"
 	demoOracleInsertRows(loc, table, true)

@@ -7,30 +7,42 @@ package main
 
 import (
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/sql"
-	"github.com/btnguyen2k/prom"
-	_ "github.com/go-sql-driver/mysql"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/prom"
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/godal/sql"
 )
 
 const (
-	timeZone = "Asia/Ho_Chi_Minh"
-	sep      = "================================================================================"
-	fieldId  = "id"
+	sepMysqlGeneric     = "================================================================================"
+	fieldIdMysqlGeneric = "id"
 )
 
-var colsSql = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "val_string",
+var colsSqlMysqlGeneric = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "val_string",
 	"val_time", "val_list", "val_map"}
 
-func createSqlConnectForMysql() *prom.SqlConnect {
-	driver := "mysql"
-	dsn := "test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=true&loc="
-	dsn = dsn + strings.Replace(timeZone, "/", "%2f", -1)
+func createSqlConnectForMysqlGeneric() *prom.SqlConnect {
+	driver := strings.ReplaceAll(os.Getenv("MYSQL_DRIVER"), `"`, "")
+	dsn := strings.ReplaceAll(os.Getenv("MYSQL_URL"), `"`, "")
+	if driver == "" || dsn == "" {
+		panic("Please define env MYSQL_DRIVER, MYSQL_DRIVER and optionally TIMEZONE")
+	}
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
+	if timeZone == "" {
+		timeZone = "UTC"
+	}
+	urlTimezone := strings.ReplaceAll(timeZone, "/", "%2f")
+	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
+	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
@@ -45,7 +57,7 @@ func createSqlConnectForMysql() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataMysql(sqlC *prom.SqlConnect, table string) {
+func initDataMysqlGeneric(sqlC *prom.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -55,8 +67,8 @@ func initDataMysql(sqlC *prom.SqlConnect, table string) {
 	types := []string{"VARCHAR(16)", "VARCHAR(255)", "CHAR(1)", "BIGINT", "DOUBLE", "VARCHAR(256)",
 		"TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range colsSqlMysqlGeneric {
+		sql += colsSqlMysqlGeneric[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)
@@ -72,8 +84,8 @@ type myGenericDaoMysql struct {
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-	return map[string]interface{}{fieldId: id}
+	id := bo.GboGetAttrUnsafe(fieldIdMysqlGeneric, reddo.TypeString)
+	return map[string]interface{}{fieldIdMysqlGeneric: id}
 }
 
 // custom row mapper to transform 'val_list' and 'val_list' to Go objects
@@ -109,9 +121,9 @@ func newGenericDaoMysql(sqlc *prom.SqlConnect, txMode bool) godal.IGenericDao {
 	return dao
 }
 
-func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
-	sqlC := createSqlConnectForMysql()
-	initDataMysql(sqlC, table)
+func demoMysqlInsertRowsGeneric(loc *time.Location, table string, txMode bool) {
+	sqlC := createSqlConnectForMysqlGeneric()
+	initDataMysqlGeneric(sqlC, table)
 	dao := newGenericDaoMysql(sqlC, txMode)
 
 	fmt.Printf("-== Insert rows to table (TxMode=%v) ==-\n", txMode)
@@ -119,7 +131,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo := godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "log")
+	bo.GboSetAttr(fieldIdMysqlGeneric, "log")
 	bo.GboSetAttr("val_desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
@@ -139,7 +151,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(fieldIdMysqlGeneric, "login")
 	bo.GboSetAttr("val_desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
@@ -158,7 +170,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row with duplicated id
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(fieldIdMysqlGeneric, "login")
 	bo.GboSetAttr("val_string", "Authentication application (TxMode=true)(again)")
 	bo.GboSetAttr("val_list", []interface{}{"duplicated"})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
@@ -169,16 +181,16 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
-func demoMysqlFetchRowById(table string, ids ...string) {
-	sqlC := createSqlConnectForMysql()
+func demoMysqlFetchRowByIdGeneric(table string, ids ...string) {
+	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Printf("-== Fetch rows by id ==-\n")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -188,11 +200,11 @@ func demoMysqlFetchRowById(table string, ids ...string) {
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
 func demoMysqlFetchAllRows(table string) {
-	sqlC := createSqlConnectForMysql()
+	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Println("-== Fetch all rows in table ==-")
@@ -204,16 +216,16 @@ func demoMysqlFetchAllRows(table string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
-func demoMysqlDeleteRow(table string, ids ...string) {
-	sqlC := createSqlConnectForMysql()
+func demoMysqlDeleteRowGeneric(table string, ids ...string) {
+	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Println("-== Delete rows from table ==-")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -226,7 +238,7 @@ func demoMysqlDeleteRow(table string, ids ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+			bo1, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -239,23 +251,23 @@ func demoMysqlDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
-func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
-	sqlC := createSqlConnectForMysql()
+func demoMysqlUpdateRowsGeneric(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Println("-== Update rows from table ==-")
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(fieldIdMysqlGeneric, id)
 			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", "(updated)")
 			bo.GboSetAttr("val_time", t)
@@ -271,7 +283,7 @@ func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -281,23 +293,23 @@ func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
-func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
-	sqlC := createSqlConnectForMysql()
+func demoMysqlUpsertRowsGeneric(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(fieldIdMysqlGeneric, id)
 			bo.GboSetAttr("val_desc", t.String())
 			bo.GboSetAttr("val_string", fmt.Sprintf("(upsert,txmode=%v)", txMode))
 			bo.GboSetAttr("val_time", t)
@@ -313,7 +325,7 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -323,12 +335,12 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
-func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
-	sqlC := createSqlConnectForMysql()
-	initDataMysql(sqlC, table)
+func demoMysqlSelectSortingAndLimitGeneric(loc *time.Location, table string) {
+	sqlC := createSqlConnectForMysqlGeneric()
+	initDataMysqlGeneric(sqlC, table)
 	dao := newGenericDaoMysql(sqlC, false)
 
 	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
@@ -341,7 +353,7 @@ func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo := godal.NewGenericBo()
-		bo.GboSetAttr(fieldId, id)
+		bo.GboSetAttr(fieldIdMysqlGeneric, id)
 		bo.GboSetAttr("val_desc", t.String())
 		bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 		bo.GboSetAttr("val_int", rand.Int())
@@ -358,7 +370,7 @@ func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
 	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
-	sorting := map[string]int{fieldId: 1} // sort by "id" attribute, ascending
+	sorting := map[string]int{fieldIdMysqlGeneric: 1} // sort by "id" attribute, ascending
 	boList, err := dao.GdaoFetchMany(table, nil, sorting, startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
@@ -367,22 +379,22 @@ func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(sepMysqlGeneric)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
 
 	table := "tbl_app"
-	demoMysqlInsertRows(loc, table, true)
-	demoMysqlInsertRows(loc, table, false)
-	demoMysqlFetchRowById(table, "login", "loggin")
+	demoMysqlInsertRowsGeneric(loc, table, true)
+	demoMysqlInsertRowsGeneric(loc, table, false)
+	demoMysqlFetchRowByIdGeneric(table, "login", "loggin")
 	demoMysqlFetchAllRows(table)
-	demoMysqlDeleteRow(table, "login", "loggin")
-	demoMysqlUpdateRows(loc, table, "log", "logging")
-	demoMysqlUpsertRows(loc, table, true, "log", "logging")
-	demoMysqlUpsertRows(loc, table, false, "log", "loggging")
-	demoMysqlSelectSortingAndLimit(loc, table)
+	demoMysqlDeleteRowGeneric(table, "login", "loggin")
+	demoMysqlUpdateRowsGeneric(loc, table, "log", "logging")
+	demoMysqlUpsertRowsGeneric(loc, table, true, "log", "logging")
+	demoMysqlUpsertRowsGeneric(loc, table, false, "log", "loggging")
+	demoMysqlSelectSortingAndLimitGeneric(loc, table)
 }

@@ -1,9 +1,9 @@
 /*
-PostgreSQL Dao example.
+SQLite Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_pgsql.go
+$ go run examples_bo.go examples_sql.go examples_sqlite.go
 
-PostgreSQL Dao implementation guideline:
+SQLite Dao implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -20,32 +20,32 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/prom"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/sql"
 )
 
-type DaoAppPgsql struct {
+type DaoAppSqlite struct {
 	*DaoAppSql
 }
 
-func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
-	dao := &DaoAppPgsql{}
+func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+	dao := &DaoAppSqlite{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
 	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorPgSql)
+	dao.SetSqlFlavor(prom.FlavorSqlite)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
 	return dao
 }
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForPgsql() *prom.SqlConnect {
-	driver := strings.ReplaceAll(os.Getenv("PGSQL_DRIVER"), `"`, "")
-	dsn := strings.ReplaceAll(os.Getenv("PGSQL_URL"), `"`, "")
+func createSqlConnectForSqlite() *prom.SqlConnect {
+	driver := strings.ReplaceAll(os.Getenv("SQLITE_DRIVER"), `"`, "")
+	dsn := strings.ReplaceAll(os.Getenv("SQLITE_URL"), `"`, "")
 	if driver == "" || dsn == "" {
-		panic("Please define env PGSQL_DRIVER, PGSQL_URL and optionally TIMEZONE")
+		panic("Please define env SQLITE_DRIVER, SQLITE_URL and optionally TIMEZONE")
 	}
 	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	if timeZone == "" {
@@ -69,7 +69,7 @@ func createSqlConnectForPgsql() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataPgsql(sqlC *prom.SqlConnect, table string) {
+func initDataSqlite(sqlC *prom.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -91,11 +91,11 @@ func initDataPgsql(sqlC *prom.SqlConnect, table string) {
 	}
 }
 
-func demoPgsqlInsertRows(loc *time.Location, table string, txMode bool) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	initDataPgsql(sqlC, table)
-	dao := NewDaoAppPgsql(sqlC, table)
+	initDataSqlite(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(txMode)
 
 	fmt.Printf("-== Insert rows to table (TxMode=%v) ==-\n", txMode)
@@ -169,10 +169,10 @@ func demoPgsqlInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println(sep)
 }
 
-func demoPgsqlFetchRowById(table string, ids ...string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteFetchRowById(table string, ids ...string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	dao := NewDaoAppPgsql(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Printf("-== Fetch rows by id ==-\n")
@@ -190,10 +190,10 @@ func demoPgsqlFetchRowById(table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoPgsqlFetchAllRow(table string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteFetchAllRow(table string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	dao := NewDaoAppPgsql(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Fetch all rows in table ==-")
@@ -208,10 +208,10 @@ func demoPgsqlFetchAllRow(table string) {
 	fmt.Println(sep)
 }
 
-func demoPgsqlDeleteRow(table string, ids ...string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteDeleteRow(table string, ids ...string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	dao := NewDaoAppPgsql(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Delete rows from table ==-")
@@ -245,10 +245,10 @@ func demoPgsqlDeleteRow(table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoPgsqlUpdateRows(loc *time.Location, table string, ids ...string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	dao := NewDaoAppPgsql(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Update rows from table ==-")
@@ -304,10 +304,10 @@ func demoPgsqlUpdateRows(loc *time.Location, table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoPgsqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	dao := NewDaoAppPgsql(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(txMode)
 
 	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
@@ -363,11 +363,11 @@ func demoPgsqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 	fmt.Println(sep)
 }
 
-func demoPgsqlSelectSortingAndLimit(loc *time.Location, table string) {
-	sqlC := createSqlConnectForPgsql()
+func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
+	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
-	initDataPgsql(sqlC, table)
-	dao := NewDaoAppPgsql(sqlC, table)
+	initDataSqlite(sqlC, table)
+	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
@@ -422,13 +422,13 @@ func main() {
 	loc, _ := time.LoadLocation(timeZone)
 
 	table := "tbl_app"
-	demoPgsqlInsertRows(loc, table, true)
-	demoPgsqlInsertRows(loc, table, false)
-	demoPgsqlFetchRowById(table, "login", "loggin")
-	demoPgsqlFetchAllRow(table)
-	demoPgsqlDeleteRow(table, "login", "loggin")
-	demoPgsqlUpdateRows(loc, table, "log", "logging")
-	demoPgsqlUpsertRows(loc, table, true, "log", "logging")
-	demoPgsqlUpsertRows(loc, table, false, "log", "loggging")
-	demoPgsqlSelectSortingAndLimit(loc, table)
+	demoSqliteInsertRows(loc, table, true)
+	demoSqliteInsertRows(loc, table, false)
+	demoSqliteFetchRowById(table, "login", "loggin")
+	demoSqliteFetchAllRow(table)
+	demoSqliteDeleteRow(table, "login", "loggin")
+	demoSqliteUpdateRows(loc, table, "log", "logging")
+	demoSqliteUpsertRows(loc, table, true, "log", "logging")
+	demoSqliteUpsertRows(loc, table, false, "log", "loggging")
+	demoSqliteSelectSortingAndLimit(loc, table)
 }
