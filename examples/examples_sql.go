@@ -35,6 +35,7 @@ func toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
 
 /*----------------------------------------------------------------------*/
 
+// DaoAppSql is SQL-based DAO implementation.
 type DaoAppSql struct {
 	*sql.GenericDaoSql
 	tableName string

@@ -57,6 +57,7 @@ const (
 	fieldUserActivedGeneric  = "actived"
 )
 
+// MyGenericDaoDynamodb is AWS DynamoDB-implementation DAO.
 type MyGenericDaoDynamodb struct {
 	*dynamodb.GenericDaoDynamodb
 }

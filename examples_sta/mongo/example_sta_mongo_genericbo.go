@@ -48,6 +48,7 @@ const (
 	fieldUserActivedGeneric  = "actived"
 )
 
+// MyGenericDaoMongo is MongoDB-implementation DAO.
 type MyGenericDaoMongo struct {
 	*mongo.GenericDaoMongo
 }

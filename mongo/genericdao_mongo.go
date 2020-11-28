@@ -114,7 +114,6 @@ package mongo
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -221,7 +220,7 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 	case reflect.Invalid:
 		return nil, nil
 	}
-	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
+	return nil, fmt.Errorf("cannot construct godal.IGenericBo from input %v", row)
 }
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
@@ -395,7 +394,7 @@ func toMap(input interface{}) (map[string]interface{}, error) {
 		return result.(map[string]interface{}), err
 
 	}
-	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]interface{}", input))
+	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
 }
 
 func toSortingMap(input interface{}) (map[string]int, error) {
@@ -427,7 +426,7 @@ func toSortingMap(input interface{}) (map[string]int, error) {
 		return result.(map[string]int), err
 
 	}
-	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]int", input))
+	return nil, fmt.Errorf("cannot convert %v to map[string]int", input)
 }
 
 // GdaoDelete implements godal.IGenericDao.GdaoDelete.
@@ -457,15 +456,15 @@ func (dao *GenericDaoMongo) GdaoDeleteMany(collectionName string, filter interfa
 //
 // Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, collectionName string, filter interface{}) (int, error) {
-	if f, err := toMap(filter); err != nil {
+	f, err := toMap(filter)
+	if err != nil {
 		return 0, err
-	} else {
-		if dbResult, err := dao.MongoDeleteMany(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f); err != nil {
-			return 0, err
-		} else {
-			return int(dbResult.DeletedCount), nil
-		}
 	}
+	dbResult, err := dao.MongoDeleteMany(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
+	if err != nil {
+		return 0, err
+	}
+	return int(dbResult.DeletedCount), nil
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
@@ -480,16 +479,16 @@ func (dao *GenericDaoMongo) GdaoFetchOne(collectionName string, filter interface
 //
 // Available: since v0.1.0
 func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collectionName string, filter interface{}) (godal.IGenericBo, error) {
-	if f, err := toMap(filter); err != nil {
+	f, err := toMap(filter)
+	if err != nil {
 		return nil, err
-	} else {
-		dbResult := dao.MongoFetchOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
-		if jsData, err := dao.mongoConnect.DecodeSingleResultRaw(dbResult); err != nil || jsData == nil {
-			return nil, err
-		} else {
-			return dao.GetRowMapper().ToBo(collectionName, jsData)
-		}
 	}
+	dbResult := dao.MongoFetchOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
+	jsData, err := dao.mongoConnect.DecodeSingleResultRaw(dbResult)
+	if err != nil || jsData == nil {
+		return nil, err
+	}
+	return dao.GetRowMapper().ToBo(collectionName, jsData)
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
@@ -561,9 +560,8 @@ func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName
 	if jsData, err := dao.mongoConnect.DecodeSingleResultRaw(row); err != nil || jsData != nil {
 		if err != nil {
 			return false, err
-		} else {
-			return false, godal.GdaoErrorDuplicatedEntry
 		}
+		return false, godal.GdaoErrorDuplicatedEntry
 	}
 
 	// insert new document
@@ -620,17 +618,16 @@ func (dao *GenericDaoMongo) GdaoCreateWithContext(ctx context.Context, collectio
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return numRows, err
-	} else {
-		if result, err := dao.insertIfNotExist(ctx, collectionName, bo); err != nil {
-			if isErrorDuplicatedKey(err) {
-				return 0, godal.GdaoErrorDuplicatedEntry
-			}
-			return 0, err
-		} else if result {
-			return 1, nil
-		}
-		return 0, nil
 	}
+	if result, err := dao.insertIfNotExist(ctx, collectionName, bo); err != nil {
+		if isErrorDuplicatedKey(err) {
+			return 0, godal.GdaoErrorDuplicatedEntry
+		}
+		return 0, err
+	} else if result {
+		return 1, nil
+	}
+	return 0, nil
 }
 
 // GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
@@ -680,10 +677,9 @@ func (dao *GenericDaoMongo) GdaoSaveWithContext(ctx context.Context, collectionN
 	result := dao.MongoSaveOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter, doc)
 	if err = result.Err(); err == nil || err == mongo.ErrNoDocuments {
 		return 1, nil
-	} else {
-		if isErrorDuplicatedKey(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
-		}
-		return 1, err
 	}
+	if isErrorDuplicatedKey(err) {
+		return 0, godal.GdaoErrorDuplicatedEntry
+	}
+	return 1, err
 }
