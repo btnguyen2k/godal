@@ -26,10 +26,12 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// DaoAppMssql is MSSQL-implementation of IDaoApp.
 type DaoAppMssql struct {
 	*DaoAppSql
 }
 
+// NewDaoAppMssql is helper function to create MSSQL-implementation of IDaoApp.
 func NewDaoAppMssql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppMssql{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}

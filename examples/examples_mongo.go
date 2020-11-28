@@ -27,11 +27,13 @@ import (
 	"github.com/btnguyen2k/godal/mongo"
 )
 
+// DaoAppMongodb is MongoDB-implementation of IDaoApp.
 type DaoAppMongodb struct {
 	*mongo.GenericDaoMongo
 	collectionName string
 }
 
+// NewDaoAppMongodb is helper function to create MongoDB-implementation of IDaoApp.
 func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string) IDaoApp {
 	dao := &DaoAppMongodb{collectionName: collectionName}
 	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
@@ -63,6 +65,7 @@ func (dao *DaoAppMongodb) toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
 }
 
 /*----------------------------------------------------------------------*/
+
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *DaoAppMongodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
 	id, _ := bo.GboGetAttr("id", reddo.TypeString)
@@ -542,8 +545,8 @@ func demoMongoFetchDocNotExists(collection string, docId string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
 
 	collection := "apps"
 	demoMongoInsertDocs(loc, collection, true)

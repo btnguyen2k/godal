@@ -26,10 +26,12 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// DaoAppOracle is Oracle-implementation of IDaoApp.
 type DaoAppOracle struct {
 	*DaoAppSql
 }
 
+// NewDaoAppOracle is helper function to create Oracle-implementation of IDaoApp.
 func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppOracle{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}

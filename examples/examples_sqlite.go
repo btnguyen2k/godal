@@ -26,10 +26,12 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// DaoAppSqlite is SQLite-implementation of IDaoApp.
 type DaoAppSqlite struct {
 	*DaoAppSql
 }
 
+// NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
 func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppSqlite{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}

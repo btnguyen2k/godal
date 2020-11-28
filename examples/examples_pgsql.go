@@ -26,10 +26,12 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// DaoAppPgsql is PostgreSQL-implementation of IDaoApp.
 type DaoAppPgsql struct {
 	*DaoAppSql
 }
 
+// NewDaoAppPgsql is helper function to create PostgreSQL-implementation of IDaoApp.
 func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppPgsql{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}

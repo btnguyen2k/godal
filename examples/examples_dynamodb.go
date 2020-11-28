@@ -537,8 +537,8 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
 
 	tableName := "test_apps"
 	demoDynamodbInsertItems(loc, tableName)

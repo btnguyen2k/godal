@@ -26,10 +26,12 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// DaoAppMysql is MySQL-implementation of IDaoApp.
 type DaoAppMysql struct {
 	*DaoAppSql
 }
 
+// NewDaoAppMysql is helper function to create MySQL-implementation of IDaoApp.
 func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppMysql{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
