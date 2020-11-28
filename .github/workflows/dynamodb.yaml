@@ -3,6 +3,8 @@ name: dynamodb
 on:
   push:
     branches: [ dynamodb ]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   testGeneral:

@@ -872,7 +872,6 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
 	}
 	dao := _initDao(t, name, testDynamodbTableName)
-	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
 	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
