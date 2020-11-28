@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
@@ -12,13 +14,21 @@ import (
 )
 
 // convenient function to create prom.MongoConnect instance
-func createMongoConnect(url, db string) *prom.MongoConnect {
-	timeoutMs := 10000
-	mgc, err := prom.NewMongoConnect(url, db, timeoutMs)
+func createMongoConnect() *prom.MongoConnect {
+	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
+	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
+	if mongoUrl == "" || mongoDb == "" {
+		panic("Please define env MONGO_URL, MONGO_DB")
+	}
+	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
-	return mgc
+
+	// HACK to force database creation
+	mc.CreateCollection("__prom")
+
+	return mc
 }
 
 // convenient function to create UserDaoMongo instance
@@ -123,6 +133,7 @@ func (dao *UserDaoMongo) Get(id string) (*UserBo, error) {
 	filterGbo := godal.NewGenericBo()
 	filterGbo.GboSetAttr(fieldUserId, id)
 	gbo, err := dao.GdaoFetchOne(dao.collectionName, dao.GdaoCreateFilter(dao.collectionName, filterGbo))
+	fmt.Println(gbo, err)
 	return dao.toBo(gbo), err
 }
 
@@ -145,13 +156,13 @@ func (dao *UserDaoMongo) Delete(bo *UserBo) (bool, error) {
 }
 
 func main() {
-	// create new prom.MongoConnect
-	mgc := createMongoConnect("mongodb://test:test@localhost:27017/test", "test")
+	mc := createMongoConnect()
+	mc.GetCollection(collectionUser).Drop(nil)
 
 	rowMapper := mongo.GenericRowMapperMongoInstance
 
 	// create new UserDaoMongo
-	daoUser := createUserDaoMongo(mgc, collectionUser, rowMapper)
+	daoUser := createUserDaoMongo(mc, collectionUser, rowMapper)
 
 	bo := &UserBo{
 		Id:       "1",

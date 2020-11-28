@@ -7,32 +7,43 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/prom"
+
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/mongo"
-	"github.com/btnguyen2k/prom"
-	"math/rand"
-	"strconv"
-	"time"
 )
 
 const (
-	timeZone = "Asia/Ho_Chi_Minh"
-	sep      = "================================================================================"
-	fieldId  = "_id"
+	mongoGenericTz      = "Asia/Ho_Chi_Minh"
+	mongoGenericSep     = "================================================================================"
+	mongoGenericFieldId = "_id"
 )
 
-func createMongoConnect() *prom.MongoConnect {
-	url := "mongodb://test:test@localhost:27017/test"
-	db := "test"
-	mc, err := prom.NewMongoConnect(url, db, 10000)
+func createMongoConnectGeneric() *prom.MongoConnect {
+	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
+	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
+	if mongoUrl == "" || mongoDb == "" {
+		panic("Please define env MONGO_URL, MONGO_DB")
+	}
+	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
+
+	// HACK to force database creation
+	mc.CreateCollection("__prom")
+
 	return mc
 }
 
-func initDataMongo(mc *prom.MongoConnect, collection string) {
+func initDataMongoGeneric(mc *prom.MongoConnect, collection string) {
 	err := mc.GetCollection(collection).Drop(nil)
 	if err != nil {
 		panic(err)
@@ -49,8 +60,8 @@ type myGenericDaoMongo struct {
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-	return map[string]interface{}{fieldId: id}
+	id := bo.GboGetAttrUnsafe(mongoGenericFieldId, reddo.TypeString)
+	return map[string]interface{}{mongoGenericFieldId: id}
 }
 
 func newGenericDaoMongo(mc *prom.MongoConnect, txMode bool) godal.IGenericDao {
@@ -60,9 +71,9 @@ func newGenericDaoMongo(mc *prom.MongoConnect, txMode bool) godal.IGenericDao {
 	return dao
 }
 
-func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
-	mc := createMongoConnect()
-	initDataMongo(mc, collection)
+func demoMongoInsertDocsGeneric(loc *time.Location, collection string, txMode bool) {
+	mc := createMongoConnectGeneric()
+	initDataMongoGeneric(mc, collection)
 	dao := newGenericDaoMongo(mc, txMode)
 
 	fmt.Printf("-== Insert documents to collection (TxMode=%v) ==-\n", txMode)
@@ -70,7 +81,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	// insert a document
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo := godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "log")
+	bo.GboSetAttr(mongoGenericFieldId, "log")
 	bo.GboSetAttr("desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
@@ -90,7 +101,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	// insert another document
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(mongoGenericFieldId, "login")
 	bo.GboSetAttr("desc", t.String())
 	bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 	bo.GboSetAttr("val_int", rand.Int())
@@ -109,7 +120,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 
 	// insert another document with duplicated id
 	bo = godal.NewGenericBo()
-	bo.GboSetAttr(fieldId, "login")
+	bo.GboSetAttr(mongoGenericFieldId, "login")
 	bo.GboSetAttr("val_string", "Authentication application (TxMode=true)(again)")
 	bo.GboSetAttr("val_list", []interface{}{"duplicated"})
 	fmt.Println("\tCreating bo:", string(bo.GboToJsonUnsafe()))
@@ -120,16 +131,16 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoFetchDocById(collection string, docIds ...string) {
-	mc := createMongoConnect()
+func demoMongoFetchDocByIdGeneric(collection string, docIds ...string) {
+	mc := createMongoConnectGeneric()
 	dao := newGenericDaoMongo(mc, false)
 
 	fmt.Printf("-== Fetch documents by id ==-\n")
 	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -139,11 +150,11 @@ func demoMongoFetchDocById(collection string, docIds ...string) {
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoFetchAllDocs(collection string) {
-	mc := createMongoConnect()
+func demoMongoFetchAllDocsGeneric(collection string) {
+	mc := createMongoConnectGeneric()
 	dao := newGenericDaoMongo(mc, false)
 
 	fmt.Println("-== Fetch all documents in collection ==-")
@@ -155,16 +166,16 @@ func demoMongoFetchAllDocs(collection string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoDeleteDocs(collection string, docIds ...string) {
-	mc := createMongoConnect()
+func demoMongoDeleteDocsGeneric(collection string, docIds ...string) {
+	mc := createMongoConnectGeneric()
 	dao := newGenericDaoMongo(mc, false)
 
 	fmt.Println("-== Delete documents from collection ==-")
 	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -177,7 +188,7 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo1, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -190,23 +201,23 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string) {
-	mc := createMongoConnect()
+func demoMongoUpdateDocsGeneric(loc *time.Location, collection string, docIds ...string) {
+	mc := createMongoConnectGeneric()
 	dao := newGenericDaoMongo(mc, false)
 
 	fmt.Println("-== Update documents from collection ==-")
 	for _, id := range docIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(mongoGenericFieldId, id)
 			bo.GboSetAttr("desc", t.String())
 			bo.GboSetAttr("val_string", "(updated)")
 			bo.GboSetAttr("val_time", t)
@@ -222,7 +233,7 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -232,23 +243,23 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, docIds ...string) {
-	mc := createMongoConnect()
+func demoMongoUpsertDocsGeneric(loc *time.Location, collection string, txMode bool, docIds ...string) {
+	mc := createMongoConnectGeneric()
 	dao := newGenericDaoMongo(mc, txMode)
 
 	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-", txMode)
 	for _, id := range docIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
-			bo.GboSetAttr(fieldId, id)
+			bo.GboSetAttr(mongoGenericFieldId, id)
 			bo.GboSetAttr("desc", t.String())
 			bo.GboSetAttr("val_string", fmt.Sprintf("(upsert,txmode=%v)", txMode))
 			bo.GboSetAttr("val_time", t)
@@ -264,7 +275,7 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{fieldId: id})
+			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -274,12 +285,12 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
-func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
-	mc := createMongoConnect()
-	initDataMongo(mc, collection)
+func demoMongoSelectSortingAndLimitGeneric(loc *time.Location, collection string) {
+	mc := createMongoConnectGeneric()
+	initDataMongoGeneric(mc, collection)
 	dao := newGenericDaoMongo(mc, false)
 
 	fmt.Println("-== Fetch documents from collection with sorting and limit ==-")
@@ -292,7 +303,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo := godal.NewGenericBo()
-		bo.GboSetAttr(fieldId, id)
+		bo.GboSetAttr(mongoGenericFieldId, id)
 		bo.GboSetAttr("desc", t.String())
 		bo.GboSetAttr("val_bool", rand.Int31()%2 == 0)
 		bo.GboSetAttr("val_int", rand.Int())
@@ -309,7 +320,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
 	fmt.Printf("\tFetching %d docs, starting from offset %d...\n", numRows, startOffset)
-	sorting := map[string]int{fieldId: 1} // sort by "id" attribute, ascending
+	sorting := map[string]int{mongoGenericFieldId: 1} // sort by "id" attribute, ascending
 	boList, err := dao.GdaoFetchMany(collection, nil, sorting, startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
@@ -318,23 +329,23 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(mongoGenericSep)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation(timeZone)
-	fmt.Println("Timezone:", loc)
+	loc, _ := time.LoadLocation(mongoGenericTz)
+	fmt.Println("mongoGenericTz:", loc)
 	collection := "apps"
 	fmt.Println("Collection:", collection)
 
-	demoMongoInsertDocs(loc, collection, true)
-	demoMongoInsertDocs(loc, collection, false)
-	demoMongoFetchDocById(collection, "login", "loggin")
-	demoMongoFetchAllDocs(collection)
-	demoMongoDeleteDocs(collection, "login", "loggin")
-	demoMongoUpdateDocs(loc, collection, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, true, "log", "logging")
-	demoMongoUpsertDocs(loc, collection, false, "log", "loggging")
-	demoMongoSelectSortingAndLimit(loc, collection)
+	demoMongoInsertDocsGeneric(loc, collection, true)
+	demoMongoInsertDocsGeneric(loc, collection, false)
+	demoMongoFetchDocByIdGeneric(collection, "login", "loggin")
+	demoMongoFetchAllDocsGeneric(collection)
+	demoMongoDeleteDocsGeneric(collection, "login", "loggin")
+	demoMongoUpdateDocsGeneric(loc, collection, "log", "logging")
+	demoMongoUpsertDocsGeneric(loc, collection, true, "log", "logging")
+	demoMongoUpsertDocsGeneric(loc, collection, false, "log", "loggging")
+	demoMongoSelectSortingAndLimitGeneric(loc, collection)
 }

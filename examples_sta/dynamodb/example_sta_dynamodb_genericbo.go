@@ -16,7 +16,7 @@ import (
 )
 
 // convenient function to create prom.AwsDynamodbConnect instance
-func createAwsDynamodbConnectGeneric(region string) *prom.AwsDynamodbConnect {
+func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -77,8 +77,7 @@ func (dao *MyGenericDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGe
 }
 
 func main() {
-	// create new prom.AwsDynamodbConnect connecting to SouthEast region
-	adc := createAwsDynamodbConnectGeneric("ap-southeast-1")
+	adc := createAwsDynamodbConnectGeneric()
 
 	rowMapper := &dynamodb.GenericRowMapperDynamodb{
 		ColumnsListMap: map[string][]string{
