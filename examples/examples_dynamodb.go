@@ -29,11 +29,13 @@ import (
 	gdaodynamod "github.com/btnguyen2k/godal/dynamodb"
 )
 
+// DaoAppDynamodb is DynamoDB-implementation of IDaoApp.
 type DaoAppDynamodb struct {
 	*gdaodynamod.GenericDaoDynamodb
 	tableName string
 }
 
+// NewDaoAppDynamodb is a helper function to create DynamoDB-implementation of IDaoApp.
 func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) IDaoApp {
 	dao := &DaoAppDynamodb{tableName: tableName}
 	dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
@@ -66,6 +68,7 @@ func (dao *DaoAppDynamodb) toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
 }
 
 /*----------------------------------------------------------------------*/
+
 // EnableTxMode implements godal.IGenericDao.EnableTxMode.
 func (dao *DaoAppDynamodb) EnableTxMode(txMode bool) {
 	// NOTHING
