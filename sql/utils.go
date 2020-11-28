@@ -778,7 +778,6 @@ Build constructs the UPDATE sql statement, in the following format:
 func (b *UpdateBuilder) Build() (string, []interface{}) {
 	sql := fmt.Sprintf("UPDATE %s", b.Table)
 	values := make([]interface{}, 0)
-	tempValues := make([]interface{}, 0)
 
 	setList := make([]string, 0)
 	for k, v := range b.Values {
@@ -789,6 +788,7 @@ func (b *UpdateBuilder) Build() (string, []interface{}) {
 
 	whereClause := ""
 	if b.Filter != nil {
+		var tempValues []interface{}
 		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator)
 		values = append(values, tempValues...)
 	}
