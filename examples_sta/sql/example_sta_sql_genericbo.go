@@ -70,7 +70,7 @@ const (
 	fieldUserActived  = "actived"
 )
 
-// MyGenericDaoMongo is SQL-based DAO implementation.
+// MyGenericDaoSql is SQL-based DAO implementation.
 type MyGenericDaoSql struct {
 	*sql.GenericDaoSql
 }

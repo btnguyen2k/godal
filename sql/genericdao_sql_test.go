@@ -113,7 +113,7 @@ type UserBoSql struct {
 
 /*---------------------------------------------------------------*/
 
-func dotestGenericDaoSql_GdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 	user := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",
@@ -147,7 +147,7 @@ func dotestGenericDaoSql_GdaoDelete(t *testing.T, name string, dao *UserDaoSql) 
 	}
 }
 
-func dotestGenericDaoSql_GdaoDeleteMany(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSql) {
 	filter := &FilterOr{
 		Filters: []IFilter{
 			&FilterFieldValue{Field: colSqlId, Operation: ">=", Value: "8"},
@@ -184,7 +184,7 @@ func dotestGenericDaoSql_GdaoDeleteMany(t *testing.T, name string, dao *UserDaoS
 	}
 }
 
-func dotestGenericDaoSql_GdaoFetchOne(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql) {
 	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoSql{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
@@ -218,7 +218,7 @@ func dotestGenericDaoSql_GdaoFetchOne(t *testing.T, name string, dao *UserDaoSql
 	}
 }
 
-func dotestGenericDaoSql_GdaoFetchMany(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql) {
 	filter := &FilterAnd{
 		Filters: []IFilter{
 			&FilterFieldValue{Field: colSqlId, Operation: "<=", Value: "8"},
@@ -263,7 +263,7 @@ func dotestGenericDaoSql_GdaoFetchMany(t *testing.T, name string, dao *UserDaoSq
 	}
 }
 
-func dotestGenericDaoSql_GdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 	user := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",
@@ -294,7 +294,7 @@ func dotestGenericDaoSql_GdaoCreate(t *testing.T, name string, dao *UserDaoSql) 
 	}
 }
 
-func dotestGenericDaoSql_GdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 	user := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",
@@ -334,7 +334,7 @@ func dotestGenericDaoSql_GdaoUpdate(t *testing.T, name string, dao *UserDaoSql) 
 	}
 }
 
-func dotestGenericDaoSql_GdaoSave(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 	user := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",

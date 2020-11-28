@@ -52,7 +52,7 @@ func TestGenericDaoPgsql_GdaoDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoDelete(t, name, dao)
+	dotestGenericDaoSqlGdaoDelete(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoDeleteMany(t *testing.T) {
@@ -62,7 +62,7 @@ func TestGenericDaoPgsql_GdaoDeleteMany(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoDeleteMany(t, name, dao)
+	dotestGenericDaoSqlGdaoDeleteMany(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoFetchOne(t *testing.T) {
@@ -72,7 +72,7 @@ func TestGenericDaoPgsql_GdaoFetchOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoFetchOne(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchOne(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoFetchMany(t *testing.T) {
@@ -82,7 +82,7 @@ func TestGenericDaoPgsql_GdaoFetchMany(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoFetchMany(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchMany(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoCreate(t *testing.T) {
@@ -92,7 +92,7 @@ func TestGenericDaoPgsql_GdaoCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoCreate(t, name, dao)
+	dotestGenericDaoSqlGdaoCreate(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoUpdate(t *testing.T) {
@@ -102,7 +102,7 @@ func TestGenericDaoPgsql_GdaoUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoUpdate(t, name, dao)
+	dotestGenericDaoSqlGdaoUpdate(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoSave(t *testing.T) {
@@ -112,7 +112,7 @@ func TestGenericDaoPgsql_GdaoSave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
-	dotestGenericDaoSql_GdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, name, dao)
 }
 
 func TestGenericDaoPgsql_GdaoSaveTxModeOnWrite(t *testing.T) {
@@ -123,5 +123,5 @@ func TestGenericDaoPgsql_GdaoSaveTxModeOnWrite(t *testing.T) {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
 	dao.SetTxModeOnWrite(true)
-	dotestGenericDaoSql_GdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, name, dao)
 }
