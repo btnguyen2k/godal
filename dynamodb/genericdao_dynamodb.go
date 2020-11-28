@@ -124,7 +124,6 @@ package dynamodb
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -233,7 +232,7 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 	case reflect.Invalid:
 		return nil, nil
 	}
-	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
+	return nil, fmt.Errorf("cannot construct godal.IGenericBo from input %v", row)
 }
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
@@ -332,33 +331,33 @@ func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error)
 		return toConditionBuilder(result)
 	case reflect.Array, reflect.Slice:
 		// expect input to be a map in JSON
-		if t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0))); err != nil {
+		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
+		if err != nil {
 			return nil, err
-		} else {
-			result := make(map[string]interface{})
-			if err := json.Unmarshal(t.([]byte), &result); err != nil {
-				return nil, err
-			}
-			return toConditionBuilder(result)
 		}
+		result := make(map[string]interface{})
+		if err := json.Unmarshal(t.([]byte), &result); err != nil {
+			return nil, err
+		}
+		return toConditionBuilder(result)
 	case reflect.Map:
-		if m, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{}))); err != nil {
+		m, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
+		if err != nil {
 			return nil, err
-		} else {
-			var result *expression.ConditionBuilder = nil
-			for k, v := range m.(map[string]interface{}) {
-				if result == nil {
-					t := expression.Name(k).Equal(expression.Value(v))
-					result = &t
-				} else {
-					t := result.And(expression.Name(k).Equal(expression.Value(v)))
-					result = &t
-				}
-			}
-			return result, err
 		}
+		var result *expression.ConditionBuilder = nil
+		for k, v := range m.(map[string]interface{}) {
+			if result == nil {
+				t := expression.Name(k).Equal(expression.Value(v))
+				result = &t
+			} else {
+				t := result.And(expression.Name(k).Equal(expression.Value(v)))
+				result = &t
+			}
+		}
+		return result, err
 	}
-	return nil, errors.New(fmt.Sprintf("cannot convert %v to *expression.ConditionBuilder", input))
+	return nil, fmt.Errorf("cannot convert %v to *expression.ConditionBuilder", input)
 }
 
 func toMap(input interface{}) (map[string]interface{}, error) {
@@ -382,18 +381,18 @@ func toMap(input interface{}) (map[string]interface{}, error) {
 		return result, err
 	case reflect.Array, reflect.Slice:
 		// expect input to be a map in JSON
-		if t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0))); err != nil {
+		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
+		if err != nil {
 			return nil, err
-		} else {
-			result := make(map[string]interface{})
-			return result, json.Unmarshal(t.([]byte), &result)
 		}
+		result := make(map[string]interface{})
+		return result, json.Unmarshal(t.([]byte), &result)
 	case reflect.Map:
 		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
 		return result.(map[string]interface{}), err
 
 	}
-	return nil, errors.New(fmt.Sprintf("cannot convert %v to map[string]interface{}", input))
+	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
 }
 
 /*----------------------------------------------------------------------*/
@@ -405,20 +404,20 @@ func (dao *GenericDaoDynamodb) GdaoDelete(table string, bo godal.IGenericBo) (in
 
 // GdaoDeleteWithContext is AWS DynamoDB variant of GdaoDelete.
 func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table string, bo godal.IGenericBo) (int, error) {
-	if keyFilter, err := toMap(dao.GdaoCreateFilter(table, bo)); err != nil {
+	keyFilter, err := toMap(dao.GdaoCreateFilter(table, bo))
+	if err != nil {
 		return 0, err
-	} else {
-		if deleteInput, err := dao.dynamodbConnect.BuildDeleteItemInput(table, keyFilter, nil); err != nil {
-			return 0, err
-		} else {
-			deleteResult, err := dao.dynamodbConnect.DeleteItemWithInput(ctx, deleteInput.SetReturnValues("ALL_OLD"))
-			numRows := 0
-			if deleteResult != nil && deleteResult.Attributes != nil {
-				numRows = 1
-			}
-			return numRows, err
-		}
 	}
+	deleteInput, err := dao.dynamodbConnect.BuildDeleteItemInput(table, keyFilter, nil)
+	if err != nil {
+		return 0, err
+	}
+	deleteResult, err := dao.dynamodbConnect.DeleteItemWithInput(ctx, deleteInput.SetReturnValues("ALL_OLD"))
+	numRows := 0
+	if deleteResult != nil && deleteResult.Attributes != nil {
+		numRows = 1
+	}
+	return numRows, err
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
@@ -542,11 +541,11 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 				return false, err
 			}
 		}
-		if gbo, err := dao.GetRowMapper().ToBo(table, item); err != nil {
+		gbo, err := dao.GetRowMapper().ToBo(table, item)
+		if err != nil {
 			return false, err
-		} else {
-			result = append(result, gbo)
 		}
+		result = append(result, gbo)
 		myCounter++
 		if numItems > 0 && myCounter >= numItems {
 			return false, nil
@@ -571,17 +570,17 @@ func (dao *GenericDaoDynamodb) GdaoCreate(table string, bo godal.IGenericBo) (in
 func (dao *GenericDaoDynamodb) GdaoCreateWithContext(ctx aws.Context, table string, bo godal.IGenericBo) (int, error) {
 	pkAttrs := dao.GetRowMapper().ColumnsList(table)
 	if pkAttrs == nil || len(pkAttrs) == 0 {
-		return 0, errors.New(fmt.Sprintf("cannot find primary-key attribute list for table [%s]", table))
+		return 0, fmt.Errorf("cannot find primary-key attribute list for table [%s]", table)
 	}
-	if item, err := dao.GetRowMapper().ToRow(table, bo); err != nil {
+	item, err := dao.GetRowMapper().ToRow(table, bo)
+	if err != nil {
 		return 0, err
-	} else {
-		createResult, err := dao.dynamodbConnect.PutItemIfNotExist(ctx, table, item, pkAttrs)
-		if prom.IsAwsError(err, dynamodb.ErrCodeConditionalCheckFailedException) || createResult == nil {
-			return 0, godal.GdaoErrorDuplicatedEntry
-		}
-		return 1, err
 	}
+	createResult, err := dao.dynamodbConnect.PutItemIfNotExist(ctx, table, item, pkAttrs)
+	if prom.IsAwsError(err, dynamodb.ErrCodeConditionalCheckFailedException) || createResult == nil {
+		return 0, godal.GdaoErrorDuplicatedEntry
+	}
+	return 1, err
 }
 
 // GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
@@ -603,20 +602,20 @@ func (dao *GenericDaoDynamodb) GdaoUpdateWithContext(ctx aws.Context, table stri
 		return 0, err
 	}
 
-	if pkAttrs := dao.GetRowMapper().ColumnsList(table); pkAttrs == nil || len(pkAttrs) == 0 {
-		return 0, errors.New(fmt.Sprintf("cannot find primary-key attribute list for table [%s]", table))
-	} else {
-		// remove primary key attributes from update list
-		for _, pk := range pkAttrs {
-			delete(itemMap, pk)
-		}
-		condition := prom.AwsDynamodbExistsAllBuilder(pkAttrs)
-		if _, err = dao.dynamodbConnect.UpdateItem(ctx, table, keyFilter, condition, nil, itemMap, nil, nil); err != nil {
-			err = prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeConditionalCheckFailedException)
-			return 0, err
-		}
-		return 1, nil
+	pkAttrs := dao.GetRowMapper().ColumnsList(table)
+	if pkAttrs == nil || len(pkAttrs) == 0 {
+		return 0, fmt.Errorf("cannot find primary-key attribute list for table [%s]", table)
 	}
+	for _, pk := range pkAttrs {
+		// remove primary key attributes from update list
+		delete(itemMap, pk)
+	}
+	condition := prom.AwsDynamodbExistsAllBuilder(pkAttrs)
+	if _, err = dao.dynamodbConnect.UpdateItem(ctx, table, keyFilter, condition, nil, itemMap, nil, nil); err != nil {
+		err = prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeConditionalCheckFailedException)
+		return 0, err
+	}
+	return 1, nil
 }
 
 // GdaoSave implements godal.IGenericDao.GdaoSave.
@@ -628,12 +627,12 @@ func (dao *GenericDaoDynamodb) GdaoSave(table string, bo godal.IGenericBo) (int,
 func (dao *GenericDaoDynamodb) GdaoSaveWithContext(ctx aws.Context, table string, bo godal.IGenericBo) (int, error) {
 	pkAttrs := dao.GetRowMapper().ColumnsList(table)
 	if pkAttrs == nil || len(pkAttrs) == 0 {
-		return 0, errors.New(fmt.Sprintf("cannot find primary-key attribute list for table [%s]", table))
+		return 0, fmt.Errorf("cannot find primary-key attribute list for table [%s]", table)
 	}
-	if item, err := dao.GetRowMapper().ToRow(table, bo); err != nil {
+	item, err := dao.GetRowMapper().ToRow(table, bo)
+	if err != nil {
 		return 0, err
-	} else {
-		_, err := dao.dynamodbConnect.PutItem(ctx, table, item, nil)
-		return 1, err
 	}
+	_, err = dao.dynamodbConnect.PutItem(ctx, table, item, nil)
+	return 1, err
 }
