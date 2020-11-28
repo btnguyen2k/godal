@@ -2,21 +2,20 @@ package sql
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/godal"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/btnguyen2k/consu/reddo"
+
+	"github.com/btnguyen2k/godal"
 )
 
 // NameTransformation specifies how table column name is transformed.
 type NameTransformation int
 
-/*
-Predefined name transformations.
-*/
+// Predefined name transformations.
 const (
 	// NameTransfIntact specifies that table column & field names are kept intact.
 	NameTransfIntact NameTransformation = iota
@@ -28,21 +27,18 @@ const (
 	NameTransfLowerCase
 )
 
-/*
-GenericRowMapperSql is a generic implementation of godal.IRowMapper for 'database/sql'.
-
-Implementation rules:
-
-	- ToRow: transform godal.IGenericBo to map[string]interface{}.
-	  - Only top level fields are converted. Column/Field names are transformed according to 'NameTransformation' setting and 'GboFieldToColNameTranslator'
-	  - If field is bool or string or time.Time: its value is converted as-is
-	  - If field is int (int8 to int64): its value is converted to int64
-	  - If field is uint (uint8 to uint64): its value is converted to uint64
-	  - If field is float32 or float64: its value is converted to float64
-	  - Field is one of other types: its value is converted to JSON string
-	- ToBo: expect input is a map[string]interface{}, transform it to godal.IGenericBo. Column/Field names are transformed according to 'NameTransformation' setting and 'ColNameToGboFieldTranslator'
-	- ColumnsList: lookup column-list from a 'columns-list map', returns []string{"*"} if not found
-*/
+// GenericRowMapperSql is a generic implementation of godal.IRowMapper for 'database/sql'.
+//
+// Implementation rules:
+//   - ToRow: transform godal.IGenericBo to map[string]interface{}.
+//     - Only top level fields are converted. Column/Field names are transformed according to 'NameTransformation' setting and 'GboFieldToColNameTranslator'
+// 	   - If field is bool or string or time.Time: its value is converted as-is
+// 	   - If field is int (int8 to int64): its value is converted to int64
+// 	   - If field is uint (uint8 to uint64): its value is converted to uint64
+// 	   - If field is float32 or float64: its value is converted to float64
+// 	   - Field is one of other types: its value is converted to JSON string
+//   - ToBo: expect input is a map[string]interface{}, transform it to godal.IGenericBo. Column/Field names are transformed according to 'NameTransformation' setting and 'ColNameToGboFieldTranslator'
+//   - ColumnsList: lookup column-list from a 'columns-list map', returns []string{"*"} if not found
 type GenericRowMapperSql struct {
 	// NameTransformation specifies how field/column names are transformed. Default value: NameTransfIntact
 	NameTransformation NameTransformation
@@ -122,9 +118,8 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo)
 		var colName string
 		if colName, err = reddo.ToString(field); err != nil {
 			return
-		} else {
-			colName = mapper.translateGboFieldToColName(storageId, mapper.transformName(colName))
 		}
+		colName = mapper.translateGboFieldToColName(storageId, mapper.transformName(colName))
 
 		v := reflect.ValueOf(value)
 		for ; v.Kind() == reflect.Ptr; v = v.Elem() {
@@ -232,7 +227,7 @@ func (mapper *GenericRowMapperSql) ToBo(table string, row interface{}) (godal.IG
 	case reflect.Invalid:
 		return nil, nil
 	}
-	return nil, errors.New(fmt.Sprintf("cannot construct godal.IGenericBo from input %v", row))
+	return nil, fmt.Errorf("cannot construct godal.IGenericBo from input %v", row)
 }
 
 var allColumns = []string{"*"}

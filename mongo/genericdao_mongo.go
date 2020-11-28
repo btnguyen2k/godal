@@ -528,15 +528,13 @@ func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collec
 		if err != nil {
 			resultError = err
 			return false
-		} else {
-			bo, e := dao.GetRowMapper().ToBo(collectionName, doc)
-			if e != nil {
-				resultError = e
-				return false
-			} else {
-				resultBoList = append(resultBoList, bo)
-			}
 		}
+		bo, e := dao.GetRowMapper().ToBo(collectionName, doc)
+		if e != nil {
+			resultError = e
+			return false
+		}
+		resultBoList = append(resultBoList, bo)
 		return true
 	})
 	return resultBoList, resultError
