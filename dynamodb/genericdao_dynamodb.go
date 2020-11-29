@@ -584,6 +584,8 @@ func (dao *GenericDaoDynamodb) GdaoCreateWithContext(ctx aws.Context, table stri
 }
 
 // GdaoUpdate implements godal.IGenericDao.GdaoUpdate.
+//
+// Note: due to the nature of AWS DynamoDB, this function does not return godal.GdaoErrorDuplicatedEntry.
 func (dao *GenericDaoDynamodb) GdaoUpdate(table string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoUpdateWithContext(nil, table, bo)
 }
@@ -619,6 +621,8 @@ func (dao *GenericDaoDynamodb) GdaoUpdateWithContext(ctx aws.Context, table stri
 }
 
 // GdaoSave implements godal.IGenericDao.GdaoSave.
+//
+// Note: due to the nature of AWS DynamoDB, this function does not return godal.GdaoErrorDuplicatedEntry.
 func (dao *GenericDaoDynamodb) GdaoSave(table string, bo godal.IGenericBo) (int, error) {
 	return dao.GdaoSaveWithContext(nil, table, bo)
 }

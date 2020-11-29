@@ -162,7 +162,12 @@ type MyUserDaoDynamodb struct {
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 func (dao *MyUserDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
 	if tableName == dao.tableName {
-		return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
+		colList := dao.GetRowMapper().ColumnsList(tableName)
+		result := make(map[string]interface{})
+		for _, col := range colList {
+			result[col] = bo.GboGetAttrUnsafe(col, nil)
+		}
+		return result
 	}
 	return nil
 }
@@ -951,11 +956,54 @@ func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
+
+	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
+	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+	} else if gbo == nil {
+		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+	} else {
+		u := dao.toUser(gbo)
+		if u.Username != "btnguyen2k" {
+			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", u.Username)
+		}
+	}
+}
+
+func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
+	name := "TestGenericDaoDynamodb_GdaoCreateDuplicated"
+
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	dao := _initDao(t, name, testDynamodbTableName)
+	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
+	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
+	}
+
+	user := &UserBoDynamodb{
+		Id:       "1",
+		Username: "btnguyen2k",
+		Name:     "Thanh Nguyen",
+		Version:  int(time.Now().Unix()),
+		Active:   false,
+		Created:  time.Now(),
+		Subject:  "English",
+		Level:    1,
+	}
+	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
+	}
 	user.Username = "thanhn"
 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
+
+	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Subject: "English", Level: 1}))
 	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
@@ -1020,6 +1068,56 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 		}
 	}
 }
+
+// func TestGenericDaoDynamodb_GdaoUpdateDuplicated(t *testing.T) {
+// 	name := "TestGenericDaoDynamodb_GdaoUpdateDuplicated"
+//
+// 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+// 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+// 	}
+// 	dao := _initDao(t, name, testDynamodbTableName)
+// 	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
+// 	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+// 	if err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
+// 	}
+//
+// 	user1 := &UserBoDynamodb{
+// 		Id:       "1",
+// 		Username: "user1",
+// 		Name:     "Thanh Nguyen",
+// 		Version:  int(time.Now().Unix()),
+// 		Active:   false,
+// 		Created:  time.Now(),
+// 		Subject:  "English",
+// 		Level:    1,
+// 	}
+// 	user2 := &UserBoDynamodb{
+// 		Id:       "2",
+// 		Username: "user2",
+// 		Name:     "Thanh Nguyen",
+// 		Version:  int(time.Now().Unix()),
+// 		Active:   false,
+// 		Created:  time.Now(),
+// 		Subject:  "English",
+// 		Level:    2,
+// 	}
+// 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user1)); err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+// 	} else if numRows != 1 {
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 	}
+// 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user2)); err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+// 	} else if numRows != 1 {
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 	}
+//
+// 	user1.Level = 2
+// 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+// 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+// 	}
+// }
 
 func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
 	name := "TestGenericDaoDynamodb_GdaoSave"
@@ -1121,3 +1219,53 @@ func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
 		}
 	}
 }
+
+// func TestGenericDaoDynamodb_GdaoSaveDuplicated(t *testing.T) {
+// 	name := "TestGenericDaoDynamodb_GdaoSaveDuplicated"
+//
+// 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+// 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+// 	}
+// 	dao := _initDao(t, name, testDynamodbTableName)
+// 	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
+// 	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+// 	if err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/prepareAwsDynamodbTable", err)
+// 	}
+//
+// 	user1 := &UserBoDynamodb{
+// 		Id:       "1",
+// 		Username: "user1",
+// 		Name:     "Thanh Nguyen",
+// 		Version:  int(time.Now().Unix()),
+// 		Active:   false,
+// 		Created:  time.Now(),
+// 		Subject:  "English",
+// 		Level:    1,
+// 	}
+// 	user2 := &UserBoDynamodb{
+// 		Id:       "2",
+// 		Username: "user2",
+// 		Name:     "Thanh Nguyen",
+// 		Version:  int(time.Now().Unix()),
+// 		Active:   false,
+// 		Created:  time.Now(),
+// 		Subject:  "English",
+// 		Level:    2,
+// 	}
+// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+// 	} else if numRows != 1 {
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 	}
+// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user2)); err != nil {
+// 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+// 	} else if numRows != 1 {
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 	}
+//
+// 	user1.Level = 2
+// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+// 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+// 	}
+// }
