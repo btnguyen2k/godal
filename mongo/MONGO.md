@@ -23,3 +23,5 @@ Generic [MongoDB](https://www.mongodb.com) DAO implementation.
 > Optionally, create a helper function to create dao instances.
 
 **Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).
+
+> This package uses [go.mongodb.org/mongo-driver/mongo](https://go.mongodb.org/mongo-driver/mongo) as MongoDB driver.

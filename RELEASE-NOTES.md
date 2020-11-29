@@ -1,6 +1,6 @@
 # godal release notes
 
-## 2020-10-xx - v0.2.5
+## 2020-10-28 - v0.2.5
 
 - `GenericDaoDynamodb`:
   - `GdaoDeleteMany`: support "query" operation in addition to "scan". Also support filter rows on index.

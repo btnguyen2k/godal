@@ -12,10 +12,10 @@ Latest release [v0.2.5](RELEASE-NOTES.md).
 ## Feature overview
 
 - Interface for generic business object (BO) and data access object (DAO).
-- Generic implementation of BO.
-- Generic implementation of [MongoDB](https://www.mongodb.com/) DAO.
-- Generic implementation of [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO.
-- Generic implementation of [`database/sql`](https://golang.org/pkg/database/sql/) DAO:
+- Generic BO implementation.
+- [Generic DAO implementation](./dynamodb/DYNAMODB.MD) for [AWS DynamoDB](https://aws.amazon.com/dynamodb/).
+- [Generic DAO implementation](./mongo/MONGO.MD) for [MongoDB](https://www.mongodb.com/).
+- [Generic DAO implementation](./sql/SQL.MD) for [`database/sql`](https://golang.org/pkg/database/sql/). Ready-to-use implementations:
   - MSSQL
   - MySQL
   - Oracle
@@ -30,9 +30,9 @@ go get github.com/btnguyen2k/godal
 
 ## Usage & Documentation
 
-- [![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal)](https://pkg.go.dev/github.com/btnguyen2k/godal).
-- Samples: see [examples](../examples/) and [examples_sta](../examples_sta/).
-- [Wiki](https://github.com/btnguyen2k/godal/wiki).
+- [![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal)](https://pkg.go.dev/github.com/btnguyen2k/godal)
+- Samples: see [examples](../examples/) and [examples_sta](../examples_sta/)
+- [Wiki](https://github.com/btnguyen2k/godal/wiki)
 
 ## Contributing
 

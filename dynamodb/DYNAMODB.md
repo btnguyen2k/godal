@@ -26,3 +26,5 @@ Generic [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO implementation.
 > Optionally, create a helper function to create dao instances.
 
 **Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).
+
+> This package uses [github.com/aws/aws-sdk-go](https://github.com/aws/aws-sdk-go) to access AWS DynamoDB.

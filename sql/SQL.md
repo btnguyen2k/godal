@@ -23,3 +23,10 @@ Generic [`database/sql`](https://golang.org/pkg/database/sql/) DAO implementatio
 > Optionally, create a helper function to create dao instances.
 
 **Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).
+
+> While this package does not use a specific [SQL driver](https://github.com/golang/go/wiki/SQLDrivers), it is highly recommended to use the following SQL drivers with `godal/sql`:
+  - MySQL: github.com/go-sql-driver/mysql
+  - MSSQL: github.com/denisenkom/go-mssqldb
+  - Oracle: github.com/godror/godror
+  - PostgreSQL: github.com/jackc/pgx
+  - SQLite3: github.com/mattn/go-sqlite3
