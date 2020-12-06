@@ -1,5 +1,10 @@
 # godal release notes
 
+## yyyy-MM-dd - v0.2.6
+
+- `GenericDaoMongo`:
+  - Fix: Azure CosmosDB's MongoDB API returns `ConflictingOperationInProgress` error instead of error code `E11000`.
+
 ## 2020-10-28 - v0.2.5
 
 - `GenericDaoDynamodb`:
