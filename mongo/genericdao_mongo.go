@@ -544,8 +544,9 @@ func isErrorDuplicatedKey(err error) bool {
 	if err == nil {
 		return false
 	}
-	return err == godal.GdaoErrorDuplicatedEntry ||
-		regexp.MustCompile(`\WE11000\W`).FindString(err.Error()) != ""
+	return err == godal.GdaoErrorDuplicatedEntry || // already duplicated key error
+		regexp.MustCompile(`\WE11000\W`).FindString(err.Error()) != "" || // MongoDB's duplicated key error
+		regexp.MustCompile(`\WConflictingOperationInProgress\W`).FindString(err.Error()) != "" // CosmosDB's MongoDB API duplicated key error
 }
 
 func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName string, bo godal.IGenericBo) (bool, error) {

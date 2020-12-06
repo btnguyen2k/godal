@@ -23,7 +23,11 @@ func _createMongoConnect(t *testing.T, testName string) *prom.MongoConnect {
 		t.Skipf("%s skipped", testName)
 		return nil
 	}
-	mc, _ := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	mc, _ := prom.NewMongoConnectWithPoolOptions(mongoUrl, mongoDb, 10000, &prom.MongoPoolOpts{
+		ConnectTimeout:         10 * time.Second,
+		SocketTimeout:          10 * time.Second,
+		ServerSelectionTimeout: 10 * time.Second,
+	})
 	return mc
 }
 
@@ -665,6 +669,8 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 
 	user2.Username = "user1"
 	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+		fmt.Println("Error:", err)
+		fmt.Printf("Error: %#v\n", err)
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 }
