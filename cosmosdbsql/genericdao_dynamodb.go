@@ -471,8 +471,8 @@ func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
 //
 // 'keyFilter' should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
-func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, keyFilter interface{}) (godal.IGenericBo, error) {
-	return dao.GdaoFetchOneWithContext(nil, table, keyFilter)
+func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, filter interface{}) (godal.IGenericBo, error) {
+	return dao.GdaoFetchOneWithContext(nil, table, filter)
 }
 
 // GdaoFetchOneWithContext is is AWS DynamoDB variant of GdaoFetchOne.

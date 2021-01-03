@@ -28,8 +28,8 @@ func prepareTableOracle(sqlc *prom.SqlConnect, table string) error {
 /*---------------------------------------------------------------*/
 
 const (
-	envOracleDriver = "Oracle_DRIVER"
-	envOracleUrl    = "Oracle_URL"
+	envOracleDriver = "ORACLE_DRIVER"
+	envOracleUrl    = "ORACLE_URL"
 )
 
 func TestGenericDaoOracle_SetGetSqlConnect(t *testing.T) {

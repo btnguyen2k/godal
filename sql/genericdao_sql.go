@@ -145,7 +145,7 @@ func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericD
 		sqlFlavor:                   prom.FlavorDefault,
 		txModeOnWrite:               true,
 		txIsolationLevel:            sql.LevelDefault,
-		optionOpLiteral:             defaultOptionLiteralOperation,
+		optionOpLiteral:             DefaultOptionLiteralOperation,
 		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
 	}
 	if dao.GetRowMapper() == nil {
@@ -297,10 +297,10 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	if v.Kind() == reflect.Map {
-		result := &FilterAnd{Filters: make([]IFilter, 0)}
+		result := &FilterAnd{FilterAndOr: FilterAndOr{Filters: make([]IFilter, 0)}}
 		ops := dao.optionOpLiteral
 		if ops == nil {
-			ops = defaultOptionLiteralOperation
+			ops = DefaultOptionLiteralOperation
 		}
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
@@ -562,7 +562,7 @@ func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, s
 	return dao.FetchAll(storageId, dbRows)
 }
 
-func (dao *GenericDaoSql) isErrorDuplicatedEntry(err error) bool {
+func (dao *GenericDaoSql) IsErrorDuplicatedEntry(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -598,7 +598,7 @@ func (dao *GenericDaoSql) GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, stor
 	} else if colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{})); err != nil {
 		return 0, err
 	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -631,7 +631,7 @@ func (dao *GenericDaoSql) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, stor
 	}
 	result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter)
 	if err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -675,7 +675,7 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 
 	// firstly: try to update row
 	if result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter); err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -685,7 +685,7 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 		// secondly: no row updated, try insert row
 		result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{}))
 		if err != nil {
-			if dao.isErrorDuplicatedEntry(err) {
+			if dao.IsErrorDuplicatedEntry(err) {
 				return 0, godal.GdaoErrorDuplicatedEntry
 			}
 			return 0, err

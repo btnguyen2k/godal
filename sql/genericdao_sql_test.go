@@ -149,11 +149,12 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 
 func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSql) {
 	filter := &FilterOr{
-		Filters: []IFilter{
-			&FilterFieldValue{Field: colSqlId, Operation: ">=", Value: "8"},
-			&FilterFieldValue{Field: colSqlId, Operation: "<", Value: "3"},
+		FilterAndOr: FilterAndOr{
+			Filters: []IFilter{
+				&FilterFieldValue{Field: colSqlId, Operation: ">=", Value: "8"},
+				&FilterFieldValue{Field: colSqlId, Operation: "<", Value: "3"},
+			},
 		},
-		Operator: dao.optionOpLiteral.OpOr,
 	}
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
@@ -220,11 +221,12 @@ func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql)
 
 func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql) {
 	filter := &FilterAnd{
-		Filters: []IFilter{
-			&FilterFieldValue{Field: colSqlId, Operation: "<=", Value: "8"},
-			&FilterFieldValue{Field: colSqlId, Operation: ">", Value: "3"},
+		FilterAndOr: FilterAndOr{
+			Filters: []IFilter{
+				&FilterFieldValue{Field: colSqlId, Operation: "<=", Value: "8"},
+				&FilterFieldValue{Field: colSqlId, Operation: ">", Value: "3"},
+			},
 		},
-		Operator: dao.optionOpLiteral.OpOr,
 	}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
@@ -248,16 +250,17 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 		}
 	}
 
+	fetchIdList := []string{"7", "6", "5"}
 	sorting := map[string]int{colSqlUsername: -1}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, sorting, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
 	} else {
 		for i, row := range dbRows {
 			u := dao.toUser(row)
-			if u.Id != strconv.Itoa(5+3-i) {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, strconv.Itoa(5+3-i), u.Id)
+			if u.Id != fetchIdList[i] {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], u.Id)
 			}
 		}
 	}

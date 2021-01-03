@@ -28,8 +28,8 @@ func prepareTablePgsql(sqlc *prom.SqlConnect, table string) error {
 /*---------------------------------------------------------------*/
 
 const (
-	envPgsqlDriver = "Pgsql_DRIVER"
-	envPgsqlUrl    = "Pgsql_URL"
+	envPgsqlDriver = "PGSQL_DRIVER"
+	envPgsqlUrl    = "PGSQL_URL"
 )
 
 func TestGenericDaoPgsql_SetGetSqlConnect(t *testing.T) {
