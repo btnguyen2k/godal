@@ -37,17 +37,18 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 		t.Skipf("%s skilled", testName)
 	}
 
-	driver += ";Db=godal"
+	url += ";Db=godal"
 
 	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")
 	url = strings.ReplaceAll(url, "${loc}", urlTimezone)
 	url = strings.ReplaceAll(url, "${tz}", urlTimezone)
 	url = strings.ReplaceAll(url, "${timezone}", urlTimezone)
 	sqlc, err := prom.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
-	if err == nil && sqlc != nil {
-		loc, _ := time.LoadLocation(timezone)
-		sqlc.SetLocation(loc)
+	if err != nil || sqlc == nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	}
+	loc, _ := time.LoadLocation(timezone)
+	sqlc.SetLocation(loc)
 
 	sqlc.GetDB().Exec("CREATE DATABASE godal WITH maxru=10000")
 

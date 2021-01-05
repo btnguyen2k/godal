@@ -1,7 +1,7 @@
-# godal/dynamodb
+# godal/cosmosdbsql
 
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal/cosmosdbsql)](https://pkg.go.dev/github.com/btnguyen2k/godal/cosmosdbsql)
-[![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/cosmosdbsql/graph/badge.svg?token=0L23UTJHOZ)](https://app.codecov.io/gh/btnguyen2k/godal/branch/cosmosdbsql)
+[![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/cosmosdb/graph/badge.svg?token=0L23UTJHOZ)](https://app.codecov.io/gh/btnguyen2k/godal/branch/cosmosdb)
 
 Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO implementation using `database/sql` interface.
 
