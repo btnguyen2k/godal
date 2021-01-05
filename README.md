@@ -4,16 +4,17 @@
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal)](https://pkg.go.dev/github.com/btnguyen2k/godal)
 [![Actions Status](https://github.com/btnguyen2k/godal/workflows/godal/badge.svg)](https://github.com/btnguyen2k/godal/actions)
 [![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/master/graph/badge.svg?token=0L23UTJHOZ)](https://codecov.io/gh/btnguyen2k/godal)
+[![Release](https://img.shields.io/github/release/btnguyen2k/godal.svg?style=flat-square)](RELEASE-NOTES.md)
 
 Generic Database Access Layer library for Go (Golang).
-
-Latest release [v0.2.5](RELEASE-NOTES.md).
 
 ## Feature overview
 
 - Interface for generic business object (BO) and data access object (DAO).
 - Generic BO implementation.
 - [Generic DAO implementation](./dynamodb/) for [AWS DynamoDB](https://aws.amazon.com/dynamodb/).
+- Generic DAO implementation for [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/).
+  - [`database/sql` implementation](./cosmosdbsql/).
 - [Generic DAO implementation](./mongo/) for [MongoDB](https://www.mongodb.com/).
 - [Generic DAO implementation](./sql/) for [`database/sql`](https://golang.org/pkg/database/sql/). Ready-to-use implementations:
   - MSSQL

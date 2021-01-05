@@ -1,9 +1,9 @@
 # godal/dynamodb
 
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal/dynamodb)](https://pkg.go.dev/github.com/btnguyen2k/godal/dynamodb)
-[![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/dynamodb/graph/badge.svg?token=0L23UTJHOZ)](https://app.codecov.io/gh/btnguyen2k/godal/branch/dynamodb)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/btnguyen2k/godal/cosmosdbsql)](https://pkg.go.dev/github.com/btnguyen2k/godal/cosmosdbsql)
+[![codecov](https://codecov.io/gh/btnguyen2k/godal/branch/cosmosdbsql/graph/badge.svg?token=0L23UTJHOZ)](https://app.codecov.io/gh/btnguyen2k/godal/branch/cosmosdbsql)
 
-Generic [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO implementation.
+Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO implementation using `database/sql` interface.
 
 ## Guideline
 

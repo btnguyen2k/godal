@@ -2,6 +2,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/aws/aws-sdk-go v1.34.28/go.mod h1:H7NKnBqNVzoTJpGfLrQkkD+ytBA93eiDYi/+8rV9s48=
 github.com/aws/aws-sdk-go v1.36.15 h1:nGqgPlXegCKPZOKXvWnYCLvLPJPRoSOHHn9d0N0DG7Y=
 github.com/aws/aws-sdk-go v1.36.15/go.mod h1:hcU610XS61/+aQV88ixoOzUoG7v3b31pl2zKMmprdro=
+github.com/aws/aws-sdk-go v1.36.19 h1:zbJZKkxeDiYxUYFjymjWxPye+qa1G2gRVyhIzZrB9zA=
+github.com/aws/aws-sdk-go v1.36.19/go.mod h1:hcU610XS61/+aQV88ixoOzUoG7v3b31pl2zKMmprdro=
 github.com/btnguyen2k/consu/checksum v0.1.2 h1:lmwNWztbfi11CNAxqdi8NcHZdKq0gZiVRqCPfobXj94=
 github.com/btnguyen2k/consu/checksum v0.1.2/go.mod h1:/zZ8EXdphDYEkBFua51hK9y3rODCPIkiZYnCDlHT670=
 github.com/btnguyen2k/consu/gjrc v0.1.1 h1:2ZXT2ySAFt5yJbdR2BAbwRKl5OjcysJeg3pzF4Hw5bE=
@@ -16,6 +18,8 @@ github.com/btnguyen2k/consu/semita v0.1.4 h1:tKvH0PRcaFWumMaFFCIa+NjIotAJGGKeFhE
 github.com/btnguyen2k/consu/semita v0.1.4/go.mod h1:EmOAKM4o+iljiR2kShq3MlIvGrzALnUW4IkgI292p10=
 github.com/btnguyen2k/gocosmos v0.1.2 h1:omiY5ZjkOmEfLXt+tWaxCmtId9KoNRV9LcN3XtJ/Ybw=
 github.com/btnguyen2k/gocosmos v0.1.2/go.mod h1:BYrAnNLG+e5NCz9q0X9dkjhMM1XkYhyRG74bQX4Wb1w=
+github.com/btnguyen2k/gocosmos v0.1.3 h1:acCG/w/NNrC3jNhJPnNqkmHkKgXg1cVil+Zbd4jWz7g=
+github.com/btnguyen2k/gocosmos v0.1.3/go.mod h1:BYrAnNLG+e5NCz9q0X9dkjhMM1XkYhyRG74bQX4Wb1w=
 github.com/btnguyen2k/prom v0.2.9 h1:PxIKFiY1NNSQm+aWo/kSPq57PZEiwnjqMN2STivPqTE=
 github.com/btnguyen2k/prom v0.2.9/go.mod h1:HcjuH0Ig+Zdpr383qTMf2eKlAAipL0fQh9/7WtBTOoY=
 github.com/cockroachdb/apd v1.1.0 h1:3LFP3629v+1aKXU5Q37mxmRxX/pIu1nijXydLShEq5I=
@@ -66,6 +70,8 @@ github.com/gobuffalo/packr/v2 v2.2.0/go.mod h1:CaAwI0GPIAv+5wKLtv8Afwl+Cm78K/I/V
 github.com/gobuffalo/syncx v0.0.0-20190224160051-33c29581e754/go.mod h1:HhnNqWY95UYwwW3uSASeV7vtgYkT2t16hJgV3AEPUpw=
 github.com/godror/godror v0.22.3 h1:J8Vj1bLUS9mTawmCHouNjQ7y8z1LKlI3fqUUPyGKQjs=
 github.com/godror/godror v0.22.3/go.mod h1:YlPoIf962ZZKPM5Xqa8NxmGgck39pi51tqAs+K3IaFM=
+github.com/godror/godror v0.23.0 h1:QbZrkaN8pmmrUDZl0P0SWRbD4wHXeWBXtq/0EfQ8zAg=
+github.com/godror/godror v0.23.0/go.mod h1:YlPoIf962ZZKPM5Xqa8NxmGgck39pi51tqAs+K3IaFM=
 github.com/gofrs/uuid v3.2.0+incompatible h1:y12jRkkFxsd7GpqdSZ+/KCs/fJbqpEXSGd4+jfEaewE=
 github.com/gofrs/uuid v3.2.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
 github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe h1:lXe2qZdvpiX5WZkZR4hgp4KJVfY3nMkvmwbVkpv1rVY=
