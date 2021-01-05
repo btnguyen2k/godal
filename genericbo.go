@@ -3,6 +3,7 @@ package godal
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,14 +27,18 @@ var NilValue nilValue = nil
 // Sample usage: see GenericBo.
 type IGenericBo interface {
 	// GboIterate iterates over all bo's top level fields.
+	//   - If the underlying data is a map, 'callback' is called for each map's entry with reflect.Map is passed as 'kind' parameter.
+	//   - If the underlying data is a slice or array, 'callback' is called for each entry with reflect.Slice is passed as 'kind' parameter.
 	//
 	// Available: since v0.0.2
 	GboIterate(callback func(kind reflect.Kind, field interface{}, value interface{}))
 
-	// GboGetAttr retrieves bo's attribute.
+	// GboGetAttr retrieves a bo's attribute.
+	//   - If 'typ' is not nil, the attribute value is converted to the specified type upon being returned.
+	//   - Otherwise, the attribute value is returned as-is.
 	GboGetAttr(path string, typ reflect.Type) (interface{}, error)
 
-	// GboGetAttrUnsafe retrieves a bo's attribute, ignoring error if any.
+	// GboGetAttrUnsafe retrieves a bo's attribute as GboGetAttr does, but error is ignored.
 	//
 	// Available: since v0.0.2
 	GboGetAttrUnsafe(path string, typ reflect.Type) interface{}
@@ -90,6 +95,7 @@ Sample usage:
 	gbo.GboSetAttr("name.first", "Thanh")
 	gbo.GboSetAttr("name.last", "Nguyen")
 
+	// reflect.TypeOf("any string") is equivalent to reddo.TypeString
 	firstName, err := gbo.GboGetAttr("name.first", reddo.TypeString)    // firstName = "Thanh"
 	lastName, err := gbo.GboGetAttr("name.last", reflect.TypeOf(""))    // lastName = "Nguyen"
 
@@ -99,11 +105,11 @@ Sample usage:
 	var m interface{}
 	err = gbo.GboTransferViaJson(&m)
 	// m = map[string]interface{}{
-	// 	"age" : 123,
-	// 	"name": map[string]interface{}{
-	// 		"first": "Thanh",
-	// 		"last" : "Nguyen",
-	// 	},
+	//   "age" : 123,
+	//   "name": map[string]interface{}{
+	//     "first": "Thanh",
+	//     "last" : "Nguyen",
+	//   },
 	// }
 
 	ext := map[string]interface{}{"year":2019, "month":"3", "active":true}
@@ -134,9 +140,6 @@ func (bo *GenericBo) GboIterate(callback func(kind reflect.Kind, field interface
 	bo.m.RLock()
 	defer bo.m.RUnlock()
 	v := reflect.ValueOf(bo.data)
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
-		v = v.Elem()
-	}
 	if v.Kind() == reflect.Map {
 		for iter := v.MapRange(); iter.Next(); callback(reflect.Map, iter.Key().Interface(), iter.Value().Interface()) {
 		}
@@ -207,7 +210,12 @@ func (bo *GenericBo) GboSetAttr(path string, value interface{}) error {
 	bo.m.Lock()
 	defer bo.m.Unlock()
 	if bo.s == nil {
-		var data = map[string]interface{}{}
+		var data interface{}
+		if strings.HasPrefix(path, "[") {
+			data = make([]interface{}, 0)
+		} else {
+			data = make(map[string]interface{})
+		}
 		bo.data = data
 		bo.s = semita.NewSemita(bo.data)
 	}
@@ -250,10 +258,10 @@ func (bo *GenericBo) GboFromJson(js []byte) error {
 //
 // Passing by value won't work, so 'dest' must be a pointer.
 func (bo *GenericBo) GboTransferViaJson(dest interface{}) error {
-	js, err := bo.GboToJson()
-	if err != nil {
-		return err
-	}
+	js, _ := bo.GboToJson()
+	// if err != nil {
+	// 	return err
+	// }
 	return json.Unmarshal(js, dest)
 }
 
@@ -261,9 +269,9 @@ func (bo *GenericBo) GboTransferViaJson(dest interface{}) error {
 //
 // Existing data is removed upon importing.
 func (bo *GenericBo) GboImportViaJson(src interface{}) error {
-	js, err := json.Marshal(src)
-	if err != nil {
-		return err
-	}
+	js, _ := json.Marshal(src)
+	// if err != nil {
+	// 	return err
+	// }
 	return bo.GboFromJson(js)
 }

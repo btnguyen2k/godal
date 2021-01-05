@@ -46,6 +46,9 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 		loc, _ := time.LoadLocation(timezone)
 		sqlc.SetLocation(loc)
 	}
+
+	sqlc.GetDB().Exec("CREATE DATABASE godal WITH maxru=10000")
+
 	return sqlc, err
 }
 

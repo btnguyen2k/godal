@@ -77,13 +77,13 @@ func NewAbstractGenericDao(gdao IGenericDao) *AbstractGenericDao {
 //
 // Function implementations (n = No, y = Yes, i = inherited):
 //   - (n) GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
-// 	 - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-// 	 - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
-// 	 - (n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
-// 	 - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
+//   - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
+//   - (n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
+//   - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
 type AbstractGenericDao struct {
 	IGenericDao
 	rowMapper IRowMapper

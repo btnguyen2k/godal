@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/btnguyen2k/consu/checksum"
 	"github.com/btnguyen2k/consu/reddo"
@@ -93,6 +94,21 @@ func TestGenericBo_Checksum(t *testing.T) {
 	checksum2 = bo2.Checksum()
 	if reflect.DeepEqual(checksum1, checksum2) {
 		t.Fatalf("%s failed: expect checksum1 %#v to be different from checksum2 %#v", name, checksum1, checksum2)
+	}
+}
+
+func TestGenericBo_GboIterate_Nil(t *testing.T) {
+	name := "TestGenericBo_GboIterate_Map"
+	bo := &GenericBo{}
+	var err error
+	bo.GboIterate(func(kind reflect.Kind, field interface{}, value interface{}) {
+		if err != nil {
+			return
+		}
+		err = errors.New("should not reach here")
+	})
+	if err != nil {
+		t.Fatalf("%s failed: %e", name, err)
 	}
 }
 
@@ -212,6 +228,12 @@ func TestGenericBo_GboGetAttrUnmarshalJson(t *testing.T) {
 	if v, err := bo.GboGetAttrUnmarshalJson("not_found"); err != nil || v != nil {
 		t.Fatalf("%s failed: there should be no data at path [not_found] - %s / %#v", name, err, v)
 	}
+
+	bo.GboSetAttr("val_int", 1)
+	if v, err := bo.GboGetAttrUnmarshalJson("val_int"); err != nil || v != nil {
+		t.Fatalf("%s failed: there should be no valid data at path [val_int] - %s / %#v", name, err, v)
+	}
+
 	for _, p := range []string{"jsonstr", "pjsonstr", "jsonbytes", "pjsonbytes"} {
 		if v, err := bo.GboGetAttrUnmarshalJson(p); err != nil {
 			t.Fatalf("%s failed: %s", name, err)
@@ -255,6 +277,19 @@ func TestGenericBo_GboGetAttrUnmarshalJson_Slice(t *testing.T) {
 	vjson := genericBoDataSlice[i]
 	if !reflect.DeepEqual(vjson, string(bojs)) {
 		t.Fatalf("%s failed: expected %#v but received %#v", name+"/GboGetAttrUnmarshalJson", vjson, string(bojs))
+	}
+}
+
+func TestGenericBo_GboGetTimeWithLayout_Zero(t *testing.T) {
+	name := "TestGenericBo_GboGetTimeWithLayout_Zero"
+
+	zero := time.Time{}
+	bo := &GenericBo{}
+	v, err := bo.GboGetTimeWithLayout("path", time.RFC3339)
+	if err != nil {
+		t.Fatalf("%s failed", name)
+	} else if v.Format(time.RFC3339) != zero.Format(time.RFC3339) {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, zero.Format(time.RFC3339), v.Format(time.RFC3339))
 	}
 }
 
@@ -325,7 +360,6 @@ func TestGenericBo_GboSetAttr_Slice(t *testing.T) {
 	name := "TestGenericBo_GboSetAttr_Slice"
 
 	bo := NewGenericBo()
-	bo.GboFromJson([]byte(`[]`))
 
 	p := "[].a.b.c.d"
 	v, err := bo.GboGetAttr(p, nil)
@@ -398,6 +432,26 @@ func TestGenericBo_GboToJson_Slice(t *testing.T) {
 	}
 	if !reflect.DeepEqual(m1, m3) {
 		t.Fatalf("%s failed: expected %#v but received %#v", name, m1, m3)
+	}
+}
+
+func TestGenericBo_GboFromJson_Error(t *testing.T) {
+	name := "TestGenericBo_GboFromJson_Error"
+
+	bo := NewGenericBo()
+	err := bo.GboFromJson([]byte(`error`))
+	if err == nil {
+		t.Fatalf("%s failed", name)
+	}
+}
+
+func TestGenericBo_GboFromJson_Nil(t *testing.T) {
+	name := "TestGenericBo_GboFromJson_Nil"
+
+	bo := NewGenericBo()
+	err := bo.GboFromJson([]byte(`null`))
+	if err != nil {
+		t.Fatalf("%s failed: %e", name, err)
 	}
 }
 
