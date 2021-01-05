@@ -37,6 +37,8 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 		t.Skipf("%s skilled", testName)
 	}
 
+	driver += ";Db=godal"
+
 	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")
 	url = strings.ReplaceAll(url, "${loc}", urlTimezone)
 	url = strings.ReplaceAll(url, "${tz}", urlTimezone)
