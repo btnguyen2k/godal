@@ -21,7 +21,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF general
 
   testMongoStandalone:
-    name: Test MongoDB (Standalone)
+    name: Test with MongoDB (Standalone)
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
@@ -40,7 +40,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF mongo_singleserver
 
   testMongoReplicaSet:
-    name: Test MongoDB (ReplicaSet)
+    name: Test with MongoDB (ReplicaSet)
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
