@@ -10,21 +10,18 @@ Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO
 **General**
 
 - Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.`
-- Row-mapper's `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.
 
-**Use `GenericDaoMongo` (and `godal.IGenericBo`) directly**
+**Use `GenericDaoCosmosdb` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
-- Use a row-mapper whose `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.
+- Define a dao struct that extends `GenericDaoCosmosdb` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
 
-**Implement custom DynamoDB business dao and bo**
+**Implement custom `database/sql` business dao and bo**
 
-- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`
-  and its row-mapper's `ColumnsList(table string) []string` function must return all attribute names of specified table's primary key).
+- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`).
 - Define functions to transform `godal.IGenericBo` to business bo and vice versa.
 
 > Optionally, create a helper function to create dao instances.
 
 **Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).
 
-> This package uses [github.com/aws/aws-sdk-go](https://github.com/aws/aws-sdk-go) to access AWS DynamoDB.
+> This package explicitly uses [github.com/btnguyen2k/gocosmos](https://github.com/btnguyen2k/gocosmos) as the SQL driver for Azure Cosmos DB.

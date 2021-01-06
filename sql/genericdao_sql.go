@@ -16,6 +16,7 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
+
 		_ "github.com/go-sql-driver/mysql"
 	)
 
@@ -26,19 +27,20 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 	func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{fieldId: id}
+		return map[string]interface{}{tableColumnId: id}
 	}
 
+	// newGenericDaoMysql is helper function to create myGenericDaoMysql instances.
 	func newGenericDaoMysql(sqlc *prom.SqlConnect, txModeOnWrite bool) godal.IGenericDao {
+		rowMapper := &sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase}
 		dao := &myGenericDaoMysql{}
 		dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
 		dao.SetTxModeOnWrite(txModeOnWrite).SetSqlFlavor(prom.FlavorMySql)
-		dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase})
+		dao.SetRowMapper(rowMapper)
 		return dao
 	}
 
 	In most cases, GenericRowMapperSql should be sufficient:
-
 		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
 		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
 		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator
@@ -55,6 +57,7 @@ Guideline: Implement custom 'database/sql' business dao and bo
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
+
 		_ "github.com/go-sql-driver/mysql"
 	)
 
@@ -103,7 +106,7 @@ Guideline: Implement custom 'database/sql' business dao and bo
 		tableName string
 	}
 
-	// NewDaoAppMysql is convenient method to create DaoAppMysql instances.
+	// NewDaoAppMysql is helper function to create DaoAppMysql instances.
 	func NewDaoAppMysql(sqlc *prom.SqlConnect, taleName string, txModeOnWrite bool) *DaoAppMysql {
 		dao := &DaoAppMysql{tableName: taleName}
 		dao.GenericDaoSql = mongo.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
@@ -113,7 +116,6 @@ Guideline: Implement custom 'database/sql' business dao and bo
 	}
 
 	In most cases, GenericRowMapperSql should be sufficient:
-
 		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
 		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
 		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator

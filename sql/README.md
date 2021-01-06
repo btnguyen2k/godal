@@ -13,7 +13,7 @@ Generic [`database/sql`](https://golang.org/pkg/database/sql/) DAO implementatio
 
 **Use `GenericDaoSql` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
+- Define a dao struct that extends `GenericDaoSql` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
 
 **Implement custom `database/sql` business dao and bo**
 

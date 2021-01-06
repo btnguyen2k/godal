@@ -5,53 +5,64 @@ General guideline:
 
 	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
 
-Guideline: Use GenericDaoCosmosdbsql (and godal.IGenericBo) directly
+Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
 	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
 	- Optionally, create a helper function to create dao instances.
 
+	// Remember to import the database driver, the only supported/available driver for now is "github.com/btnguyen2k/gocosmos".
 	import (
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaocosmosdb "github.com/btnguyen2k/godal/cosmosdbsql"
+		"github.com/btnguyen2k/godal/cosmosdbsql"
 		"github.com/btnguyen2k/prom"
+
+		_ "github.com/btnguyen2k/gocosmos"
 	)
 
 	type myGenericDaoCosmosdb struct {
-		*gdaocosmosdb.GenericDaoCosmosdb
+		*cosmosdbsql.GenericDaoCosmosdb
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
-		return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
+	func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
+		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
+		return map[string]interface{}{tableColumnId: id}
 	}
 
-	// newGenericDaoDynamodb is convenient method to create myGenericDaoDynamodb instances.
-	func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal.IGenericDao {
-		dao := &myGenericDaoDynamodb{}
-		dao.GenericDaoDynamodb = gdaodynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
+	// newGenericDaoCosmosdb is helper function to create myGenericDaoCosmosdb instances.
+	func newGenericDaoCosmosdb(sqlc *prom.SqlConnect) godal.IGenericDao {
+		rowMapper := cosmosdbsql.GenericRowMapperCosmosdbInstance
+		dao := &myGenericDaoCosmosdb{tableName: tableName}
+		dao.GenericDaoCosmosdb = cosmosdbsql.NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
+		dao.SetSqlFlavor(prom.FlavorCosmosDb).SetRowMapper(rowMapper)
+		dao.SetTxModeOnWrite(false)
+		dao.CosmosSetPkGboMapPath(map[string]string{collectionName: fieldPk})
 		return dao
 	}
 
-	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
-	its function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	Since Azure Cosmos DB is schema-less, GenericRowMapperCosmosdbInstance should be sufficient.
 
-Guideline: Implement custom AWS DynamoDB business dao and bo
+	txModeOnWrite should be disabled as btnguyen2k/gocosmosdb driver does not currently support transaction!
+
+	One of mappings {collection-name:path-to-fetch-partition_key-value-from-genericbo} or
+	{collection-name:path-to-fetch-partition_key-value-from-dbrow} must be configured.
+	See CosmosSetPkGboMapPath and CosmosSetPkRowMapPath for more information.
+
+Guideline: Implement custom Azure Cosmos DB business dao and bo
 
 	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
 	- Optionally, create a helper function to create dao instances.
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 
+	// Remember to import the database driver, the only supported/available driver for now is "github.com/btnguyen2k/gocosmos".
 	import (
-		//"github.com/aws/aws-sdk-go/aws"
-		//"github.com/aws/aws-sdk-go/aws/credentials"
-		//"github.com/aws/aws-sdk-go/service/dynamodb"
-		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
+		"github.com/btnguyen2k/godal/cosmosdbsql"
 		"github.com/btnguyen2k/prom"
+
+		_ "github.com/btnguyen2k/gocosmos"
 	)
 
 	// BoApp defines business object app
@@ -59,6 +70,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		Id            string                 `json:"id"`
 		Description   string                 `json:"desc"`
 		Value         int                    `json:"val"`
+		Pk            string                 `json:"pk"` // it's a good idea to have a dedicated field for partition key
 	}
 
 	func (app *BoApp) ToGbo() godal.IGenericBo {
@@ -68,6 +80,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		gbo.GboSetAttr("id"  , app.Id)
 		gbo.GboSetAttr("desc", app.Description)
 		gbo.GboSetAttr("val" , app.Value)
+		gbo.GboSetAttr("pk"  , app.Pk)
 
 		// method 2: transfer all attributes at once
 		if err := gbo.GboImportViaJson(app); err!=nil {
@@ -84,6 +97,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		app.Id          = gbo.GboGetAttrUnsafe("id", reddo.TypeString).(string)
 		app.Description = gbo.GboGetAttrUnsafe("desc", reddo.TypeString).(string)
 		app.Value       = int(gbo.GboGetAttrUnsafe("val", reddo.TypeInt).(int64))
+		app.Pk          = gbo.GboGetAttrUnsafe("pk", reddo.TypeString).(string)
 
 		// method 2: transfer all attributes at once
 		if err := gbo.GboTransferViaJson(&app); err!=nil {
@@ -93,26 +107,34 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		return &app
 	}
 
-	// DaoAppDynamodb is AWS DynamoDB-implementation of business dao
-	type DaoAppMongodb struct {
-		*gdaodynamod.GenericDaoDynamodb
-		tableName string
+	// DaoAppCosmosdb is Azure CosmosDB-implementation of business dao.
+	type DaoAppCosmosdb struct {
+		*cosmosdbsql.GenericDaoCosmosdb
+		collectionName string
 	}
 
-	// NewDaoAppDynamodb is convenient method to create DaoAppMongodb instances.
-	func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
-		dao := &DaoAppDynamodb{tableName: tableName}
-		dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamod.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
+	// NewDaoAppCosmosdb is helper function to create DaoAppCosmosdb instances.
+	func NewDaoAppCosmosdb(sqlc *prom.SqlConnect, collectionName string) *DaoAppCosmosdb {
+		rowMapper := GenericRowMapperCosmosdbInstance
+		dao := &DaoAppCosmosdb{collectionName: collectionName}
+		dao.GenericDaoCosmosdb = NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
+		dao.SetSqlFlavor(prom.FlavorCosmosDb).SetRowMapper(rowMapper)
+		dao.SetTxModeOnWrite(false)
+		dao.CosmosSetPkGboMapPath(map[string]string{"*": fieldPk})
 		return dao
 	}
 
-	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
-	its function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	Since Azure Cosmos DB is schema-less, GenericRowMapperCosmosdbInstance should be sufficient.
+
+	txModeOnWrite should be disabled as btnguyen2k/gocosmosdb driver does not currently support transaction!
+
+	One of mappings {collection-name:path-to-fetch-partition_key-value-from-genericbo} or
+	{collection-name:path-to-fetch-partition_key-value-from-dbrow} must be configured.
+	See CosmosSetPkGboMapPath and CosmosSetPkRowMapPath for more information.
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 
-To create prom.AwsDynamodbConnect, see package github.com/btnguyen2k/prom
+To create prom.SqlConnect, see package github.com/btnguyen2k/prom
 */
 package cosmosdbsql
 
@@ -162,9 +184,6 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 	}
 	switch row.(type) {
 	case map[string]interface{}:
-		if row.(map[string]interface{}) == nil {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
 			bo.GboSetAttr(k, v)
@@ -197,9 +216,6 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 	}
 	switch v.Kind() {
 	case reflect.Map:
-		if v.IsNil() {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
@@ -230,7 +246,7 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
 // This function returns []string{"*"} since CosmosDB is schema-free (hence column-list is not used).
-func (mapper *GenericRowMapperCosmosdb) ColumnsList(table string) []string {
+func (mapper *GenericRowMapperCosmosdb) ColumnsList(_ string) []string {
 	return []string{"*"}
 }
 
@@ -270,18 +286,58 @@ var (
 // Available: since v0.3.0
 type GenericDaoCosmosdb struct {
 	*godalsql.GenericDaoSql
-	idBoPathMap  map[string]string // mapping {table-name:semita-path-to-fetch-id-value-from-bo}
-	pkBoPathMap  map[string]string // mapping {table-name:semita-path-to-fetch-primary_key-value-from-bo}
-	pkRowPathMap map[string]string // mapping {table-name:semita-path-to-fetch-primary_key-value-from-dbrow}
+	idGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-id-value-from-genericbo}
+	pkGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-partition_key-value-from-genericbo}
+	pkRowPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-partition_key-value-from-dbrow}
+}
+
+// CosmosGetIdGboMapPath gets the mapping {collection-name:path-to-fetch-id-value-from-genericbo}.
+//
+// It is optional but highly recommended to specify such a mapping for performance result. If not specified,
+// the (generic) bo is firstly transform to database row (via the row-mapper). Then, the value of database row's "id"
+// field is returned. Since it's a two-step process, specifying the mapping the mapping
+// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yield better performance.
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosGetIdGboMapPath() map[string]string {
+	result := make(map[string]string)
+	for k, v := range dao.idGboPathMap {
+		result[k] = v
+	}
+	return result
+}
+
+// CosmosSetIdGboMapPath sets the mapping {collection-name:path-to-fetch-id-value-from-genericbo}.
+//
+// It is optional but highly recommended to specify such a mapping for performance result. If not specified,
+// the (generic) bo is firstly transform to database row (via the row-mapper). Then, the value of database row's "id"
+// field is returned. Since it's a two-step process, specifying the mapping the mapping
+// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yield better performance.
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosSetIdGboMapPath(idGboPathMap map[string]string) *GenericDaoCosmosdb {
+	dao.idGboPathMap = make(map[string]string)
+	for k, v := range idGboPathMap {
+		dao.idGboPathMap[k] = v
+	}
+	return dao
 }
 
 // CosmosGetId extracts and returns ID value from a BO.
+//
+// This function firstly leverages the mapping {collection-name:path-to-fetch-id-value-from-genericbo} to look up
+// "id" value from the generic bo. If the lookup is not successful, the generic bo is then transformed to database row
+// (via the row-mapper) and the value of database row's "id" field is returned.
+//
+// See CosmosSetIdGboMapPath.
 func (dao *GenericDaoCosmosdb) CosmosGetId(table string, bo godal.IGenericBo) string {
-	if path, ok := dao.idBoPathMap[table]; ok {
-		if v, err := bo.GboGetAttr(path, reddo.TypeString); err == nil && v != nil {
-			return v.(string)
+	for _, t := range []string{table, "*"} {
+		if path, ok := dao.idGboPathMap[t]; ok {
+			if v, err := bo.GboGetAttr(path, reddo.TypeString); err == nil && v != nil {
+				return v.(string)
+			}
+			return ""
 		}
-		return ""
 	}
 	if row, err := dao.GetRowMapper().ToRow(table, bo); err == nil && row != nil {
 		if rowMap, ok := reddo.ToMap(row, typeMap); ok == nil {
@@ -293,23 +349,89 @@ func (dao *GenericDaoCosmosdb) CosmosGetId(table string, bo godal.IGenericBo) st
 	return ""
 }
 
+// CosmosGetPkGboMapPath gets the mapping {collection-name:path-to-fetch-partition_key-value-from-genericbo}.
+//
+// Note: at least one of {collection-name:path-to-fetch-partition_key-value-from-genericbo} or {collection-name:path-to-fetch-partition_key-value-from-dbrow}
+// must be configured. If not, client may encounter error "PartitionKey extracted from document doesn't match the one specified in the header".
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosGetPkGboMapPath() map[string]string {
+	result := make(map[string]string)
+	for k, v := range dao.pkGboPathMap {
+		result[k] = v
+	}
+	return result
+}
+
+// CosmosSetPkGboMapPath sets the mapping {collection-name:path-to-fetch-partition_key-value-from-genericbo}.
+//
+// Note: at least one of {collection-name:path-to-fetch-partition_key-value-from-genericbo} or {collection-name:path-to-fetch-partition_key-value-from-dbrow}
+// must be configured. If not, client may encounter error "PartitionKey extracted from document doesn't match the one specified in the header".
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosSetPkGboMapPath(pkGboPathMap map[string]string) *GenericDaoCosmosdb {
+	dao.pkGboPathMap = make(map[string]string)
+	for k, v := range pkGboPathMap {
+		dao.pkGboPathMap[k] = v
+	}
+	return dao
+}
+
+// CosmosGetPkRowMapPath gets the mapping {collection-name:path-to-fetch-partition_key-value-from-dbrow}.
+//
+// Note: at least one of {collection-name:path-to-fetch-partition_key-value-from-genericbo} or {collection-name:path-to-fetch-partition_key-value-from-dbrow}
+// must be configured. If not, client may encounter error "PartitionKey extracted from document doesn't match the one specified in the header".
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosGetPkRowMapPath() map[string]string {
+	result := make(map[string]string)
+	for k, v := range dao.pkRowPathMap {
+		result[k] = v
+	}
+	return result
+}
+
+// CosmosSetPkRowMapPath sets the mapping {collection-name:path-to-fetch-partition_key-value-from-dbrow}.
+//
+// Note: at least one of {collection-name:path-to-fetch-partition_key-value-from-genericbo} or {collection-name:path-to-fetch-partition_key-value-from-dbrow}
+// must be configured. If not, client may encounter error "PartitionKey extracted from document doesn't match the one specified in the header".
+//
+// Collection-name has value "*" means "match any collection".
+func (dao *GenericDaoCosmosdb) CosmosSetPkRowMapPath(pkRowPathMap map[string]string) *GenericDaoCosmosdb {
+	dao.pkRowPathMap = make(map[string]string)
+	for k, v := range pkRowPathMap {
+		dao.pkRowPathMap[k] = v
+	}
+	return dao
+}
+
 // CosmosGetPk extracts and returns partition key value from a BO.
+//
+// This function firstly use the mapping {collection-name:path-to-fetch-partition_key-value-from-genericbo} to look up
+// pk value from the generic bo. If the lookup is not successful, the mapping {collection-name:path-to-fetch-partition_key-value-from-dbrow}
+// is then used for loopup.
+//
+// See CosmosSetPkGboMapPath and CosmosSetPkRowMapPath.
 func (dao *GenericDaoCosmosdb) CosmosGetPk(table string, bo godal.IGenericBo) interface{} {
-	if path, ok := dao.pkBoPathMap[table]; ok {
-		if v, err := bo.GboGetAttr(path, nil); err == nil {
-			return v
+	for _, t := range []string{table, "*"} {
+		if path, ok := dao.pkGboPathMap[t]; ok {
+			if v, err := bo.GboGetAttr(path, reddo.TypeString); err == nil && v != nil {
+				return v.(string)
+			}
+			return ""
 		}
-		return nil
 	}
 	if row, err := dao.GetRowMapper().ToRow(table, bo); err == nil && row != nil {
-		if path, ok := dao.pkRowPathMap[table]; ok {
-			s := semita.NewSemita(row)
-			if v, err := s.GetValue(path); err == nil {
-				return v
+		for _, t := range []string{table, "*"} {
+			if path, ok := dao.pkRowPathMap[t]; ok {
+				s := semita.NewSemita(row)
+				if v, err := s.GetValue(path); err == nil {
+					return v
+				}
 			}
 		}
 	}
-	return nil
+	return ""
 }
 
 // IsErrorDuplicatedEntry checks if the error was caused by document conflicting in collection.
