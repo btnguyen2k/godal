@@ -17,6 +17,7 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 		//"github.com/aws/aws-sdk-go/aws/credentials"
 		//"github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
@@ -54,6 +55,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		//"github.com/aws/aws-sdk-go/aws/credentials"
 		//"github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
@@ -169,9 +171,6 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 	}
 	switch row.(type) {
 	case map[string]interface{}:
-		if row.(map[string]interface{}) == nil {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
 			bo.GboSetAttr(k, v)

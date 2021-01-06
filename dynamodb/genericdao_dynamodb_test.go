@@ -349,6 +349,15 @@ func TestGenericRowMapperDynamodb_ToRow(t *testing.T) {
 	}
 }
 
+func TestGenericRowMapperDynamodb_ToRow_Nil(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ToRow_Nil"
+	rm := &GenericRowMapperDynamodb{}
+	row, err := rm.ToRow("", nil)
+	if err != nil || row != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
+	}
+}
+
 const (
 	envAwsDynamodbTestTableName = "DYNAMODB_TEST_TABLE_NAME"
 	envAwsDynamodbTestGsiName   = "DYNAMODB_TEST_GSI_NAME"
