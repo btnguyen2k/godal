@@ -66,6 +66,11 @@ type IGenericDao interface {
 	// If the BO already existed, this function replaces the existing one; otherwise new BO is created.
 	// If data integrity violation occurs, this function should return (0, GdaoErrorDuplicatedEntry)
 	GdaoSave(storageId string, bo IGenericBo) (int, error)
+
+	// GetRowMapper returns the IRowMapper associated with the DAO.
+	//
+	// Available since v0.3.0.
+	GetRowMapper() IRowMapper
 }
 
 // NewAbstractGenericDao constructs a new 'AbstractGenericDao' instance.
@@ -89,7 +94,7 @@ type AbstractGenericDao struct {
 	rowMapper IRowMapper
 }
 
-// GetRowMapper returns the IRowMapper associated with the DAO.
+// GetRowMapper implements IGenericDao.GetRowMapper.
 //
 // Available since v0.0.2.
 func (dao *AbstractGenericDao) GetRowMapper() IRowMapper {

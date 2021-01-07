@@ -308,7 +308,7 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 }
 
 func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
-	user := &UserBoSql{
+	user1 := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",
 		Name:     "Thanh Nguyen",
@@ -316,19 +316,36 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 		Active:   false,
 		Created:  time.Now(),
 	}
-	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
+	user2 := &UserBoSql{
+		Id:       "2",
+		Username: "nbthanh",
+		Name:     "Thanh B. Nguyen",
+		Version:  int(time.Now().Unix()),
+		Active:   true,
+		Created:  time.Now(),
+	}
+
+	// non-exist row
+	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoUpdate", err)
 	} else if numRows != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 0, numRows)
 	}
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
+
+	// insert a few rows
+	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user1)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+	}
+	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user2)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
 
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
+	user1.Username = "thanhn"
+	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoUpdate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 1, numRows)
@@ -345,10 +362,15 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
 		}
 	}
+
+	user1.Username = user2.Username
+	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: expected 0/GdaoErrorDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
+	}
 }
 
 func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
-	user := &UserBoSql{
+	user1 := &UserBoSql{
 		Id:       "1",
 		Username: "btnguyen2k",
 		Name:     "Thanh Nguyen",
@@ -356,14 +378,28 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 		Active:   false,
 		Created:  time.Now(),
 	}
-	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user)); err != nil {
+	user2 := &UserBoSql{
+		Id:       "2",
+		Username: "nbthanh",
+		Name:     "Thanh B. Nguyen",
+		Version:  int(time.Now().Unix()),
+		Active:   true,
+		Created:  time.Now(),
+	}
+
+	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != nil {
+		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
+	} else if numRows != 1 {
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+	}
+	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user2)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user)); err != nil {
+	user1.Username = "thanhn"
+	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
@@ -379,5 +415,10 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 		if u.Username != "thanhn" {
 			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
 		}
+	}
+
+	user1.Username = user2.Username
+	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: expected 0/GdaoErrorDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
 	}
 }

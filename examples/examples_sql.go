@@ -1,6 +1,4 @@
-/*
-Base code for SQL-dao example.
-*/
+// Base code for SQL-dao example. This is not a standalone script!
 package main
 
 import (

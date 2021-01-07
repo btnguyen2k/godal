@@ -1,3 +1,4 @@
+// This is not a standalone script!
 package main
 
 import (

@@ -260,10 +260,11 @@ var (
 // NewGenericDaoCosmosdb constructs a new Azure Cosmos DB implementation of 'godal.IGenericDao'.
 func NewGenericDaoCosmosdb(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoCosmosdb {
 	sqlDao := godalsql.NewGenericDaoSql(sqlConnect, agdao)
-	dao := &GenericDaoCosmosdb{GenericDaoSql: sqlDao}
-	if dao.GetRowMapper() == nil {
-		dao.SetRowMapper(GenericRowMapperCosmosdbInstance)
-	}
+	// dao := &GenericDaoCosmosdb{GenericDaoSql: sqlDao}
+	dao := &GenericDaoCosmosdb{IGenericDaoSql: sqlDao}
+	// if dao.GetRowMapper() == nil {
+	// 	dao.SetRowMapper(GenericRowMapperCosmosdbInstance)
+	// }
 	return dao
 }
 
@@ -285,7 +286,8 @@ var (
 //
 // Available: since v0.3.0
 type GenericDaoCosmosdb struct {
-	*godalsql.GenericDaoSql
+	// *godalsql.GenericDaoSql
+	godalsql.IGenericDaoSql
 	idGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-id-value-from-genericbo}
 	pkGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-partition_key-value-from-genericbo}
 	pkRowPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-partition_key-value-from-dbrow}

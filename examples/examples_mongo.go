@@ -176,7 +176,7 @@ func createMongoConnect() *prom.MongoConnect {
 	}
 
 	// HACK to force database creation
-	mc.CreateCollection("__prom")
+	mc.CreateCollection("__godal")
 
 	return mc
 }
