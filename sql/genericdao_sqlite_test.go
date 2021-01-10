@@ -51,6 +51,14 @@ func TestGenericDaoSqlite_SetGetSqlConnect(t *testing.T) {
 	}
 }
 
+func TestGenericDaoSqlite_StartTx(t *testing.T) {
+	name := "TestGenericDaoSqlite_StartTx"
+	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
+		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
+	}
+}
+
 func TestGenericDaoSqlite_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoSqlite_GdaoDelete"
 	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
@@ -130,4 +138,14 @@ func TestGenericDaoSqlite_GdaoSaveTxModeOnWrite(t *testing.T) {
 	}
 	dao.SetTxModeOnWrite(true)
 	dotestGenericDaoSqlGdaoSave(t, name, dao)
+}
+
+func TestGenericDaoSqlite_Tx(t *testing.T) {
+	name := "TestGenericDaoSqlite_Tx"
+	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+	}
+	dotestGenericDaoSql_Tx(t, name, dao)
 }

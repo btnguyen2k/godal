@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/btnguyen2k/prom"
 )
@@ -30,8 +31,11 @@ func NewPlaceholderGeneratorQuestion() PlaceholderGenerator {
 //
 // Note: "$<n>" placeholder is used by PostgreSQL.
 func NewPlaceholderGeneratorDollarN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return "$" + strconv.Itoa(n)
 	}
@@ -41,8 +45,11 @@ func NewPlaceholderGeneratorDollarN() PlaceholderGenerator {
 //
 // Note: ":<n>" placeholder is used by Oracle.
 func NewPlaceholderGeneratorColonN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return ":" + strconv.Itoa(n)
 	}
@@ -52,8 +59,11 @@ func NewPlaceholderGeneratorColonN() PlaceholderGenerator {
 //
 // Note: "@p<n>" placeholder is used by MSSQL.
 func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return "@p" + strconv.Itoa(n)
 	}
@@ -259,7 +269,7 @@ type FilterExpression struct {
 }
 
 // Build implements IFilter.Build.
-func (f *FilterExpression) Build(_ PlaceholderGenerator) (string, []interface{}) {
+func (f *FilterExpression) Build(_ PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	clause := f.Left + " " + strings.TrimSpace(f.Operation) + " " + f.Right
 	return clause, make([]interface{}, 0)
 }
@@ -287,17 +297,16 @@ func (b *BaseSqlBuilder) WithFlavor(flavor prom.DbFlavor) *BaseSqlBuilder {
 	b.Flavor = flavor
 	switch flavor {
 	case prom.FlavorPgSql, prom.FlavorCosmosDb:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorDollarN()
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorDollarN())
 	case prom.FlavorMsSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorAtpiN()
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorAtpiN())
 	case prom.FlavorOracle:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorColonN()
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorColonN())
 	case prom.FlavorMySql, prom.FlavorSqlite:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
 	default:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
 	}
-	return b
 }
 
 // WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
@@ -508,6 +517,11 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 			singleTblAlias = strings.TrimSpace(tokens[3])
 		}
 		tablesClause = singleTblName + " " + singleTblAlias
+
+		if optTableAlias == "" {
+			optTableAlias = singleTblAlias + "."
+			opts = append(opts, &OptTableAlias{TableAlias: singleTblAlias})
+		}
 		/* END: special case for gocosmos */
 	}
 
@@ -752,10 +766,15 @@ func (b *UpdateBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	sql := fmt.Sprintf("UPDATE %s", b.Table)
 	values := make([]interface{}, 0)
 
+	cols := make([]string, 0)
+	for k := range b.Values {
+		cols = append(cols, k)
+	}
+	sort.Strings(cols)
 	setList := make([]string, 0)
-	for k, v := range b.Values {
-		values = append(values, v)
-		setList = append(setList, k+"="+b.PlaceholderGenerator(k))
+	for _, col := range cols {
+		values = append(values, b.Values[col])
+		setList = append(setList, col+"="+b.PlaceholderGenerator(col))
 	}
 	sql += " SET " + strings.Join(setList, ",")
 

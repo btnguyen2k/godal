@@ -494,10 +494,10 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 //
 // Available since v0.0.2
 func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) {
-	v := reflect.ValueOf(ordering)
-	if ordering == nil || v.IsNil() {
+	if ordering == nil {
 		return nil, nil
 	}
+	v := reflect.ValueOf(ordering)
 	if v.Type().AssignableTo(isortingType) {
 		return ordering.(ISorting), nil
 	}

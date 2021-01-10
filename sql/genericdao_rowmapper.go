@@ -159,9 +159,6 @@ func (mapper *GenericRowMapperSql) ToBo(table string, row interface{}) (godal.IG
 	}
 	switch row.(type) {
 	case map[string]interface{}:
-		if row.(map[string]interface{}) == nil {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
 			bo.GboSetAttr(mapper.translateColNameToGboField(table, mapper.transformName(k)), v)
@@ -197,9 +194,6 @@ func (mapper *GenericRowMapperSql) ToBo(table string, row interface{}) (godal.IG
 	}
 	switch v.Kind() {
 	case reflect.Map:
-		if v.IsNil() {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
 
@@ -14,13 +15,16 @@ func TestGenericRowMapperSql_ColumnsList(t *testing.T) {
 	name := "TestGenericRowMapperSql_ColumnsList"
 	rm := &GenericRowMapperSql{ColumnsListMap: map[string][]string{"test": {"col0", "col1", "col2"}}}
 
-	colsTest := rm.ColumnsList("test")
-	if colsTest == nil || len(colsTest) != 3 || colsTest[0] != "col0" || colsTest[1] != "col1" || colsTest[2] != "col2" {
-		t.Fatalf("%s failed. StorageId: %s / Column list: %#v", name, "test", colsTest)
+	if cols := rm.ColumnsList("test"); cols == nil || len(cols) != 3 || cols[0] != "col0" || cols[1] != "col1" || cols[2] != "col2" {
+		t.Fatalf("%s failed. StorageId: %s / Column list: %#v", name, "test", cols)
 	}
 
-	cols := rm.ColumnsList("dummy")
-	if cols == nil || len(cols) != 1 || cols[0] != "*" {
+	if cols := rm.ColumnsList("dummy"); cols == nil || len(cols) != 1 || cols[0] != "*" {
+		t.Fatalf("%s failed. StorageId: %s / Column list: %#v", name, "test", cols)
+	}
+
+	rm.ColumnsListMap = map[string][]string{"test": {"col0", "col1", "col2"}, "*": allColumns}
+	if cols := rm.ColumnsList("dummy"); cols == nil || len(cols) != 1 || cols[0] != "*" {
 		t.Fatalf("%s failed. StorageId: %s / Column list: %#v", name, "test", cols)
 	}
 }
@@ -130,6 +134,58 @@ func TestGenericRowMapperSql_ToBo(t *testing.T) {
 		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
 			t.Fatalf("%s failed: %e / %v", name, err, bo)
 		}
+	}
+
+	cola := "cola"
+	colb := "colb"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfIntact,
+		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
+			"*": {
+				"cola": cola,
+				"colb": &colb,
+				"colc": func(storageId, colName string) string { return colName },
+			},
+		},
+	}
+	row := map[string]interface{}{"cola": 1, "colb": 2, "colc": 3}
+	if gbo, err := rm.ToBo("*", row); gbo == nil || err != nil {
+		t.Fatalf("%s failed: %#v/%s", name, row, err)
+	}
+
+	if gbo, err := rm.ToBo("*", time.Time{}); gbo != nil || err == nil {
+		t.Fatalf("%s failed: %#v/%s", name, row, err)
+	}
+}
+
+func TestGenericRowMapperSql_ToRow(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToRow"
+	cola := "cola"
+	colb := "colb"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfIntact,
+		GboFieldToColNameTranslator: map[string]map[string]interface{}{
+			"*": {
+				"cola": cola,
+				"colb": &colb,
+				"colc": func(storageId, fieldName string) string { return fieldName },
+			},
+		},
+	}
+	type mystruct struct{}
+	gbo := godal.NewGenericBo()
+	gbo.GboSetAttr("cola", true)
+	gbo.GboSetAttr("colb", "a string")
+	gbo.GboSetAttr("colc", 1)
+	gbo.GboSetAttr("cold", uint(2))
+	gbo.GboSetAttr("cole", 3.4)
+	gbo.GboSetAttr("colf", time.Now())
+	gbo.GboSetAttr("colg", mystruct{})
+	if row, err := rm.ToRow("*", gbo); row == nil || err != nil {
+		t.Fatalf("%s failed: %#v/%s", name, row, err)
+	}
+	if row, err := rm.ToRow("*", nil); row != nil || err != nil {
+		t.Fatalf("%s failed: %#v/%s", name, row, err)
 	}
 }
 
