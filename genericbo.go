@@ -238,7 +238,7 @@ func (bo *GenericBo) GboToJsonUnsafe() []byte {
 // GboFromJson implements IGenericBo.GboFromJson.
 //
 //   - If error occurs, existing BO data is intact.
-// 	 - If successful, existing data is replaced.
+//   - If successful, existing data is replaced.
 func (bo *GenericBo) GboFromJson(js []byte) error {
 	bo.m.Lock()
 	defer bo.m.Unlock()
