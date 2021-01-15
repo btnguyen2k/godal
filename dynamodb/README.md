@@ -12,7 +12,7 @@ Generic [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO implementation.
 - Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.`
 - Row-mapper's `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.
 
-**Use `GenericDaoMongo` (and `godal.IGenericBo`) directly**
+**Use `GenericDaoDynamodb` (and `godal.IGenericBo`) directly**
 
 - Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
 - Use a row-mapper whose `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.

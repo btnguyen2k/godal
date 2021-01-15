@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/cosmosdbsql"
-	"github.com/btnguyen2k/godal/sql"
 )
 
 // DaoAppCosmosdb is AzureCosmosDB-implementation of IDaoApp.
@@ -35,7 +35,9 @@ type DaoAppCosmosdb struct {
 func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppCosmosdb{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
-	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
+	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlC, godal.NewAbstractGenericDao(dao))
+	inner.CosmosSetPkGboMapPath(map[string]string{tableName: "id"})
+	dao.IGenericDaoSql = inner
 	dao.SetSqlFlavor(prom.FlavorCosmosDb)
 	dao.SetRowMapper(cosmosdbsql.GenericRowMapperCosmosdbInstance)
 	return dao
@@ -81,7 +83,8 @@ func initDataCosmosdb(sqlC *prom.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP COLLECTION IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
-		fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
+		panic(err)
+		// fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
 	}
 
 	sql = fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", table, colsSql[0])
@@ -124,7 +127,8 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
-		fmt.Printf("\t\tError: %s\n", err)
+		panic(err)
+		// fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
@@ -152,13 +156,14 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
-		fmt.Printf("\t\tError: %s\n", err)
+		panic(err)
+		// fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
 	// insert another row with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
+	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}, ValMap: map[string]interface{}{"duplicated": true}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -170,252 +175,261 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println(sep)
 }
 
-// func demoPgsqlFetchRowById(table string, ids ...string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(false)
-//
-// 	fmt.Printf("-== Fetch rows by id ==-\n")
-// 	for _, id := range ids {
-// 		bo, err := dao.Get(id)
-// 		if err != nil {
-// 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-// 		} else if bo != nil {
-// 			printApp(bo)
-// 		} else {
-// 			fmt.Printf("\tApp [%s] does not exist\n", id)
-// 		}
-// 	}
-//
-// 	fmt.Println(sep)
-// }
-//
-// func demoPgsqlFetchAllRow(table string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(false)
-//
-// 	fmt.Println("-== Fetch all rows in table ==-")
-// 	boList, err := dao.GetAll()
-// 	if err != nil {
-// 		fmt.Printf("\tError while fetching apps: %s\n", err)
-// 	} else {
-// 		for _, bo := range boList {
-// 			printApp(bo)
-// 		}
-// 	}
-// 	fmt.Println(sep)
-// }
-//
-// func demoPgsqlDeleteRow(table string, ids ...string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(false)
-//
-// 	fmt.Println("-== Delete rows from table ==-")
-// 	for _, id := range ids {
-// 		bo, err := dao.Get(id)
-// 		if err != nil {
-// 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-// 		} else if bo == nil {
-// 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
-// 		} else {
-// 			fmt.Println("\tDeleting bo:", string(bo.toJson()))
-// 			result, err := dao.Delete(bo)
-// 			if err != nil {
-// 				fmt.Printf("\t\tError: %s\n", err)
-// 			} else {
-// 				fmt.Printf("\t\tResult: %v\n", result)
-// 			}
-// 			app, err := dao.Get(id)
-// 			if err != nil {
-// 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
-// 			} else if app != nil {
-// 				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
-// 			} else {
-// 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
-// 				result, err = dao.Delete(bo)
-// 				fmt.Printf("\t\tDeleting app [%s] again: %v / %s\n", id, result, err)
-// 			}
-// 		}
-//
-// 	}
-// 	fmt.Println(sep)
-// }
-//
-// func demoPgsqlUpdateRows(loc *time.Location, table string, ids ...string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(false)
-//
-// 	fmt.Println("-== Update rows from table ==-")
-// 	for _, id := range ids {
-// 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-// 		bo, err := dao.Get(id)
-// 		if err != nil {
-// 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-// 		} else if bo == nil {
-// 			fmt.Printf("\tApp [%s] does not exist\n", id)
-// 			bo = &BoApp{
-// 				Id:            id,
-// 				Description:   t.String(),
-// 				ValString:     "(updated)",
-// 				ValTime:       t,
-// 				ValTimeZ:      t,
-// 				ValDate:       t,
-// 				ValDateZ:      t,
-// 				ValDatetime:   t,
-// 				ValDatetimeZ:  t,
-// 				ValTimestamp:  t,
-// 				ValTimestampZ: t,
-// 			}
-// 		} else {
-// 			fmt.Println("\tExisting bo:", string(bo.toJson()))
-// 			bo.Description = t.String()
-// 			bo.ValString += "(updated)"
-// 			bo.ValTime = t
-// 			bo.ValTimeZ = t
-// 			bo.ValDate = t
-// 			bo.ValDateZ = t
-// 			bo.ValDatetime = t
-// 			bo.ValDatetimeZ = t
-// 			bo.ValTimestamp = t
-// 			bo.ValTimestampZ = t
-// 		}
-// 		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
-// 		result, err := dao.Update(bo)
-// 		if err != nil {
-// 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
-// 		} else {
-// 			fmt.Printf("\t\tResult: %v\n", result)
-// 			bo, err = dao.Get(id)
-// 			if err != nil {
-// 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
-// 			} else if bo != nil {
-// 				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
-// 			} else {
-// 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
-// 			}
-// 		}
-// 	}
-// 	fmt.Println(sep)
-// }
-//
-// func demoPgsqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(txMode)
-//
-// 	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
-// 	for _, id := range ids {
-// 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-// 		bo, err := dao.Get(id)
-// 		if err != nil {
-// 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-// 		} else if bo == nil {
-// 			fmt.Printf("\tApp [%s] does not exist\n", id)
-// 			bo = &BoApp{
-// 				Id:            id,
-// 				Description:   t.String(),
-// 				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
-// 				ValTime:       t,
-// 				ValTimeZ:      t,
-// 				ValDate:       t,
-// 				ValDateZ:      t,
-// 				ValDatetime:   t,
-// 				ValDatetimeZ:  t,
-// 				ValTimestamp:  t,
-// 				ValTimestampZ: t,
-// 			}
-// 		} else {
-// 			fmt.Println("\tExisting bo:", string(bo.toJson()))
-// 			bo.Description = t.String()
-// 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
-// 			bo.ValTime = t
-// 			bo.ValTimeZ = t
-// 			bo.ValDate = t
-// 			bo.ValDateZ = t
-// 			bo.ValDatetime = t
-// 			bo.ValDatetimeZ = t
-// 			bo.ValTimestamp = t
-// 			bo.ValTimestampZ = t
-// 		}
-// 		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
-// 		result, err := dao.Upsert(bo)
-// 		if err != nil {
-// 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
-// 		} else {
-// 			fmt.Printf("\t\tResult: %v\n", result)
-// 			bo, err = dao.Get(id)
-// 			if err != nil {
-// 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
-// 			} else if bo != nil {
-// 				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
-// 			} else {
-// 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
-// 			}
-// 		}
-// 	}
-// 	fmt.Println(sep)
-// }
-//
-// func demoPgsqlSelectSortingAndLimit(loc *time.Location, table string) {
-// 	sqlC := createSqlConnectForPgsql()
-// 	defer sqlC.Close()
-// 	initDataPgsql(sqlC, table)
-// 	dao := NewDaoAppPgsql(sqlC, table)
-// 	dao.EnableTxMode(false)
-//
-// 	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
-// 	n := 100
-// 	fmt.Printf("\tInserting %d rows...\n", n)
-// 	for i := 0; i < n; i++ {
-// 		id := strconv.Itoa(i)
-// 		for len(id) < 3 {
-// 			id = "0" + id
-// 		}
-// 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-// 		bo := BoApp{
-// 			Id:            id,
-// 			Description:   t.String(),
-// 			ValBool:       rand.Int31()%2 == 0,
-// 			ValInt:        rand.Int(),
-// 			ValFloat:      rand.Float64(),
-// 			ValString:     id + " (sorting and limit)",
-// 			ValTime:       t,
-// 			ValTimeZ:      t,
-// 			ValDate:       t,
-// 			ValDateZ:      t,
-// 			ValDatetime:   t,
-// 			ValDatetimeZ:  t,
-// 			ValTimestamp:  t,
-// 			ValTimestampZ: t,
-// 			ValList:       []interface{}{rand.Int31()%2 == 0, i, id},
-// 			ValMap:        map[string]interface{}{"tags": []interface{}{id, i}},
-// 		}
-// 		_, err := dao.Create(&bo)
-// 		if err != nil {
-// 			panic(err)
-// 		}
-// 	}
-// 	startOffset := rand.Intn(n)
-// 	numRows := rand.Intn(10) + 1
-// 	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
-// 	boList, err := dao.GetN(startOffset, numRows)
-// 	if err != nil {
-// 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
-// 	} else {
-// 		for _, bo := range boList {
-// 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
-// 		}
-// 	}
-// 	fmt.Println(sep)
-// }
+func demoCosmosdbFetchRowById(table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(false)
+
+	fmt.Printf("-== Fetch rows by id ==-\n")
+	for _, id := range ids {
+		bo, err := dao.Get(id)
+		if err != nil {
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+		} else if bo != nil {
+			printApp(bo)
+		} else {
+			fmt.Printf("\tApp [%s] does not exist\n", id)
+		}
+	}
+
+	fmt.Println(sep)
+}
+
+func demoCosmosdbFetchAllRow(table string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(false)
+
+	fmt.Println("-== Fetch all rows in table ==-")
+	boList, err := dao.GetAll()
+	if err != nil {
+		fmt.Printf("\tError while fetching apps: %s\n", err)
+	} else {
+		for _, bo := range boList {
+			printApp(bo)
+		}
+	}
+	fmt.Println(sep)
+}
+
+func demoCosmosdbDeleteRow(table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(false)
+
+	fmt.Println("-== Delete rows from table ==-")
+	for _, id := range ids {
+		bo, err := dao.Get(id)
+		if err != nil {
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+		} else if bo == nil {
+			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
+		} else {
+			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			result, err := dao.Delete(bo)
+			if err != nil {
+				panic(err)
+				// fmt.Printf("\t\tError: %s\n", err)
+			} else {
+				fmt.Printf("\t\tResult: %v\n", result)
+			}
+			app, err := dao.Get(id)
+			if err != nil {
+				panic(err)
+				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
+			} else if app != nil {
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+			} else {
+				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
+				result, err = dao.Delete(bo)
+				fmt.Printf("\t\tDeleting app [%s] again: %v / %s\n", id, result, err)
+			}
+		}
+
+	}
+	fmt.Println(sep)
+}
+
+func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(false)
+
+	fmt.Println("-== Update rows from table ==-")
+	for _, id := range ids {
+		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
+		bo, err := dao.Get(id)
+		if err != nil {
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+		} else if bo == nil {
+			fmt.Printf("\tApp [%s] does not exist\n", id)
+			bo = &BoApp{
+				Id:            id,
+				Description:   t.String(),
+				ValString:     "(updated)",
+				ValTime:       t,
+				ValTimeZ:      t,
+				ValDate:       t,
+				ValDateZ:      t,
+				ValDatetime:   t,
+				ValDatetimeZ:  t,
+				ValTimestamp:  t,
+				ValTimestampZ: t,
+			}
+		} else {
+			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			bo.Description = t.String()
+			bo.ValString += "(updated)"
+			bo.ValTime = t
+			bo.ValTimeZ = t
+			bo.ValDate = t
+			bo.ValDateZ = t
+			bo.ValDatetime = t
+			bo.ValDatetimeZ = t
+			bo.ValTimestamp = t
+			bo.ValTimestampZ = t
+		}
+		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		result, err := dao.Update(bo)
+		if err != nil {
+			panic(err)
+			// fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
+		} else {
+			fmt.Printf("\t\tResult: %v\n", result)
+			bo, err = dao.Get(id)
+			if err != nil {
+				panic(err)
+				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
+			} else if bo != nil {
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			} else {
+				fmt.Printf("\t\tApp [%s] does not exist\n", id)
+			}
+		}
+	}
+	fmt.Println(sep)
+}
+
+func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(txMode)
+
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	for _, id := range ids {
+		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
+		bo, err := dao.Get(id)
+		if err != nil {
+			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+		} else if bo == nil {
+			fmt.Printf("\tApp [%s] does not exist\n", id)
+			bo = &BoApp{
+				Id:            id,
+				Description:   t.String(),
+				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
+				ValTime:       t,
+				ValTimeZ:      t,
+				ValDate:       t,
+				ValDateZ:      t,
+				ValDatetime:   t,
+				ValDatetimeZ:  t,
+				ValTimestamp:  t,
+				ValTimestampZ: t,
+			}
+		} else {
+			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			bo.Description = t.String()
+			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
+			bo.ValTime = t
+			bo.ValTimeZ = t
+			bo.ValDate = t
+			bo.ValDateZ = t
+			bo.ValDatetime = t
+			bo.ValDatetimeZ = t
+			bo.ValTimestamp = t
+			bo.ValTimestampZ = t
+		}
+		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		result, err := dao.Upsert(bo)
+		if err != nil {
+			panic(err)
+			// fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
+		} else {
+			fmt.Printf("\t\tResult: %v\n", result)
+			bo, err = dao.Get(id)
+			if err != nil {
+				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
+			} else if bo != nil {
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			} else {
+				fmt.Printf("\t\tApp [%s] does not exist\n", id)
+			}
+		}
+	}
+	fmt.Println(sep)
+}
+
+func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
+	sqlC := createSqlConnectForCosmosdb()
+	defer sqlC.Close()
+	initDataCosmosdb(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
+	dao.EnableTxMode(false)
+
+	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
+	n := 100
+	fmt.Printf("\tInserting %d rows...\n", n)
+	for i := 0; i < n; i++ {
+		id := strconv.Itoa(i)
+		for len(id) < 3 {
+			id = "0" + id
+		}
+		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
+		bo := BoApp{
+			Id:            id,
+			Description:   t.String(),
+			ValBool:       rand.Int31()%2 == 0,
+			ValInt:        rand.Int(),
+			ValFloat:      rand.Float64(),
+			ValString:     id + " (sorting and limit)",
+			ValTime:       t,
+			ValTimeZ:      t,
+			ValDate:       t,
+			ValDateZ:      t,
+			ValDatetime:   t,
+			ValDatetimeZ:  t,
+			ValTimestamp:  t,
+			ValTimestampZ: t,
+			ValList:       []interface{}{rand.Int31()%2 == 0, i, id},
+			ValMap:        map[string]interface{}{"tags": []interface{}{id, i}},
+		}
+		_, err := dao.Create(&bo)
+		if err != nil {
+			panic(err)
+		}
+	}
+	startOffset := rand.Intn(n)
+	numRows := rand.Intn(10) + 1
+	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
+	boList, err := dao.GetN(startOffset, numRows)
+	if err != nil {
+		panic(err)
+		// fmt.Printf("\t\tError while fetching apps: %s\n", err)
+	} else {
+		for _, bo := range boList {
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+		}
+	}
+	fmt.Println(sep)
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -424,12 +438,12 @@ func main() {
 
 	table := "tbl_app"
 	demoCosmosdbInsertRows(loc, table, true)
-	// demoPgsqlInsertRows(loc, table, false)
-	// demoPgsqlFetchRowById(table, "login", "loggin")
-	// demoPgsqlFetchAllRow(table)
-	// demoPgsqlDeleteRow(table, "login", "loggin")
-	// demoPgsqlUpdateRows(loc, table, "log", "logging")
-	// demoPgsqlUpsertRows(loc, table, true, "log", "logging")
-	// demoPgsqlUpsertRows(loc, table, false, "log", "loggging")
-	// demoPgsqlSelectSortingAndLimit(loc, table)
+	demoCosmosdbInsertRows(loc, table, false)
+	demoCosmosdbFetchRowById(table, "login", "loggin")
+	demoCosmosdbFetchAllRow(table)
+	demoCosmosdbDeleteRow(table, "login", "loggin")
+	demoCosmosdbUpdateRows(loc, table, "log", "logging")
+	demoCosmosdbUpsertRows(loc, table, true, "log", "logging")
+	demoCosmosdbUpsertRows(loc, table, false, "log", "loggging")
+	demoCosmosdbSelectSortingAndLimit(loc, table)
 }

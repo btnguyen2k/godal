@@ -1,3 +1,6 @@
+/*
+$ go run example_sta_mongo_custombo.go
+*/
 package main
 
 import (
@@ -33,6 +36,11 @@ func createMongoConnect() *prom.MongoConnect {
 
 // convenient function to create UserDaoMongo instance
 func createUserDaoMongo(mgc *prom.MongoConnect, collectionName string, rowMapper godal.IRowMapper) IUserDao {
+	err := mgc.GetCollection(collectionName).Drop(nil)
+	fmt.Printf("[INFO] Dropped collection %s: %s\n", collectionName, err)
+	_, err = mgc.CreateCollection(collectionName)
+	fmt.Printf("[INFO] Created collection %s: %s\n", collectionName, err)
+
 	dao := &UserDaoMongo{collectionName: collectionName}
 	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mgc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)

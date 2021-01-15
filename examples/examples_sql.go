@@ -27,7 +27,7 @@ func toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
 	if gbo == nil {
 		return nil, nil
 	}
-	bo := BoApp{}
+	bo := &BoApp{}
 	return bo.fromGenericBo(gbo), nil
 }
 
@@ -35,7 +35,8 @@ func toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
 
 // DaoAppSql is SQL-based DAO implementation.
 type DaoAppSql struct {
-	*sql.GenericDaoSql
+	// *sql.GenericDaoSql
+	sql.IGenericDaoSql
 	tableName string
 }
 

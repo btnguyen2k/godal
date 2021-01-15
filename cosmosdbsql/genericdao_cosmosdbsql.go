@@ -8,6 +8,9 @@ General guideline:
 Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
 	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Configure either {collection-name:path-to-fetch-partition_key-value-from-genericbo} (via GenericDaoCosmosdb.CosmosSetPkGboMapPath)
+	  or {collection-name:path-to-fetch-partition_key-value-from-dbrow} (via GenericDaoCosmosdb.CosmosSetPkRowMapPath).
+	- Optionally, configure {collection-name:path-to-fetch-id-value-from-genericbo} via GenericDaoCosmosdb.CosmosSetIdGboMapPath.
 	- Optionally, create a helper function to create dao instances.
 
 	// Remember to import the database driver, the only supported/available driver for now is "github.com/btnguyen2k/gocosmos".
@@ -45,15 +48,11 @@ Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
 	txModeOnWrite should be disabled as btnguyen2k/gocosmosdb driver does not currently support transaction!
 
-	One of mappings {collection-name:path-to-fetch-partition_key-value-from-genericbo} or
-	{collection-name:path-to-fetch-partition_key-value-from-dbrow} must be configured.
-	See CosmosSetPkGboMapPath and CosmosSetPkRowMapPath for more information.
-
 Guideline: Implement custom Azure Cosmos DB business dao and bo
 
 	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
-	- Optionally, create a helper function to create dao instances.
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+	- Optionally, create a helper function to create dao instances.
 
 	// Remember to import the database driver, the only supported/available driver for now is "github.com/btnguyen2k/gocosmos".
 	import (
@@ -128,9 +127,10 @@ Guideline: Implement custom Azure Cosmos DB business dao and bo
 
 	txModeOnWrite should be disabled as btnguyen2k/gocosmosdb driver does not currently support transaction!
 
-	One of mappings {collection-name:path-to-fetch-partition_key-value-from-genericbo} or
-	{collection-name:path-to-fetch-partition_key-value-from-dbrow} must be configured.
-	See CosmosSetPkGboMapPath and CosmosSetPkRowMapPath for more information.
+	Partition key (PK) is crucial to CosmosDB. PK value is needed in almost all document related operations. Hence, it's
+	important to be able to extract PK value from BO. If using or extending GenericDaoCosmosdb, configure either
+	{collection-name:path-to-fetch-partition_key-value-from-genericbo} (via GenericDaoCosmosdb.CosmosSetPkGboMapPath)
+	or {collection-name:path-to-fetch-partition_key-value-from-dbrow} (via GenericDaoCosmosdb.CosmosSetPkRowMapPath).
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 

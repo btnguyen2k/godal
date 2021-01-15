@@ -35,7 +35,7 @@ type DaoAppSqlite struct {
 func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppSqlite{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
-	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
+	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorSqlite)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
 	return dao

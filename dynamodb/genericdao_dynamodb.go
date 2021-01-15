@@ -102,12 +102,12 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 	}
 
 	// DaoAppDynamodb is AWS DynamoDB-implementation of business dao
-	type DaoAppMongodb struct {
+	type DaoAppDynamodb struct {
 		*gdaodynamod.GenericDaoDynamodb
 		tableName string
 	}
 
-	// NewDaoAppDynamodb is convenient method to create DaoAppMongodb instances.
+	// NewDaoAppDynamodb is convenient method to create DaoAppDynamodb instances.
 	func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
 		dao := &DaoAppDynamodb{tableName: tableName}
 		dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))

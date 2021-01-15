@@ -1,3 +1,6 @@
+/*
+$ go run example_sta_mongo_genericbo.go
+*/
 package main
 
 import (
@@ -33,6 +36,11 @@ func createMongoConnectGeneric() *prom.MongoConnect {
 
 // convenient function to create MyGenericDaoMongo instance
 func createMyGenericDaoMongo(mgc *prom.MongoConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+	err := mgc.GetCollection(collectionUserGeneric).Drop(nil)
+	fmt.Printf("[INFO] Dropped collection %s: %s\n", collectionUserGeneric, err)
+	_, err = mgc.CreateCollection(collectionUserGeneric)
+	fmt.Printf("[INFO] Created collection %s: %s\n", collectionUserGeneric, err)
+
 	dao := &MyGenericDaoMongo{}
 	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mgc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)

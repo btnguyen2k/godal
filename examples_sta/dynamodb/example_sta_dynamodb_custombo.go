@@ -1,3 +1,6 @@
+/*
+$ go run example_sta_dynamodb_custombo.go
+*/
 package main
 
 import (
@@ -42,6 +45,13 @@ func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
 
 // convenient function to create UserDaoDynamodb instance
 func createUserDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string, rowMapper godal.IRowMapper) IUserDao {
+	err := adc.DeleteTable(nil, tableName)
+	fmt.Printf("[INFO] Deleted table %s: %s\n", tableName, err)
+	err = adc.CreateTable(nil, tableName, 1, 1,
+		[]prom.AwsDynamodbNameAndType{{Name: fieldUserId, Type: prom.AwsAttrTypeString}},
+		[]prom.AwsDynamodbNameAndType{{Name: fieldUserId, Type: prom.AwsKeyTypePartition}})
+	fmt.Printf("[INFO] Created table %s: %s\n", tableName, err)
+
 	dao := &UserDaoDynamodb{tableName: tableName}
 	dao.GenericDaoDynamodb = dynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
