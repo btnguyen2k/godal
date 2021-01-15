@@ -54,6 +54,9 @@ func TestGenericDaoSqlite_SetGetSqlConnect(t *testing.T) {
 func TestGenericDaoSqlite_StartTx(t *testing.T) {
 	name := "TestGenericDaoSqlite_StartTx"
 	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	if err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName); err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+	}
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
 		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
 	}
