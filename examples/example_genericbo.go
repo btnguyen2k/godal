@@ -1,3 +1,8 @@
+/*
+godal.NewGenericBo example. Run with command:
+
+$ go run examples_genericbo.go
+*/
 package main
 
 import (

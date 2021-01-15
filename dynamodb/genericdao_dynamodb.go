@@ -17,6 +17,7 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 		//"github.com/aws/aws-sdk-go/aws/credentials"
 		//"github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
@@ -54,6 +55,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 		//"github.com/aws/aws-sdk-go/aws/credentials"
 		//"github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
+
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
 		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
@@ -100,12 +102,12 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 	}
 
 	// DaoAppDynamodb is AWS DynamoDB-implementation of business dao
-	type DaoAppMongodb struct {
+	type DaoAppDynamodb struct {
 		*gdaodynamod.GenericDaoDynamodb
 		tableName string
 	}
 
-	// NewDaoAppDynamodb is convenient method to create DaoAppMongodb instances.
+	// NewDaoAppDynamodb is convenient method to create DaoAppDynamodb instances.
 	func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
 		dao := &DaoAppDynamodb{tableName: tableName}
 		dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
@@ -169,9 +171,6 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 	}
 	switch row.(type) {
 	case map[string]interface{}:
-		if row.(map[string]interface{}) == nil {
-			return nil, nil
-		}
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
 			bo.GboSetAttr(k, v)
@@ -471,8 +470,8 @@ func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
 //
 // 'keyFilter' should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
-func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, filter interface{}) (godal.IGenericBo, error) {
-	return dao.GdaoFetchOneWithContext(nil, table, filter)
+func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, keyFilter interface{}) (godal.IGenericBo, error) {
+	return dao.GdaoFetchOneWithContext(nil, table, keyFilter)
 }
 
 // GdaoFetchOneWithContext is is AWS DynamoDB variant of GdaoFetchOne.

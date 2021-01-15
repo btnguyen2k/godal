@@ -1,5 +1,5 @@
 /*
-$ go run example_sta_sql_genericbo.go
+$ go run example_sta_cosmosdbsql_genericbo.go
 */
 package main
 
@@ -12,32 +12,20 @@ import (
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/prom"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
+	_ "github.com/btnguyen2k/gocosmos"
 
 	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/godal/cosmosdbsql"
 	"github.com/btnguyen2k/godal/sql"
 )
 
-/*
-Sample database table for PostgreSQL
-CREATE TABLE test_user (
-	uid			VARCHAR(32),
-	uusername	VARCHAR(64),
-	uname		VARCHAR(96),
-	uversion	INT,
-	uactived	INT,
-	PRIMARY KEY (uid)
-)
-*/
-
-// convenient function to create prom.SqlConnect instance (for PostgreSQL)
-// it is highly recommended to provide a timezone setting (e.g. "Asia/Ho_Chi_Minh")
+// convenient function to create prom.SqlConnect instance (for CosmosDB)
 func createPgsqlConnect() *prom.SqlConnect {
-	// driver := strings.ReplaceAll(os.Getenv("PGSQL_DRIVER"), `"`, "")
-	driver := "pgx"
-	dsn := strings.ReplaceAll(os.Getenv("PGSQL_URL"), `"`, "")
+	// driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
+	driver := "gocosmos"
+	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
 	if driver == "" || dsn == "" {
-		panic("Please define env PGSQL_DRIVER, PGSQL_URL and optionally TIMEZONE")
+		panic("Please define env COSMOSDB_DRIVER, COSMOSDB_URL and optionally TIMEZONE")
 	}
 	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	if timeZone == "" {
@@ -47,6 +35,9 @@ func createPgsqlConnect() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
+
+	dsn += ";Db=godal"
+
 	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
@@ -58,20 +49,24 @@ func createPgsqlConnect() *prom.SqlConnect {
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
-	sqlConnect.SetDbFlavor(prom.FlavorPgSql)
+	sqlConnect.SetDbFlavor(prom.FlavorCosmosDb)
+
+	sqlConnect.GetDB().Exec("CREATE DATABASE godal WITH maxru=10000")
+
 	return sqlConnect
 }
 
 // convenient function to create MyGenericDaoSql instance
 func createMyGenericDaoSql(sqlc *prom.SqlConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
-	_, err := sqlc.GetDB().Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableUserGeneric))
-	fmt.Printf("[INFO] Dropped table %s: %s\n", tableUserGeneric, err)
-	_, err = sqlc.GetDB().Exec(fmt.Sprintf("CREATE TABLE %s (uid\tVARCHAR(32),uusername\tVARCHAR(64),uname\tVARCHAR(96),uversion\tINT,uactived\tINT,PRIMARY KEY (uid))", tableUserGeneric))
-	fmt.Printf("[INFO] Created table %s: %s\n", tableUserGeneric, err)
+	_, err := sqlc.GetDB().Exec(fmt.Sprintf("DROP COLLECTION IF EXISTS %s", tableUserGeneric))
+	fmt.Printf("[INFO] Dropped collection %s: %s\n", tableUserGeneric, err)
+	_, err = sqlc.GetDB().Exec(fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", tableUserGeneric, fieldUserIdGeneric))
+	fmt.Printf("[INFO] Created collection %s: %s\n", tableUserGeneric, err)
 
 	dao := &MyGenericDaoSql{}
-	// dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
-	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
+	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
+	inner.CosmosSetIdGboMapPath(map[string]string{"*": fieldUserIdGeneric})
+	dao.IGenericDaoSql = inner
 	dao.SetRowMapper(rowMapper)
 	dao.SetSqlFlavor(sqlc.GetDbFlavor())
 	return dao

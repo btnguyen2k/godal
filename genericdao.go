@@ -66,6 +66,11 @@ type IGenericDao interface {
 	// If the BO already existed, this function replaces the existing one; otherwise new BO is created.
 	// If data integrity violation occurs, this function should return (0, GdaoErrorDuplicatedEntry)
 	GdaoSave(storageId string, bo IGenericBo) (int, error)
+
+	// GetRowMapper returns the IRowMapper associated with the DAO.
+	//
+	// Available since v0.3.0.
+	GetRowMapper() IRowMapper
 }
 
 // NewAbstractGenericDao constructs a new 'AbstractGenericDao' instance.
@@ -77,19 +82,19 @@ func NewAbstractGenericDao(gdao IGenericDao) *AbstractGenericDao {
 //
 // Function implementations (n = No, y = Yes, i = inherited):
 //   - (n) GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
-// 	 - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-// 	 - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
-// 	 - (n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
-// 	 - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
-// 	 - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
+//   - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
+//   - (n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
+//   - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
+//   - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
 type AbstractGenericDao struct {
 	IGenericDao
 	rowMapper IRowMapper
 }
 
-// GetRowMapper returns the IRowMapper associated with the DAO.
+// GetRowMapper implements IGenericDao.GetRowMapper.
 //
 // Available since v0.0.2.
 func (dao *AbstractGenericDao) GetRowMapper() IRowMapper {

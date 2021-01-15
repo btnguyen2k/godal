@@ -3,8 +3,11 @@ package sql
 import (
 	"fmt"
 	"reflect"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/btnguyen2k/prom"
 )
@@ -28,8 +31,11 @@ func NewPlaceholderGeneratorQuestion() PlaceholderGenerator {
 //
 // Note: "$<n>" placeholder is used by PostgreSQL.
 func NewPlaceholderGeneratorDollarN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return "$" + strconv.Itoa(n)
 	}
@@ -39,8 +45,11 @@ func NewPlaceholderGeneratorDollarN() PlaceholderGenerator {
 //
 // Note: ":<n>" placeholder is used by Oracle.
 func NewPlaceholderGeneratorColonN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return ":" + strconv.Itoa(n)
 	}
@@ -50,8 +59,11 @@ func NewPlaceholderGeneratorColonN() PlaceholderGenerator {
 //
 // Note: "@p<n>" placeholder is used by MSSQL.
 func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
+	var lock sync.Mutex
 	n := 0
 	return func(field string) string {
+		lock.Lock()
+		defer lock.Unlock()
 		n++
 		return "@p" + strconv.Itoa(n)
 	}
@@ -67,7 +79,8 @@ type OptionOpLiteral struct {
 	OpNotEqual string // 'not equal' operation, default is "!="
 }
 
-var defaultOptionLiteralOperation = &OptionOpLiteral{
+// DefaultOptionLiteralOperation uses "AND" for 'and' operation, "OR" for 'or' operation, "=" for equal and "!=" for not equal.
+var DefaultOptionLiteralOperation = &OptionOpLiteral{
 	OpAnd:      "AND",
 	OpOr:       "OR",
 	OpEqual:    "=",
@@ -76,10 +89,19 @@ var defaultOptionLiteralOperation = &OptionOpLiteral{
 
 /*----------------------------------------------------------------------*/
 
+// OptTableAlias is used to prefix table alias to field name when building ISorting, IFilter or ISqlBuilder.
+type OptTableAlias struct {
+	TableAlias string
+}
+
+/*----------------------------------------------------------------------*/
+
+var isortingType = reflect.TypeOf((*ISorting)(nil)).Elem()
+
 // ISorting provides API interface to build elements of 'ORDER BY' clause.
 type ISorting interface {
 	// Build builds the 'ORDER BY' clause (without "ORDER BY" keyword).
-	Build() string
+	Build(opts ...interface{}) string
 }
 
 // GenericSorting is a generic implementation of ISorting.
@@ -91,23 +113,34 @@ type GenericSorting struct {
 
 // Add appends an ordering element to the list.
 func (o *GenericSorting) Add(order string) *GenericSorting {
-	if order != "" {
-		o.Ordering = append(o.Ordering, order)
+	if strings.TrimSpace(order) != "" {
+		o.Ordering = append(o.Ordering, strings.TrimSpace(order))
 	}
 	return o
 }
 
 // Build implements ISorting.Build.
-func (o *GenericSorting) Build() string {
-	if o.Ordering == nil || len(o.Ordering) == 0 {
+func (o *GenericSorting) Build(opts ...interface{}) string {
+	if len(o.Ordering) == 0 {
 		return ""
 	}
+
+	tableAlias := ""
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias:
+			tableAlias = opt.(OptTableAlias).TableAlias + "."
+		case *OptTableAlias:
+			tableAlias = opt.(*OptTableAlias).TableAlias + "."
+		}
+	}
+
 	elements := make([]string, 0)
 	for _, v := range o.Ordering {
 		tokens := strings.Split(v, ":")
-		order := tokens[0]
+		order := tableAlias + tokens[0]
 		if len(tokens) > 1 {
-			ord := strings.ToUpper(tokens[1])
+			ord := strings.TrimSpace(strings.ToUpper(tokens[1]))
 			if ord == "ASC" || ord == "DESC" {
 				order += " " + tokens[1]
 			} else if ord != "" && ord[0] == '-' {
@@ -121,90 +154,91 @@ func (o *GenericSorting) Build() string {
 
 /*----------------------------------------------------------------------*/
 
+var ifilterType = reflect.TypeOf((*IFilter)(nil)).Elem()
+
 // IFilter provides API interface to build element of 'WHERE' clause for SQL statement.
 type IFilter interface {
 	// Build builds the 'WHERE' clause (without "WHERE" keyword) with placeholders and list of values for placeholders in order.
-	Build(placeholderGenerator PlaceholderGenerator) (string, []interface{})
+	Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{})
 }
 
-var ifilterType = reflect.TypeOf((*IFilter)(nil)).Elem()
-var isortingType = reflect.TypeOf((*ISorting)(nil)).Elem()
+// FilterAndOr combines two or more filters using AND/OR clause.
+// It is recommended to use FilterAnd and FilterOr instead of using FilterAndOr directly.
+//
+// Available since v0.3.0
+type FilterAndOr struct {
+	Filters  []IFilter
+	Operator string // literal form for the operator
+}
+
+// Add appends a filter to the list.
+func (f *FilterAndOr) Add(filter IFilter) *FilterAndOr {
+	if filter != nil {
+		f.Filters = append(f.Filters, filter)
+	}
+	return f
+}
+
+// Build implements IFilter.Build.
+func (f *FilterAndOr) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	nFilters := len(f.Filters)
+	if nFilters == 0 {
+		return "", make([]interface{}, 0)
+	}
+
+	op := " " + strings.TrimSpace(f.Operator) + " "
+	clause, values := f.Filters[0].Build(placeholderGenerator, opts...)
+	if nFilters > 1 {
+		clause = "(" + clause + ")"
+		for i := 1; i < nFilters; i++ {
+			c, v := f.Filters[i].Build(placeholderGenerator, opts...)
+			clause += op + "(" + c + ")"
+			values = append(values, v...)
+		}
+	}
+
+	return clause, values
+}
 
 // FilterAnd combines two or more filters using AND clause.
 type FilterAnd struct {
-	Filters  []IFilter
-	Operator string // literal form or the 'and' operator, default is "AND"
+	FilterAndOr
 }
 
 // Add appends a filter to the list.
 func (f *FilterAnd) Add(filter IFilter) *FilterAnd {
-	if filter != nil {
-		f.Filters = append(f.Filters, filter)
-	}
+	f.FilterAndOr.Add(filter)
 	return f
 }
 
 // Build implements IFilter.Build.
-func (f *FilterAnd) Build(placeholderGenerator PlaceholderGenerator) (string, []interface{}) {
-	if f.Filters == nil || len(f.Filters) == 0 {
-		return "", make([]interface{}, 0)
+func (f *FilterAnd) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	if strings.TrimSpace(f.Operator) == "" {
+		f.Operator = "AND"
 	}
-
-	op := " AND "
-	if f.Operator != "" {
-		op = " " + f.Operator + " "
-	}
-	clause, values := f.Filters[0].Build(placeholderGenerator)
-
-	for k, v := range f.Filters {
-		if k > 0 {
-			c, v := v.Build(placeholderGenerator)
-			clause += op + c
-			values = append(values, v...)
-		}
-	}
-
-	return "(" + clause + ")", values
+	return f.FilterAndOr.Build(placeholderGenerator, opts...)
 }
 
 // FilterOr combines two filters using OR clause.
 type FilterOr struct {
-	Filters  []IFilter
-	Operator string // literal form or the 'or' operator, default is "OR"
+	FilterAndOr
 }
 
 // Add appends a filter to the list.
 func (f *FilterOr) Add(filter IFilter) *FilterOr {
-	if filter != nil {
-		f.Filters = append(f.Filters, filter)
-	}
+	f.FilterAndOr.Add(filter)
 	return f
 }
 
 // Build implements IFilter.Build.
-func (f *FilterOr) Build(placeholderGenerator PlaceholderGenerator) (string, []interface{}) {
-	if f.Filters == nil || len(f.Filters) == 0 {
-		return "", make([]interface{}, 0)
+func (f *FilterOr) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	if strings.TrimSpace(f.Operator) == "" {
+		f.Operator = "OR"
 	}
-
-	op := " OR "
-	if f.Operator != "" {
-		op = " " + f.Operator + " "
-	}
-	clause, values := f.Filters[0].Build(placeholderGenerator)
-
-	for k, v := range f.Filters {
-		if k > 0 {
-			c, v := v.Build(placeholderGenerator)
-			clause += op + c
-			values = append(values, v...)
-		}
-	}
-
-	return "(" + clause + ")", values
+	return f.FilterAndOr.Build(placeholderGenerator, opts...)
 }
 
-// FilterFieldValue represents single filter <field> <operation> <value>.
+// FilterFieldValue represents single filter: <field> <operation> <value>.
 type FilterFieldValue struct {
 	Field     string      // field to check
 	Operation string      // operation to perform
@@ -212,22 +246,31 @@ type FilterFieldValue struct {
 }
 
 // Build implements IFilter.Build.
-func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator) (string, []interface{}) {
+func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	tableAlias := ""
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias:
+			tableAlias = opt.(OptTableAlias).TableAlias + "."
+		case *OptTableAlias:
+			tableAlias = opt.(*OptTableAlias).TableAlias + "."
+		}
+	}
 	values := make([]interface{}, 0)
 	values = append(values, f.Value)
-	clause := f.Field + " " + f.Operation + " " + placeholderGenerator(f.Field)
+	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operation) + " " + placeholderGenerator(f.Field)
 	return clause, values
 }
 
-// FilterExpression represents single filter <left> <operation> <right>.
+// FilterExpression represents single filter: <left> <operation> <right>.
 type FilterExpression struct {
 	Left, Right string // left & right parts of the expression
 	Operation   string // operation to perform
 }
 
 // Build implements IFilter.Build.
-func (f *FilterExpression) Build(placeholderGenerator PlaceholderGenerator) (string, []interface{}) {
-	clause := f.Left + " " + f.Operation + " " + f.Right
+func (f *FilterExpression) Build(_ PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	clause := f.Left + " " + strings.TrimSpace(f.Operation) + " " + f.Right
 	return clause, make([]interface{}, 0)
 }
 
@@ -235,15 +278,53 @@ func (f *FilterExpression) Build(placeholderGenerator PlaceholderGenerator) (str
 
 // ISqlBuilder provides API interface to build the SQL statement.
 type ISqlBuilder interface {
-	Build() (string, []interface{})
+	Build(opts ...interface{}) (string, []interface{})
+}
+
+// BaseSqlBuilder is the base struct to implement DeleteBuilder, InsertBuilder, SelectBuilder and UpdateBuilder.
+//
+// Available since v0.3.0
+type BaseSqlBuilder struct {
+	Flavor               prom.DbFlavor
+	PlaceholderGenerator PlaceholderGenerator
+	Table                string
+}
+
+// WithFlavor sets the SQL flavor that affect the generated SQL statement.
+//
+// Note: WithFlavor will reset the PlaceholderGenerator
+func (b *BaseSqlBuilder) WithFlavor(flavor prom.DbFlavor) *BaseSqlBuilder {
+	b.Flavor = flavor
+	switch flavor {
+	case prom.FlavorPgSql, prom.FlavorCosmosDb:
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorDollarN())
+	case prom.FlavorMsSql:
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorAtpiN())
+	case prom.FlavorOracle:
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorColonN())
+	case prom.FlavorMySql, prom.FlavorSqlite:
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
+	default:
+		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
+	}
+}
+
+// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
+func (b *BaseSqlBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *BaseSqlBuilder {
+	b.PlaceholderGenerator = placeholderGenerator
+	return b
+}
+
+// WithTable sets name of the database table used to generate the SQL statement.
+func (b *BaseSqlBuilder) WithTable(table string) *BaseSqlBuilder {
+	b.Table = table
+	return b
 }
 
 // DeleteBuilder is a builder that helps building DELETE sql statement.
 type DeleteBuilder struct {
-	Flavor               prom.DbFlavor
-	Table                string
-	Filter               IFilter
-	PlaceholderGenerator PlaceholderGenerator
+	BaseSqlBuilder
+	Filter IFilter
 }
 
 // NewDeleteBuilder constructs a new DeleteBuilder.
@@ -255,27 +336,19 @@ func NewDeleteBuilder() *DeleteBuilder {
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
 func (b *DeleteBuilder) WithFlavor(flavor prom.DbFlavor) *DeleteBuilder {
-	b.Flavor = flavor
-	switch flavor {
-	case prom.FlavorMySql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	case prom.FlavorPgSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorDollarN()
-	case prom.FlavorMsSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorAtpiN()
-	case prom.FlavorOracle:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorColonN()
-	case prom.FlavorSqlite:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	default:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	}
+	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
 
 // WithTable sets name of the database table used to generate the SQL statement.
 func (b *DeleteBuilder) WithTable(table string) *DeleteBuilder {
-	b.Table = table
+	b.BaseSqlBuilder.WithTable(table)
+	return b
+}
+
+// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
+func (b *DeleteBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *DeleteBuilder {
+	b.BaseSqlBuilder.WithPlaceholderGenerator(placeholderGenerator)
 	return b
 }
 
@@ -285,18 +358,14 @@ func (b *DeleteBuilder) WithFilter(filter IFilter) *DeleteBuilder {
 	return b
 }
 
-// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
-func (b *DeleteBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *DeleteBuilder {
-	b.PlaceholderGenerator = placeholderGenerator
-	return b
-}
-
 // Build constructs the DELETE sql statement, in the following format:
 //
-//   DELETE FROM <table> [WHERE <filter>]
-func (b *DeleteBuilder) Build() (string, []interface{}) {
+//     DELETE FROM <table> [WHERE <filter>]
+//
+// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+func (b *DeleteBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	if b.Filter != nil {
-		whereClause, values := b.Filter.Build(b.PlaceholderGenerator)
+		whereClause, values := b.Filter.Build(b.PlaceholderGenerator, opts...)
 		sql := fmt.Sprintf("DELETE FROM %s WHERE %s", b.Table, whereClause)
 		return sql, values
 	}
@@ -308,15 +377,14 @@ func (b *DeleteBuilder) Build() (string, []interface{}) {
 
 // SelectBuilder is a builder that helps building SELECT sql statement.
 type SelectBuilder struct {
-	Flavor                    prom.DbFlavor
+	BaseSqlBuilder
 	Columns                   []string
 	Tables                    []string
 	Filter                    IFilter
 	GroupBy                   []string
 	Having                    IFilter
-	LimitNumRows, LimitOffset int
-	PlaceholderGenerator      PlaceholderGenerator
 	Sorting                   ISorting
+	LimitNumRows, LimitOffset int
 }
 
 // NewSelectBuilder constructs a new SelectBuilder.
@@ -328,21 +396,13 @@ func NewSelectBuilder() *SelectBuilder {
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
 func (b *SelectBuilder) WithFlavor(flavor prom.DbFlavor) *SelectBuilder {
-	b.Flavor = flavor
-	switch flavor {
-	case prom.FlavorMySql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	case prom.FlavorPgSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorDollarN()
-	case prom.FlavorMsSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorAtpiN()
-	case prom.FlavorOracle:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorColonN()
-	case prom.FlavorSqlite:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	default:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	}
+	b.BaseSqlBuilder.WithFlavor(flavor)
+	return b
+}
+
+// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
+func (b *SelectBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *SelectBuilder {
+	b.BaseSqlBuilder.WithPlaceholderGenerator(placeholderGenerator)
 	return b
 }
 
@@ -356,6 +416,15 @@ func (b *SelectBuilder) WithColumns(columns ...string) *SelectBuilder {
 // AddColumns appends columns to the existing list.
 func (b *SelectBuilder) AddColumns(columns ...string) *SelectBuilder {
 	b.Columns = append(b.Columns, columns...)
+	return b
+}
+
+// WithTable sets name of the database table used to generate the SQL statement.
+//
+// Available since v0.3.0
+func (b *SelectBuilder) WithTable(table string) *SelectBuilder {
+	b.BaseSqlBuilder.WithTable(table)
+	b.Tables = []string{table}
 	return b
 }
 
@@ -397,12 +466,6 @@ func (b *SelectBuilder) WithHaving(having IFilter) *SelectBuilder {
 	return b
 }
 
-// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
-func (b *SelectBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *SelectBuilder {
-	b.PlaceholderGenerator = placeholderGenerator
-	return b
-}
-
 // WithSorting sets sorting builder used to generate the ORDER BY clause.
 func (b *SelectBuilder) WithSorting(sorting ISorting) *SelectBuilder {
 	b.Sorting = sorting
@@ -416,27 +479,76 @@ func (b *SelectBuilder) WithLimit(numRows, offset int) *SelectBuilder {
 	return b
 }
 
+var (
+	reColnamePrefixedTblname = regexp.MustCompile(`^[\w_-]+\..+?$`)
+	reTblNameWithAlias       = regexp.MustCompile(`(?i)^([\w_-]+)\s+(AS\s+)?(.+?)$`)
+)
+
 // Build constructs the SELECT sql statement, in the following format:
 //
-//   SELECT <columns> FROM <tables>
-//   [WHERE <filter>]
-//   [GROUP BY <group-by>]
-//   [HAVING <having>]
-//   [ORDER BY <sorting>]
-//   [LIMIT <limit>]
-func (b *SelectBuilder) Build() (string, []interface{}) {
-	cols := strings.Join(allColumns, ",")
-	if b.Columns != nil && len(b.Columns) > 0 {
-		cols = strings.Join(b.Columns, ",")
+//     SELECT <columns> FROM <tables>
+//     [WHERE <filter>]
+//     [GROUP BY <group-by>]
+//     [HAVING <having>]
+//     [ORDER BY <sorting>]
+//     [LIMIT <limit>]
+//
+// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
+	singleTblName := strings.TrimSpace(b.Tables[0])
+	singleTblAlias := "c"
+	optTableAlias := ""
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias:
+			singleTblAlias = opt.(OptTableAlias).TableAlias
+			optTableAlias = opt.(OptTableAlias).TableAlias + "."
+		case *OptTableAlias:
+			singleTblAlias = opt.(*OptTableAlias).TableAlias
+			optTableAlias = opt.(*OptTableAlias).TableAlias + "."
+		}
 	}
-	tables := strings.Join(b.Tables, ",")
-	sql := fmt.Sprintf("SELECT %s FROM %s", cols, tables)
+	tablesClause := strings.Join(b.Tables, ",")
+
+	if b.Flavor == prom.FlavorCosmosDb {
+		/* START: special case for gocosmos */
+		if tokens := reTblNameWithAlias.FindStringSubmatch(singleTblName); tokens != nil {
+			singleTblName = tokens[1]
+			singleTblAlias = strings.TrimSpace(tokens[3])
+		}
+		tablesClause = singleTblName + " " + singleTblAlias
+
+		if optTableAlias == "" {
+			optTableAlias = singleTblAlias + "."
+			opts = append(opts, &OptTableAlias{TableAlias: singleTblAlias})
+		}
+		/* END: special case for gocosmos */
+	}
+
+	colsClause := "*"
+	if len(b.Columns) > 0 {
+		cols := make([]string, len(b.Columns))
+		copy(cols, b.Columns)
+		if b.Flavor == prom.FlavorCosmosDb {
+			/* START: special case for gocosmos */
+			for i, col := range cols {
+				col = strings.TrimSpace(col)
+				if !reColnamePrefixedTblname.MatchString(col) && col != "*" {
+					cols[i] = singleTblAlias + "." + col
+				}
+			}
+			/* END: special case for gocosmos */
+		}
+		colsClause = strings.Join(cols, ",")
+	}
+
+	sql := fmt.Sprintf("SELECT %s FROM %s", colsClause, tablesClause)
 	values := make([]interface{}, 0)
 	var tempValues []interface{}
 
 	whereClause := ""
 	if b.Filter != nil {
-		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator)
+		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)
 	}
 	if whereClause != "" {
@@ -444,8 +556,13 @@ func (b *SelectBuilder) Build() (string, []interface{}) {
 	}
 
 	groupClause := ""
-	if b.GroupBy != nil && len(b.GroupBy) > 0 {
-		groupClause = strings.Join(b.GroupBy, ",")
+	if len(b.GroupBy) > 0 {
+		groupByList := make([]string, len(b.GroupBy))
+		copy(groupByList, b.GroupBy)
+		for i, col := range groupByList {
+			groupByList[i] = optTableAlias + col
+		}
+		groupClause = strings.Join(groupByList, ",")
 	}
 	if groupClause != "" {
 		sql += " GROUP BY " + groupClause
@@ -453,7 +570,7 @@ func (b *SelectBuilder) Build() (string, []interface{}) {
 
 	havingClause := ""
 	if b.Having != nil {
-		havingClause, tempValues = b.Having.Build(b.PlaceholderGenerator)
+		havingClause, tempValues = b.Having.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)
 	}
 	if havingClause != "" {
@@ -462,15 +579,15 @@ func (b *SelectBuilder) Build() (string, []interface{}) {
 
 	orderClause := ""
 	if b.Sorting != nil {
-		orderClause = b.Sorting.Build()
+		orderClause = b.Sorting.Build(opts...)
 	}
 	if orderClause != "" {
 		sql += " ORDER BY " + orderClause
 	}
 
-	if b.LimitNumRows != 0 {
+	if b.LimitNumRows != 0 || b.LimitOffset != 0 {
 		switch b.Flavor {
-		case prom.FlavorMySql:
+		case prom.FlavorMySql, prom.FlavorSqlite:
 			sql += " LIMIT " + strconv.Itoa(b.LimitOffset) + "," + strconv.Itoa(b.LimitNumRows)
 		case prom.FlavorPgSql:
 			sql += " LIMIT " + strconv.Itoa(b.LimitNumRows) + " OFFSET " + strconv.Itoa(b.LimitOffset)
@@ -481,7 +598,16 @@ func (b *SelectBuilder) Build() (string, []interface{}) {
 			}
 		case prom.FlavorOracle:
 			sql += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
+		case prom.FlavorCosmosDb:
+			sql += " OFFSET " + strconv.Itoa(b.LimitOffset) + " LIMIT " + strconv.Itoa(b.LimitNumRows)
 		}
+	}
+
+	if b.Flavor == prom.FlavorCosmosDb {
+		/* START: special case for gocosmos */
+		// sql += " WITH collection=" + singleTblName
+		sql += " WITH cross_partition=true"
+		/* END: special case for gocosmos */
 	}
 
 	return sql, values
@@ -491,10 +617,8 @@ func (b *SelectBuilder) Build() (string, []interface{}) {
 
 // InsertBuilder is a builder that helps building INSERT sql statement.
 type InsertBuilder struct {
-	Flavor               prom.DbFlavor
-	Table                string
-	Values               map[string]interface{}
-	PlaceholderGenerator PlaceholderGenerator
+	BaseSqlBuilder
+	Values map[string]interface{}
 }
 
 // NewInsertBuilder constructs a new InsertBuilder.
@@ -506,27 +630,19 @@ func NewInsertBuilder() *InsertBuilder {
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
 func (b *InsertBuilder) WithFlavor(flavor prom.DbFlavor) *InsertBuilder {
-	b.Flavor = flavor
-	switch flavor {
-	case prom.FlavorMySql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	case prom.FlavorPgSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorDollarN()
-	case prom.FlavorMsSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorAtpiN()
-	case prom.FlavorOracle:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorColonN()
-	case prom.FlavorSqlite:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	default:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	}
+	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
 
 // WithTable sets name of the database table used to generate the SQL statement.
 func (b *InsertBuilder) WithTable(table string) *InsertBuilder {
-	b.Table = table
+	b.BaseSqlBuilder.WithTable(table)
+	return b
+}
+
+// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
+func (b *InsertBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *InsertBuilder {
+	b.BaseSqlBuilder.WithPlaceholderGenerator(placeholderGenerator)
 	return b
 }
 
@@ -554,24 +670,25 @@ func (b *InsertBuilder) AddValues(values map[string]interface{}) *InsertBuilder 
 	return b
 }
 
-// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
-func (b *InsertBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *InsertBuilder {
-	b.PlaceholderGenerator = placeholderGenerator
-	return b
-}
-
 // Build constructs the INSERT sql statement, in the following format:
 //
-//   INSERT INTO <table> (<columns>) VALUES (<placeholders>)
-func (b *InsertBuilder) Build() (string, []interface{}) {
+//     INSERT INTO <table> (<columns>) VALUES (<placeholders>)
+//
+// As of v0.3.0 the generated INSERT statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+func (b *InsertBuilder) Build(_ ...interface{}) (string, []interface{}) {
 	cols := make([]string, 0)
 	placeholders := make([]string, 0)
 	values := make([]interface{}, 0)
-	for k, v := range b.Values {
+
+	for k := range b.Values {
 		cols = append(cols, k)
-		values = append(values, v)
-		placeholders = append(placeholders, b.PlaceholderGenerator(k))
 	}
+	sort.Strings(cols)
+	for _, col := range cols {
+		values = append(values, b.Values[col])
+		placeholders = append(placeholders, b.PlaceholderGenerator(col))
+	}
+
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", b.Table, strings.Join(cols, ","), strings.Join(placeholders, ","))
 	return sql, values
 }
@@ -580,11 +697,9 @@ func (b *InsertBuilder) Build() (string, []interface{}) {
 
 // UpdateBuilder is a builder that helps building INSERT sql statement.
 type UpdateBuilder struct {
-	Flavor               prom.DbFlavor
-	Table                string
-	Values               map[string]interface{}
-	Filter               IFilter
-	PlaceholderGenerator PlaceholderGenerator
+	BaseSqlBuilder
+	Values map[string]interface{}
+	Filter IFilter
 }
 
 // NewUpdateBuilder constructs a new UpdateBuilder.
@@ -596,27 +711,19 @@ func NewUpdateBuilder() *UpdateBuilder {
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
 func (b *UpdateBuilder) WithFlavor(flavor prom.DbFlavor) *UpdateBuilder {
-	b.Flavor = flavor
-	switch flavor {
-	case prom.FlavorMySql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	case prom.FlavorPgSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorDollarN()
-	case prom.FlavorMsSql:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorAtpiN()
-	case prom.FlavorOracle:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorColonN()
-	case prom.FlavorSqlite:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	default:
-		b.PlaceholderGenerator = NewPlaceholderGeneratorQuestion()
-	}
+	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
 
 // WithTable sets name of the database table used to generate the SQL statement.
 func (b *UpdateBuilder) WithTable(table string) *UpdateBuilder {
-	b.Table = table
+	b.BaseSqlBuilder.WithTable(table)
+	return b
+}
+
+// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
+func (b *UpdateBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *UpdateBuilder {
+	b.BaseSqlBuilder.WithPlaceholderGenerator(placeholderGenerator)
 	return b
 }
 
@@ -650,30 +757,31 @@ func (b *UpdateBuilder) WithFilter(filter IFilter) *UpdateBuilder {
 	return b
 }
 
-// WithPlaceholderGenerator sets the placeholder generator used to generate placeholders in the SQL statement.
-func (b *UpdateBuilder) WithPlaceholderGenerator(placeholderGenerator PlaceholderGenerator) *UpdateBuilder {
-	b.PlaceholderGenerator = placeholderGenerator
-	return b
-}
-
 // Build constructs the UPDATE sql statement, in the following format:
 //
-//   UPDATE <table> SET <col=value>[,<col=value>...] [WHERE <filter>]
-func (b *UpdateBuilder) Build() (string, []interface{}) {
+//     UPDATE <table> SET <col=value>[,<col=value>...] [WHERE <filter>]
+//
+// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+func (b *UpdateBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	sql := fmt.Sprintf("UPDATE %s", b.Table)
 	values := make([]interface{}, 0)
 
+	cols := make([]string, 0)
+	for k := range b.Values {
+		cols = append(cols, k)
+	}
+	sort.Strings(cols)
 	setList := make([]string, 0)
-	for k, v := range b.Values {
-		values = append(values, v)
-		setList = append(setList, k+"="+b.PlaceholderGenerator(k))
+	for _, col := range cols {
+		values = append(values, b.Values[col])
+		setList = append(setList, col+"="+b.PlaceholderGenerator(col))
 	}
 	sql += " SET " + strings.Join(setList, ",")
 
 	whereClause := ""
 	if b.Filter != nil {
 		var tempValues []interface{}
-		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator)
+		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)
 	}
 	if whereClause != "" {

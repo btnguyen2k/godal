@@ -28,8 +28,8 @@ func prepareTableOracle(sqlc *prom.SqlConnect, table string) error {
 /*---------------------------------------------------------------*/
 
 const (
-	envOracleDriver = "Oracle_DRIVER"
-	envOracleUrl    = "Oracle_URL"
+	envOracleDriver = "ORACLE_DRIVER"
+	envOracleUrl    = "ORACLE_URL"
 )
 
 func TestGenericDaoOracle_SetGetSqlConnect(t *testing.T) {
@@ -42,6 +42,14 @@ func TestGenericDaoOracle_SetGetSqlConnect(t *testing.T) {
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
 		t.Fatalf("%s failed: should equal", name)
+	}
+}
+
+func TestGenericDaoOracle_StartTx(t *testing.T) {
+	name := "TestGenericDaoOracle_StartTx"
+	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
+		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
 	}
 }
 
@@ -124,4 +132,14 @@ func TestGenericDaoOracle_GdaoSaveTxModeOnWrite(t *testing.T) {
 	}
 	dao.SetTxModeOnWrite(true)
 	dotestGenericDaoSqlGdaoSave(t, name, dao)
+}
+
+func TestGenericDaoOracle_Tx(t *testing.T) {
+	name := "TestGenericDaoOracle_Tx"
+	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
+	}
+	dotestGenericDaoSql_Tx(t, name, dao)
 }

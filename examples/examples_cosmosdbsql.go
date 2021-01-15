@@ -1,9 +1,9 @@
 /*
-SQLite Dao example.
+Azure Cosmos DB Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_sqlite.go
+$ go run examples_bo.go examples_sql.go examples_cosmosdbsql.go
 
-SQLite Dao implementation guideline:
+Azure Cosmos DB Dao implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -19,35 +19,37 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/btnguyen2k/gocosmos"
 	"github.com/btnguyen2k/prom"
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/sql"
+	"github.com/btnguyen2k/godal/cosmosdbsql"
 )
 
-// DaoAppSqlite is SQLite-implementation of IDaoApp.
-type DaoAppSqlite struct {
+// DaoAppCosmosdb is AzureCosmosDB-implementation of IDaoApp.
+type DaoAppCosmosdb struct {
 	*DaoAppSql
 }
 
-// NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
-func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) IDaoApp {
-	dao := &DaoAppSqlite{}
+// NewDaoAppCosmosdb is helper function to create AzureCosmosDB-implementation of IDaoApp.
+func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+	dao := &DaoAppCosmosdb{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
-	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorSqlite)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlC, godal.NewAbstractGenericDao(dao))
+	inner.CosmosSetPkGboMapPath(map[string]string{tableName: "id"})
+	dao.IGenericDaoSql = inner
+	dao.SetSqlFlavor(prom.FlavorCosmosDb)
+	dao.SetRowMapper(cosmosdbsql.GenericRowMapperCosmosdbInstance)
 	return dao
 }
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForSqlite() *prom.SqlConnect {
-	driver := strings.ReplaceAll(os.Getenv("SQLITE_DRIVER"), `"`, "")
-	dsn := strings.ReplaceAll(os.Getenv("SQLITE_URL"), `"`, "")
+func createSqlConnectForCosmosdb() *prom.SqlConnect {
+	driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
+	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
 	if driver == "" || dsn == "" {
-		panic("Please define env SQLITE_DRIVER, SQLITE_URL and optionally TIMEZONE")
+		panic("Please define env COSMOSDB_DRIVER, COSMOSDB_URL and optionally TIMEZONE")
 	}
 	timeZone := strings.ReplaceAll(os.Getenv("TIMEZONE"), `"`, "")
 	if timeZone == "" {
@@ -57,6 +59,9 @@ func createSqlConnectForSqlite() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
+
+	dsn += ";Db=godal"
+
 	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
@@ -68,24 +73,21 @@ func createSqlConnectForSqlite() *prom.SqlConnect {
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
+
+	sqlConnect.GetDB().Exec(`CREATE DATABASE IF NOT EXISTS godal WITH maxru=10000`)
+
 	return sqlConnect
 }
 
-func initDataSqlite(sqlC *prom.SqlConnect, table string) {
-	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
+func initDataCosmosdb(sqlC *prom.SqlConnect, table string) {
+	sql := fmt.Sprintf("DROP COLLECTION IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
-		fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
+		panic(err)
+		// fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
 	}
 
-	types := []string{"VARCHAR(16)", "VARCHAR(255)", "CHAR(1)", "BIGINT", "DOUBLE PRECISION", "VARCHAR(256)",
-		"TIME", "TIME WITH TIME ZONE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
-		"JSON", "JSON"}
-	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
-	}
-	sql += "PRIMARY KEY(id))"
+	sql = fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", table, colsSql[0])
 	fmt.Println("Query:", sql)
 	_, err = sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -93,11 +95,11 @@ func initDataSqlite(sqlC *prom.SqlConnect, table string) {
 	}
 }
 
-func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	initDataSqlite(sqlC, table)
-	dao := NewDaoAppSqlite(sqlC, table)
+	initDataCosmosdb(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(txMode)
 
 	fmt.Printf("-== Insert rows to table (TxMode=%v) ==-\n", txMode)
@@ -125,7 +127,8 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
-		fmt.Printf("\t\tError: %s\n", err)
+		panic(err)
+		// fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
@@ -153,13 +156,14 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
-		fmt.Printf("\t\tError: %s\n", err)
+		panic(err)
+		// fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
 	// insert another row with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
+	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}, ValMap: map[string]interface{}{"duplicated": true}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -171,17 +175,18 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 	fmt.Println(sep)
 }
 
-func demoSqliteFetchRowById(table string, ids ...string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbFetchRowById(table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	dao := NewDaoAppSqlite(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Printf("-== Fetch rows by id ==-\n")
 	for _, id := range ids {
 		bo, err := dao.Get(id)
 		if err != nil {
-			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
 			printApp(bo)
 		} else {
@@ -192,10 +197,10 @@ func demoSqliteFetchRowById(table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoSqliteFetchAllRow(table string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbFetchAllRow(table string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	dao := NewDaoAppSqlite(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Fetch all rows in table ==-")
@@ -210,30 +215,33 @@ func demoSqliteFetchAllRow(table string) {
 	fmt.Println(sep)
 }
 
-func demoSqliteDeleteRow(table string, ids ...string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbDeleteRow(table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	dao := NewDaoAppSqlite(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Delete rows from table ==-")
 	for _, id := range ids {
 		bo, err := dao.Get(id)
 		if err != nil {
-			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
 			fmt.Println("\tDeleting bo:", string(bo.toJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
-				fmt.Printf("\t\tError: %s\n", err)
+				panic(err)
+				// fmt.Printf("\t\tError: %s\n", err)
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
 			app, err := dao.Get(id)
 			if err != nil {
-				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
+				panic(err)
+				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
 				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
 			} else {
@@ -247,10 +255,10 @@ func demoSqliteDeleteRow(table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	dao := NewDaoAppSqlite(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Update rows from table ==-")
@@ -258,7 +266,8 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
 		if err != nil {
-			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = &BoApp{
@@ -290,12 +299,14 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
-			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
+			panic(err)
+			// fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
 			bo, err = dao.Get(id)
 			if err != nil {
-				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
+				panic(err)
+				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
 				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
 			} else {
@@ -306,10 +317,10 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 	fmt.Println(sep)
 }
 
-func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	dao := NewDaoAppSqlite(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(txMode)
 
 	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
@@ -349,7 +360,8 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
-			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
+			panic(err)
+			// fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
 			bo, err = dao.Get(id)
@@ -365,11 +377,11 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 	fmt.Println(sep)
 }
 
-func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
-	sqlC := createSqlConnectForSqlite()
+func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
+	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
-	initDataSqlite(sqlC, table)
-	dao := NewDaoAppSqlite(sqlC, table)
+	initDataCosmosdb(sqlC, table)
+	dao := NewDaoAppCosmosdb(sqlC, table)
 	dao.EnableTxMode(false)
 
 	fmt.Println("-== Fetch rows from table with sorting and limit ==-")
@@ -409,7 +421,8 @@ func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
 	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
 	boList, err := dao.GetN(startOffset, numRows)
 	if err != nil {
-		fmt.Printf("\t\tError while fetching apps: %s\n", err)
+		panic(err)
+		// fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
@@ -424,13 +437,13 @@ func main() {
 	loc, _ := time.LoadLocation(timeZone)
 
 	table := "tbl_app"
-	demoSqliteInsertRows(loc, table, true)
-	demoSqliteInsertRows(loc, table, false)
-	demoSqliteFetchRowById(table, "login", "loggin")
-	demoSqliteFetchAllRow(table)
-	demoSqliteDeleteRow(table, "login", "loggin")
-	demoSqliteUpdateRows(loc, table, "log", "logging")
-	demoSqliteUpsertRows(loc, table, true, "log", "logging")
-	demoSqliteUpsertRows(loc, table, false, "log", "loggging")
-	demoSqliteSelectSortingAndLimit(loc, table)
+	demoCosmosdbInsertRows(loc, table, true)
+	demoCosmosdbInsertRows(loc, table, false)
+	demoCosmosdbFetchRowById(table, "login", "loggin")
+	demoCosmosdbFetchAllRow(table)
+	demoCosmosdbDeleteRow(table, "login", "loggin")
+	demoCosmosdbUpdateRows(loc, table, "log", "logging")
+	demoCosmosdbUpsertRows(loc, table, true, "log", "logging")
+	demoCosmosdbUpsertRows(loc, table, false, "log", "loggging")
+	demoCosmosdbSelectSortingAndLimit(loc, table)
 }

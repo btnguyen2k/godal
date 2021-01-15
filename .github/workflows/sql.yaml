@@ -21,7 +21,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF general
 
   testMssql:
-    name: Test MSSQL
+    name: Test with MSSQL
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
@@ -41,7 +41,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF mssql
 
   testMysql:
-    name: Test MySQL
+    name: Test with MySQL
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
@@ -61,7 +61,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF mysql
 
   testPostgresql:
-    name: Test PostgreSQL
+    name: Test with PostgreSQL
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env
@@ -81,7 +81,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF pgsql
 
   testSqlite:
-    name: Test SQLite
+    name: Test with SQLite
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env

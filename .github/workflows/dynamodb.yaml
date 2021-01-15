@@ -21,7 +21,7 @@ jobs:
         bash <(curl -s https://codecov.io/bash) -cF general
 
   testDynamodb:
-    name: Test AWS DynamoDB
+    name: Test with AWS DynamoDB
     runs-on: ubuntu-latest
     steps:
     - name: Set up Go env

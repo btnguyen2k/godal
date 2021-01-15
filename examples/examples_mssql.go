@@ -35,7 +35,7 @@ type DaoAppMssql struct {
 func NewDaoAppMssql(sqlC *prom.SqlConnect, tableName string) IDaoApp {
 	dao := &DaoAppMssql{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
-	dao.GenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
+	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorMsSql)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
 	return dao

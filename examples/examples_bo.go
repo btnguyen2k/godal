@@ -1,3 +1,4 @@
+// This is not a standalone script!
 package main
 
 import (
@@ -92,16 +93,20 @@ func (app *BoApp) fromGenericBo(gbo godal.IGenericBo) *BoApp {
 	app.ValInt = int(gbo.GboGetAttrUnsafe("val_int", reddo.TypeInt).(int64))
 	app.ValFloat = gbo.GboGetAttrUnsafe("val_float", reddo.TypeFloat).(float64)
 	app.ValString = gbo.GboGetAttrUnsafe("val_string", reddo.TypeString).(string)
-	app.ValTime = gbo.GboGetAttrUnsafe("val_time", reddo.TypeTime).(time.Time)
-	app.ValTimeZ = gbo.GboGetAttrUnsafe("val_timez", reddo.TypeTime).(time.Time)
-	app.ValDate = gbo.GboGetAttrUnsafe("val_date", reddo.TypeTime).(time.Time)
-	app.ValDateZ = gbo.GboGetAttrUnsafe("val_datez", reddo.TypeTime).(time.Time)
-	app.ValDatetime = gbo.GboGetAttrUnsafe("val_datetime", reddo.TypeTime).(time.Time)
-	app.ValDatetimeZ = gbo.GboGetAttrUnsafe("val_datetimez", reddo.TypeTime).(time.Time)
-	app.ValTimestamp = gbo.GboGetAttrUnsafe("val_timestamp", reddo.TypeTime).(time.Time)
-	app.ValTimestampZ = gbo.GboGetAttrUnsafe("val_timestampz", reddo.TypeTime).(time.Time)
-	json.Unmarshal([]byte(gbo.GboGetAttrUnsafe("val_list", reddo.TypeString).(string)), &(app.ValList))
-	json.Unmarshal([]byte(gbo.GboGetAttrUnsafe("val_map", reddo.TypeString).(string)), &(app.ValMap))
+	app.ValTime, _ = gbo.GboGetTimeWithLayout("val_time", time.RFC3339Nano)
+	app.ValTimeZ, _ = gbo.GboGetTimeWithLayout("val_timez", time.RFC3339Nano)
+	app.ValDate, _ = gbo.GboGetTimeWithLayout("val_date", time.RFC3339Nano)
+	app.ValDateZ, _ = gbo.GboGetTimeWithLayout("val_datez", time.RFC3339Nano)
+	app.ValDatetime, _ = gbo.GboGetTimeWithLayout("val_datetime", time.RFC3339Nano)
+	app.ValDatetimeZ, _ = gbo.GboGetTimeWithLayout("val_datetimez", time.RFC3339Nano)
+	app.ValTimestamp, _ = gbo.GboGetTimeWithLayout("val_timestamp", time.RFC3339Nano)
+	app.ValTimestampZ, _ = gbo.GboGetTimeWithLayout("val_timestampz", time.RFC3339Nano)
+	if v := gbo.GboGetAttrUnsafe("val_list", reddo.TypeString); v != nil {
+		json.Unmarshal([]byte(v.(string)), &(app.ValList))
+	}
+	if v := gbo.GboGetAttrUnsafe("val_map", reddo.TypeString); v != nil {
+		json.Unmarshal([]byte(v.(string)), &(app.ValMap))
+	}
 	return app
 }
 

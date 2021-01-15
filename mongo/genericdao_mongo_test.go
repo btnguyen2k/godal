@@ -124,7 +124,7 @@ func testToBo(t *testing.T, name string, rowmapper godal.IRowMapper, table strin
 
 	bo, err := rowmapper.ToBo(table, row)
 	if err != nil || bo == nil {
-		t.Fatalf("%s failed: %e / %v", name, err, bo)
+		t.Fatalf("%s failed: %s / %v", name, err, bo)
 	}
 	if bo.GboGetAttrUnsafe(colA, reddo.TypeString) != valA ||
 		bo.GboGetAttrUnsafe(colB, reddo.TypeString) != valB ||
@@ -141,6 +141,10 @@ func TestGenericRowMapperMongo_ToBo(t *testing.T) {
 	colA, colB, col1, col2 := "cola", "ColB", "Col1", "coL2"
 	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
 	rowmapper := &GenericRowMapperMongo{}
+
+	if v, err := rowmapper.ToBo("", time.Time{}); v != nil || err == nil {
+		t.Fatalf("%s failed: %#v / %s", name, v, err)
+	}
 
 	{
 		row := map[string]interface{}{colA: valA, colB: valB, col1: val1, col2: val2}
@@ -172,56 +176,56 @@ func TestGenericRowMapperMongo_ToBo(t *testing.T) {
 	{
 		var row interface{} = nil
 		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		row2 := &row
 		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 	}
 
 	{
 		var row *string = nil
 		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		row2 := &row
 		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 	}
 
 	{
 		var row []byte = nil
 		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		row2 := &row
 		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 	}
 
 	{
 		var row *[]byte = nil
 		if bo, err := rowmapper.ToBo(table, row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		if bo, err := rowmapper.ToBo(table, &row); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 		row2 := &row
 		if bo, err := rowmapper.ToBo(table, &row2); err != nil || bo != nil {
-			t.Fatalf("%s failed: %e / %v", name, err, bo)
+			t.Fatalf("%s failed: %s / %v", name, err, bo)
 		}
 	}
 }
@@ -233,6 +237,10 @@ func TestGenericRowMapperMongo_ToRow(t *testing.T) {
 	valA, valB, val1, val2 := "a", "B", int64(1), int64(2)
 	rowmapper := &GenericRowMapperMongo{}
 
+	if v, err := rowmapper.ToRow("", nil); v != nil || err != nil {
+		t.Fatalf("%s failed: %#v / %s", name, v, err)
+	}
+
 	{
 		bo := godal.NewGenericBo()
 		bo.GboSetAttr(colA, valA)
@@ -242,7 +250,7 @@ func TestGenericRowMapperMongo_ToRow(t *testing.T) {
 
 		row, err := rowmapper.ToRow(table, bo)
 		if err != nil || row == nil {
-			t.Fatalf("%s failed: %e / %v", name, err, row)
+			t.Fatalf("%s failed: %s / %v", name, err, row)
 		}
 		if bo.GboGetAttrUnsafe(colA, reddo.TypeString) != valA ||
 			bo.GboGetAttrUnsafe(colB, reddo.TypeString) != valB ||
@@ -295,26 +303,36 @@ func TestToMap(t *testing.T) {
 
 	input := make(map[string]interface{})
 	if m, err := toMap(input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toMap(&input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 
 	inputString := `{"id":"1", "username":"btnguyen2k"}`
 	if m, err := toMap(inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toMap(&inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 
 	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
 	if m, err := toMap(inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toMap(&inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
+	}
+
+	if m, err := toMap(nil); m != nil || err != nil {
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
+	}
+	if m, err := toMap([]interface{}{"invalid", "input"}); m != nil || err == nil {
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
+	}
+	if m, err := toMap(time.Time{}); m != nil || err == nil {
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 }
 
@@ -323,26 +341,33 @@ func TestToSortingMap(t *testing.T) {
 
 	input := make(map[string]interface{})
 	if m, err := toSortingMap(input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toSortingMap(&input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 
 	inputString := `{"id":1, "username":-1}`
 	if m, err := toSortingMap(inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toSortingMap(&inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 
 	inputBytes := []byte(`{"id":1, "username":-1}`)
 	if m, err := toSortingMap(inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 	if m, err := toSortingMap(&inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %e", name, m, err)
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
+	}
+
+	if m, err := toSortingMap([]interface{}{"invalid", "input"}); m != nil || err == nil {
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
+	}
+	if m, err := toSortingMap(time.Time{}); m != nil || err == nil {
+		t.Fatalf("%s failed: %#v / %s", name, m, err)
 	}
 }
 
@@ -351,7 +376,7 @@ func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user := &UserBoMongo{
@@ -364,24 +389,24 @@ func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
 	}
 	_, err = dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	}
 
 	filterUser := &UserBoMongo{Id: "2"}
 	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(filterUser)); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
 	}
 
 	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 1, numRows)
 	}
 
 	if u, err := dao.GdaoFetchOne(dao.collectionName, dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(user))); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if u != nil {
 		t.Fatalf("%s failed: non-nil", name+"/GdaoFetchOne")
 	}
@@ -392,12 +417,12 @@ func TestGenericDaoMongo_GdaoDeleteMany(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	filter := bson.M{fieldId: bson.M{"$gte": "5"}}
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
 	}
@@ -414,12 +439,12 @@ func TestGenericDaoMongo_GdaoDeleteMany(t *testing.T) {
 		}
 		_, err = dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
 	}
 
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 5 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 5, numRows)
 	}
@@ -430,12 +455,12 @@ func TestGenericDaoMongo_GdaoFetchOne(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo != nil {
 		t.Fatalf("%s failed: non-nil", name+"/GdaoFetchOne")
 	}
@@ -450,11 +475,11 @@ func TestGenericDaoMongo_GdaoFetchOne(t *testing.T) {
 	}
 	_, err = dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	}
 
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -471,12 +496,12 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	filter := bson.M{fieldId: bson.M{"$gte": "5"}}
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 1, 3); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 0, dbRows)
 	}
@@ -493,13 +518,13 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 		}
 		_, err = dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
 	}
 
 	sorting := bson.M{fieldId: -1}
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, sorting, 1, 3); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
 	} else {
@@ -517,7 +542,7 @@ func TestGenericDaoMongo_GdaoCreate(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user := &UserBoMongo{
@@ -529,17 +554,17 @@ func TestGenericDaoMongo_GdaoCreate(t *testing.T) {
 		Created:  time.Now(),
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 	user.Username = "thanhn"
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -555,7 +580,7 @@ func TestGenericDaoMongo_GdaoCreate_TxOn(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 	if strings.Index(dao.mongoConnect.GetUrl(), "replicaSet=") < 0 {
 		t.Skipf("%s skipped", name)
@@ -571,17 +596,17 @@ func TestGenericDaoMongo_GdaoCreate_TxOn(t *testing.T) {
 		Created:  time.Now(),
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name, err)
+		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 	user.Username = "thanhn"
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -597,7 +622,7 @@ func TestGenericDaoMongo_GdaoUpdate(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user := &UserBoMongo{
@@ -609,26 +634,26 @@ func TestGenericDaoMongo_GdaoUpdate(t *testing.T) {
 		Created:  time.Now(),
 	}
 	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoUpdate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoUpdate", err)
 	} else if numRows != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 0, numRows)
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
 
 	user.Username = "thanhn"
 	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoUpdate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoUpdate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 1, numRows)
 	}
 
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -644,7 +669,7 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user1 := &UserBoMongo{
@@ -652,7 +677,7 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 		Username: "user1",
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user1)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
@@ -662,7 +687,7 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 		Username: "user2",
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user2)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
@@ -671,7 +696,7 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
 		fmt.Println("Error:", err)
 		fmt.Printf("Error: %#v\n", err)
-		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 }
 
@@ -680,7 +705,7 @@ func TestGenericDaoMongo_GdaoSave(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user := &UserBoMongo{
@@ -692,21 +717,21 @@ func TestGenericDaoMongo_GdaoSave(t *testing.T) {
 		Created:  time.Now(),
 	}
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
 	user.Username = "thanhn"
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -722,7 +747,7 @@ func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	gbo := godal.NewGenericBo()
@@ -735,7 +760,7 @@ func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
 	}
 	gbo.GboImportViaJson(data1)
 	if numRows, err := dao.GdaoSave(dao.collectionName, gbo); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
@@ -747,14 +772,14 @@ func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
 	}
 	gbo.GboImportViaJson(data2)
 	if numRows, err := dao.GdaoSave(dao.collectionName, gbo); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
 	filter := bson.M{"_id": "1"}
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
@@ -771,7 +796,7 @@ func TestGenericDaoMongo_GdaoSaveDuplicated(t *testing.T) {
 	dao := _initDao(t, name, testMongoCollectionName)
 	err := prepareMongoCollection(dao.GetMongoConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareMongoCollection", err)
+		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
 	user1 := &UserBoMongo{
@@ -779,7 +804,7 @@ func TestGenericDaoMongo_GdaoSaveDuplicated(t *testing.T) {
 		Username: "user1",
 	}
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
@@ -789,13 +814,13 @@ func TestGenericDaoMongo_GdaoSaveDuplicated(t *testing.T) {
 		Username: "user2",
 	}
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != nil {
-		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
 	}
 
 	user2.Username = "user1"
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
+		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 }

@@ -16,6 +16,7 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
+
 		_ "github.com/go-sql-driver/mysql"
 	)
 
@@ -26,19 +27,20 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
 	func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{fieldId: id}
+		return map[string]interface{}{tableColumnId: id}
 	}
 
+	// newGenericDaoMysql is helper function to create myGenericDaoMysql instances.
 	func newGenericDaoMysql(sqlc *prom.SqlConnect, txModeOnWrite bool) godal.IGenericDao {
+		rowMapper := &sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase}
 		dao := &myGenericDaoMysql{}
 		dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
 		dao.SetTxModeOnWrite(txModeOnWrite).SetSqlFlavor(prom.FlavorMySql)
-		dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase})
+		dao.SetRowMapper(rowMapper)
 		return dao
 	}
 
 	In most cases, GenericRowMapperSql should be sufficient:
-
 		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
 		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
 		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator
@@ -55,6 +57,7 @@ Guideline: Implement custom 'database/sql' business dao and bo
 		"github.com/btnguyen2k/godal"
 		"github.com/btnguyen2k/godal/sql"
 		"github.com/btnguyen2k/prom"
+
 		_ "github.com/go-sql-driver/mysql"
 	)
 
@@ -103,7 +106,7 @@ Guideline: Implement custom 'database/sql' business dao and bo
 		tableName string
 	}
 
-	// NewDaoAppMysql is convenient method to create DaoAppMysql instances.
+	// NewDaoAppMysql is helper function to create DaoAppMysql instances.
 	func NewDaoAppMysql(sqlc *prom.SqlConnect, taleName string, txModeOnWrite bool) *DaoAppMysql {
 		dao := &DaoAppMysql{tableName: taleName}
 		dao.GenericDaoSql = mongo.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
@@ -113,7 +116,6 @@ Guideline: Implement custom 'database/sql' business dao and bo
 	}
 
 	In most cases, GenericRowMapperSql should be sufficient:
-
 		- Column/Field names can be transformed to lower-cased, upper-cased or kept intact. Transformation rule is specified by GenericRowMapperSql.NameTransformation
 		- Column names (after transformed) can be translated to field names via GenericRowMapperSql.ColNameToGboFieldTranslator,
 		- and vice versa, field names (after transformed) can be translated to column names via GenericRowMapperSql.GboFieldToColNameTranslator
@@ -145,13 +147,174 @@ func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericD
 		sqlFlavor:                   prom.FlavorDefault,
 		txModeOnWrite:               true,
 		txIsolationLevel:            sql.LevelDefault,
-		optionOpLiteral:             defaultOptionLiteralOperation,
+		optionOpLiteral:             DefaultOptionLiteralOperation,
 		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
 	}
 	if dao.GetRowMapper() == nil {
 		dao.SetRowMapper(&GenericRowMapperSql{NameTransformation: NameTransfIntact})
 	}
 	return dao
+}
+
+var (
+	typeMap = reflect.TypeOf(map[string]interface{}{})
+)
+
+// IGenericDaoSql is 'database/sql' reference implementation of godal.IGenericDao.
+//
+// IGenericDaoSql and GenericDaoSql should be in sync.
+//
+// Available since v0.3.0
+type IGenericDaoSql interface {
+	// inherit all functions from godal.IGenericDao
+	godal.IGenericDao
+
+	// GdaoDeleteWithTx is database/sql variant of GdaoDelete.
+	GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
+
+	// GdaoDeleteManyWithTx is database/sql variant of GdaoDeleteMany.
+	GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (int, error)
+
+	// GdaoFetchOneWithTx is database/sql variant of GdaoFetchOne.
+	GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (godal.IGenericBo, error)
+
+	// GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
+	GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error)
+
+	// GdaoCreateWithTx is database/sql variant of GdaoCreate.
+	GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
+
+	// GdaoUpdateWithTx is database/sql variant of GdaoUpdate.
+	GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
+
+	// GdaoSaveWithTx is database/sql variant of godal.IGenericDao.GdaoSave.
+	GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
+
+	/*----------------------------------------------------------------------*/
+	// SetRowMapper attaches an IRowMapper to the DAO for latter use.
+	SetRowMapper(rowMapper godal.IRowMapper) IGenericDaoSql
+
+	// GetSqlConnect returns the '*prom.SqlConnect' instance attached to this DAO.
+	GetSqlConnect() *prom.SqlConnect
+
+	// SetSqlConnect attaches a '*prom.SqlConnect' instance to this DAO.
+	SetSqlConnect(sqlC *prom.SqlConnect) IGenericDaoSql
+
+	// GetSqlFlavor returns the sql flavor preference.
+	GetSqlFlavor() prom.DbFlavor
+
+	// SetSqlFlavor set the sql flavor preference.
+	SetSqlFlavor(sqlFlavor prom.DbFlavor) IGenericDaoSql
+
+	// GetTxModeOnWrite returns 'true' if transaction mode is enabled on write operations, 'false' otherwise.
+	//
+	// RDBMS/SQL's implementation of GdaoSave is "try update, if failed then insert". It can be done either in transactional (txModeOnWrite=true) or non-transactional (txModeOnWrite=false) mode.
+	GetTxModeOnWrite() bool
+
+	// SetTxModeOnWrite enables/disables transaction mode on write operations.
+	//
+	// RDBMS/SQL's implementation of GdaoSave is "try update, if failed then insert". It can be done either in transactional (txModeOnWrite=true) or non-transactional (txModeOnWrite=false) mode.
+	SetTxModeOnWrite(enabled bool) IGenericDaoSql
+
+	// GetTxIsolationLevel returns current transaction isolation level setting.
+	GetTxIsolationLevel() sql.IsolationLevel
+
+	// SetTxIsolationLevel sets new transaction isolation level.
+	SetTxIsolationLevel(txIsolationLevel sql.IsolationLevel) IGenericDaoSql
+
+	// StartTx starts a new transaction.
+	StartTx(ctx context.Context) (*sql.Tx, error)
+
+	// GetOptionOpLiteral returns operation literal settings.
+	GetOptionOpLiteral() *OptionOpLiteral
+
+	// SetOptionOpLiteral sets operation literal settings.
+	SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql
+
+	// GetFuncNewPlaceholderGenerator returns the function creates 'PlaceholderGenerator'.
+	GetFuncNewPlaceholderGenerator() NewPlaceholderGenerator
+
+	// SetFuncNewPlaceholderGenerator sets the function used to create 'PlaceholderGenerator'.
+	SetFuncNewPlaceholderGenerator(funcNewPlaceholderGenerator NewPlaceholderGenerator) IGenericDaoSql
+
+	// BuildFilter builds IFilter instance based on the following rules:
+	//   - If 'filter' is nil: return nil.
+	//   - If 'filter' is IFilter: return 'filter'.
+	//   - If 'filter' is a map: build a FilterAnd combining all map entries, using operation "=", and return it.
+	//   - Otherwise, return error.
+	BuildFilter(filter interface{}) (IFilter, error)
+
+	// BuildOrdering builds elements for 'ORDER BY' clause, based on the following rules:
+	//   - If 'ordering' is nil: return nil.
+	//   - If 'ordering' is ISorting: return 'ordering'.
+	//   - If 'ordering' is a map: build a GenericSorting combining all map entries, where map key is field name and map value is ordering specification (1 for ASC, -1 for DESC).
+	//   - If 'ordering' is a slice/array: build a GenericSorting combining all list entries, assuming each entry is a string in the format '<field_name[<:order>]>' ('order>=0' means 'ascending' and 'order<0' means 'descending').
+	//   - Otherwise, return error.
+	BuildOrdering(ordering interface{}) (ISorting, error)
+
+	// SqlExecute executes a non-SELECT SQL statement within a context/transaction.
+	//   - If tx is not nil, the transaction context is used to execute the query.
+	//   - If tx is nil, DB.ExecContext is used to execute the query.
+	SqlExecute(ctx context.Context, tx *sql.Tx, sql string, values ...interface{}) (sql.Result, error)
+
+	// SqlQuery executes a SELECT SQL statement within a context/transaction.
+	//   - If tx is not nil, the transaction context is used to execute the query.
+	//   - If tx is nil, DB.ExecContext is used to execute the query.
+	SqlQuery(ctx context.Context, tx *sql.Tx, sql string, values ...interface{}) (*sql.Rows, error)
+
+	// SqlDelete constructs a DELETE statement and executes it within a context/transaction.
+	SqlDelete(ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error)
+
+	// SqlBuildDeleteEx is a utility function to construct the DELETE statement along with values for placeholders.
+	SqlBuildDeleteEx(builder ISqlBuilder, table string, filter IFilter) (sql string, placeholderValues []interface{})
+
+	// SqlDeleteEx is the extended version of SqlDelete that uses an external DeleteBuilder to construct the DELETE statement.
+	SqlDeleteEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error)
+
+	// SqlInsert constructs a INSERT statement and executes it within a context/transaction.
+	SqlInsert(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error)
+
+	// SqlBuildInsertEx is a utility function to construct the INSERT statement along with values for placeholders.
+	SqlBuildInsertEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}) (sql string, placeholderValues []interface{})
+
+	// SqlInsertEx is the extended version of SqlInsert that uses an external InsertBuilder to construct the INSERT statement.
+	SqlInsertEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error)
+
+	// SqlSelect constructs a SELECT query and executes it within a context/transaction.
+	SqlSelect(ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error)
+
+	// SqlBuildSelectEx is a utility function to construct the SELECT statement along with values for placeholders.
+	SqlBuildSelectEx(builder ISqlBuilder, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (sql string, placeholderValues []interface{})
+
+	// SqlSelectEx is the extended version of SqlSelect that uses an external SelectBuilder to construct the SELECT statement.
+	SqlSelectEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error)
+
+	// SqlUpdate constructs an UPDATE query and executes it within a context/transaction.
+	SqlUpdate(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error)
+
+	// SqlBuildUpdateEx is a utility function to construct the UPDATE statement along with values for placeholders.
+	SqlBuildUpdateEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}, filter IFilter) (sql string, placeholderValues []interface{})
+
+	// SqlUpdateEx is the extended version of SqlUpdate that uses an external UpdateBuilder to construct the UPDATE statement.
+	SqlUpdateEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error)
+
+	// FetchOne fetches a row from `sql.Rows` and transforms it to godal.IGenericBo.
+	//   - FetchOne will NOT call dbRows.Close(), caller must take care of cleaning resource.
+	//   - Caller should not call dbRows.Next(), FetchOne will do that.
+	FetchOne(storageId string, dbRows *sql.Rows) (godal.IGenericBo, error)
+
+	// FetchAll fetches all rows from `sql.Rows` and transforms to []godal.IGenericBo.
+	//   - FetchOne will NOT call dbRows.Close(), caller must take are of cleaning resource.
+	//   - Caller should not call dbRows.Next(), FetchOne will do that.
+	FetchAll(storageId string, dbRows *sql.Rows) ([]godal.IGenericBo, error)
+
+	// IsErrorDuplicatedEntry checks if the error was caused by conflicting in database table entries.
+	IsErrorDuplicatedEntry(err error) bool
+
+	// WrapTransaction wraps a function inside a transaction.
+	//
+	// txFunc: the function to wrap. If the function returns error, the transaction will be aborted, otherwise transaction is committed.
+	WrapTransaction(ctx context.Context, txFunc func(ctx context.Context, tx *sql.Tx) error) error
 }
 
 // GenericDaoSql is 'database/sql' implementation of godal.IGenericDao.
@@ -165,6 +328,8 @@ func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericD
 //   - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
+//
+// IGenericDaoSql and GenericDaoSql should be in sync.
 type GenericDaoSql struct {
 	*godal.AbstractGenericDao
 	sqlConnect                  *prom.SqlConnect
@@ -175,6 +340,14 @@ type GenericDaoSql struct {
 	funcNewPlaceholderGenerator NewPlaceholderGenerator
 }
 
+// SetRowMapper attaches an IRowMapper to the DAO for latter use.
+//
+// Available since v0.3.0.
+func (dao *GenericDaoSql) SetRowMapper(rowMapper godal.IRowMapper) IGenericDaoSql {
+	dao.AbstractGenericDao.SetRowMapper(rowMapper)
+	return dao
+}
+
 // GetSqlConnect returns the '*prom.SqlConnect' instance attached to this DAO.
 func (dao *GenericDaoSql) GetSqlConnect() *prom.SqlConnect {
 	return dao.sqlConnect
@@ -183,7 +356,7 @@ func (dao *GenericDaoSql) GetSqlConnect() *prom.SqlConnect {
 // SetSqlConnect attaches a '*prom.SqlConnect' instance to this DAO.
 //
 // Available since v0.0.2
-func (dao *GenericDaoSql) SetSqlConnect(sqlC *prom.SqlConnect) *GenericDaoSql {
+func (dao *GenericDaoSql) SetSqlConnect(sqlC *prom.SqlConnect) IGenericDaoSql {
 	dao.sqlConnect = sqlC
 	return dao
 }
@@ -194,21 +367,21 @@ func (dao *GenericDaoSql) GetSqlFlavor() prom.DbFlavor {
 }
 
 // SetSqlFlavor set the sql flavor preference.
-func (dao *GenericDaoSql) SetSqlFlavor(sqlFlavor prom.DbFlavor) *GenericDaoSql {
+//
+// Note: SetSqlFlavor will reset the funcNewPlaceholderGenerator
+func (dao *GenericDaoSql) SetSqlFlavor(sqlFlavor prom.DbFlavor) IGenericDaoSql {
 	dao.sqlFlavor = sqlFlavor
 	dao.sqlConnect.SetDbFlavor(sqlFlavor)
 	switch sqlFlavor {
-	case prom.FlavorMySql:
-		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorQuestion
-	case prom.FlavorPgSql:
+	case prom.FlavorPgSql, prom.FlavorCosmosDb:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorDollarN
 	case prom.FlavorMsSql:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorAtpiN
 	case prom.FlavorOracle:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorColonN
-	case prom.FlavorSqlite:
+	case prom.FlavorMySql, prom.FlavorSqlite:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorQuestion
-	case prom.FlavorDefault:
+	default:
 		dao.funcNewPlaceholderGenerator = NewPlaceholderGeneratorQuestion
 	}
 	return dao
@@ -229,7 +402,7 @@ func (dao *GenericDaoSql) GetTxModeOnWrite() bool {
 // By default, GenericDaoSql is created with 'txModeOnWrite=true', and it is recommended setting.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) SetTxModeOnWrite(enabled bool) *GenericDaoSql {
+func (dao *GenericDaoSql) SetTxModeOnWrite(enabled bool) IGenericDaoSql {
 	dao.txModeOnWrite = enabled
 	return dao
 }
@@ -244,7 +417,7 @@ func (dao *GenericDaoSql) GetTxIsolationLevel() sql.IsolationLevel {
 // SetTxIsolationLevel sets new transaction isolation level.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) SetTxIsolationLevel(txIsolationLevel sql.IsolationLevel) *GenericDaoSql {
+func (dao *GenericDaoSql) SetTxIsolationLevel(txIsolationLevel sql.IsolationLevel) IGenericDaoSql {
 	dao.txIsolationLevel = txIsolationLevel
 	return dao
 }
@@ -264,7 +437,7 @@ func (dao *GenericDaoSql) GetOptionOpLiteral() *OptionOpLiteral {
 }
 
 // SetOptionOpLiteral sets operation literal settings.
-func (dao *GenericDaoSql) SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) *GenericDaoSql {
+func (dao *GenericDaoSql) SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql {
 	dao.optionOpLiteral = optionOpLiteral
 	return dao
 }
@@ -275,7 +448,7 @@ func (dao *GenericDaoSql) GetFuncNewPlaceholderGenerator() NewPlaceholderGenerat
 }
 
 // SetFuncNewPlaceholderGenerator sets the function used to create 'PlaceholderGenerator'.
-func (dao *GenericDaoSql) SetFuncNewPlaceholderGenerator(funcNewPlaceholderGenerator NewPlaceholderGenerator) *GenericDaoSql {
+func (dao *GenericDaoSql) SetFuncNewPlaceholderGenerator(funcNewPlaceholderGenerator NewPlaceholderGenerator) IGenericDaoSql {
 	dao.funcNewPlaceholderGenerator = funcNewPlaceholderGenerator
 	return dao
 }
@@ -297,10 +470,10 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 	}
 	if v.Kind() == reflect.Map {
-		result := &FilterAnd{Filters: make([]IFilter, 0)}
+		result := &FilterAnd{FilterAndOr: FilterAndOr{Filters: make([]IFilter, 0)}}
 		ops := dao.optionOpLiteral
 		if ops == nil {
-			ops = defaultOptionLiteralOperation
+			ops = DefaultOptionLiteralOperation
 		}
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
@@ -321,10 +494,10 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 //
 // Available since v0.0.2
 func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) {
-	v := reflect.ValueOf(ordering)
-	if ordering == nil || v.IsNil() {
+	if ordering == nil {
 		return nil, nil
 	}
+	v := reflect.ValueOf(ordering)
 	if v.Type().AssignableTo(isortingType) {
 		return ordering.(ISorting), nil
 	}
@@ -349,17 +522,17 @@ func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) 
 //   - If ctx is nil, SqlExecute creates a new context to use.
 //   - If tx is not nil, SqlExecute uses transaction context to execute the query.
 //   - If tx is nil, SqlExecute calls DB.ExecContext to execute the query.
-func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sqlStm string, values ...interface{}) (sql.Result, error) {
+func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sql string, values ...interface{}) (sql.Result, error) {
 	ctx = dao.sqlConnect.NewContextIfNil(ctx)
 	if tx != nil {
-		pstm, err := tx.PrepareContext(ctx, sqlStm)
+		pstm, err := tx.PrepareContext(ctx, sql)
 		if err != nil {
 			return nil, err
 		}
 		return pstm.ExecContext(ctx, values...)
 	}
 	db := dao.sqlConnect.GetDB()
-	pstm, err := db.PrepareContext(ctx, sqlStm)
+	pstm, err := db.PrepareContext(ctx, sql)
 	if err != nil {
 		return nil, err
 	}
@@ -371,17 +544,17 @@ func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sqlStm str
 //   - If ctx is nil, SqlQuery creates a new context to use.
 //   - If tx is not nil, SqlQuery uses transaction context to execute the query.
 //   - If tx is nil, SqlQuery calls DB.QueryContext to execute the query.
-func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sqlStm string, values ...interface{}) (*sql.Rows, error) {
+func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sql string, values ...interface{}) (*sql.Rows, error) {
 	ctx = dao.sqlConnect.NewContextIfNil(ctx)
 	if tx != nil {
-		pstm, err := tx.PrepareContext(ctx, sqlStm)
+		pstm, err := tx.PrepareContext(ctx, sql)
 		if err != nil {
 			return nil, err
 		}
 		return pstm.QueryContext(ctx, values...)
 	}
 	db := dao.sqlConnect.GetDB()
-	pstm, err := db.PrepareContext(ctx, sqlStm)
+	pstm, err := db.PrepareContext(ctx, sql)
 	if err != nil {
 		return nil, err
 	}
@@ -390,47 +563,113 @@ func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sqlStm strin
 
 // SqlDelete constructs a DELETE statement and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlDelete(ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
-	builder := NewDeleteBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithFilter(filter)
-	if dao.funcNewPlaceholderGenerator != nil {
-		builder.WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+	return dao.SqlDeleteEx(nil, ctx, tx, table, filter)
+}
+
+// SqlBuildDeleteEx is a utility function to construct the DELETE statement along with values for placeholders.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlBuildDeleteEx(builder ISqlBuilder, table string, filter IFilter) (sql string, placeholderValues []interface{}) {
+	if builder == nil {
+		builder = NewDeleteBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithFilter(filter)
+		if dao.funcNewPlaceholderGenerator != nil {
+			builder.(*DeleteBuilder).WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+		}
 	}
-	sqlStm, values := builder.Build()
+	return builder.Build()
+}
+
+// SqlDeleteEx is the extended version of SqlDelete that uses an external DeleteBuilder to construct the DELETE statement.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlDeleteEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
+	sqlStm, values := dao.SqlBuildDeleteEx(builder, table, filter)
 	return dao.SqlExecute(ctx, tx, sqlStm, values...)
 }
 
 // SqlInsert constructs a INSERT statement and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlInsert(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
-	builder := NewInsertBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals)
-	if dao.funcNewPlaceholderGenerator != nil {
-		builder.WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+	return dao.SqlInsertEx(nil, ctx, tx, table, colsAndVals)
+}
+
+// SqlBuildInsertEx is a utility function to construct the INSERT statement along with values for placeholders.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlBuildInsertEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}) (sql string, placeholderValues []interface{}) {
+	if builder == nil {
+		builder = NewInsertBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals)
+		if dao.funcNewPlaceholderGenerator != nil {
+			builder.(*InsertBuilder).WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+		}
 	}
-	sqlStm, values := builder.Build()
+	return builder.Build()
+}
+
+// SqlInsertEx is the extended version of SqlInsert that uses an external InsertBuilder to construct the INSERT statement.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlInsertEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
+	sqlStm, values := dao.SqlBuildInsertEx(builder, table, colsAndVals)
 	return dao.SqlExecute(ctx, tx, sqlStm, values...)
 }
 
 // SqlSelect constructs a SELECT query and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlSelect(ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
-	builder := NewSelectBuilder().WithFlavor(dao.sqlFlavor).
-		WithColumns(columns...).WithTables(table).
-		WithFilter(filter).
-		WithSorting(sorting).
-		WithLimit(numItems, fromOffset)
-	if dao.funcNewPlaceholderGenerator != nil {
-		builder.WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+	return dao.SqlSelectEx(nil, ctx, tx, table, columns, filter, sorting, fromOffset, numItems)
+}
+
+// SqlBuildSelectEx is a utility function to construct the SELECT statement along with values for placeholders.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlBuildSelectEx(builder ISqlBuilder, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (sql string, placeholderValues []interface{}) {
+	if builder == nil {
+		builder = NewSelectBuilder().WithFlavor(dao.sqlFlavor).
+			WithColumns(columns...).WithTables(table).
+			WithFilter(filter).
+			WithSorting(sorting).
+			WithLimit(numItems, fromOffset)
+		if dao.funcNewPlaceholderGenerator != nil {
+			builder.(*SelectBuilder).WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+		}
 	}
-	query, values := builder.Build()
+	return builder.Build()
+}
+
+// SqlSelectEx is the extended version of SqlSelect that uses an external SelectBuilder to construct the SELECT statement.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlSelectEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
+	query, values := dao.SqlBuildSelectEx(builder, table, columns, filter, sorting, fromOffset, numItems)
 	return dao.SqlQuery(ctx, tx, query, values...)
 }
 
 // SqlUpdate constructs an UPDATE query and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlUpdate(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
-	builder := NewUpdateBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals).WithFilter(filter)
-	if dao.funcNewPlaceholderGenerator != nil {
-		builder.WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+	return dao.SqlUpdateEx(nil, ctx, tx, table, colsAndVals, filter)
+}
+
+// SqlBuildUpdateEx is a utility function to construct the UPDATE statement along with values for placeholders.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlBuildUpdateEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}, filter IFilter) (sql string, placeholderValues []interface{}) {
+	if builder == nil {
+		builder = NewUpdateBuilder().WithFlavor(dao.sqlFlavor).WithTable(table).WithValues(colsAndVals).WithFilter(filter)
+		if dao.funcNewPlaceholderGenerator != nil {
+			builder.(*UpdateBuilder).WithPlaceholderGenerator(dao.funcNewPlaceholderGenerator())
+		}
 	}
-	query, values := builder.Build()
+	return builder.Build()
+}
+
+// SqlUpdateEx is the extended version of SqlUpdate that uses an external UpdateBuilder to construct the UPDATE statement.
+//
+// Available since v0.3.0
+func (dao *GenericDaoSql) SqlUpdateEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
+	query, values := dao.SqlBuildUpdateEx(builder, table, colsAndVals, filter)
 	return dao.SqlExecute(ctx, tx, query, values...)
 }
+
+/*----------------------------------------------------------------------*/
 
 // FetchOne fetches a row from `sql.Rows` and transforms it to godal.IGenericBo.
 //
@@ -528,7 +767,8 @@ func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, st
 	if err != nil {
 		return nil, err
 	}
-	dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, nil, 0, 0)
+	columns := dao.GetRowMapper().ColumnsList(storageId)
+	dbRows, err := dao.SqlSelect(ctx, tx, storageId, columns, f, nil, 0, 0)
 	if dbRows != nil {
 		defer func() { _ = dbRows.Close() }()
 	}
@@ -562,7 +802,8 @@ func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, s
 	return dao.FetchAll(storageId, dbRows)
 }
 
-func (dao *GenericDaoSql) isErrorDuplicatedEntry(err error) bool {
+// IsErrorDuplicatedEntry checks if the error was caused by conflicting in database table entries.
+func (dao *GenericDaoSql) IsErrorDuplicatedEntry(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -574,7 +815,9 @@ func (dao *GenericDaoSql) isErrorDuplicatedEntry(err error) bool {
 	case prom.FlavorMsSql:
 		return regexp.MustCompile(`\W2627\W|\W2601\W`).FindString(fmt.Sprintf("%e", err)) != ""
 	case prom.FlavorOracle:
-		return regexp.MustCompile(`\WORA\-00001\W`).FindString(fmt.Sprintf("%v", err)) != ""
+		errStr := fmt.Sprintf("%e", err)
+		return regexp.MustCompile(`\WORA\-00001\W`).FindString(errStr) != "" ||
+			regexp.MustCompile(`\Wunique constraint.*?violated\W`).FindString(errStr) != ""
 	case prom.FlavorSqlite:
 		errStr := fmt.Sprintf("%e", err)
 		return regexp.MustCompile(`\WErrNo=19\W`).FindString(errStr) != "" &&
@@ -592,13 +835,12 @@ func (dao *GenericDaoSql) GdaoCreate(storageId string, bo godal.IGenericBo) (int
 //
 // Available: since v0.1.0
 func (dao *GenericDaoSql) GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
-	// insert new document
 	if row, err := dao.GetRowMapper().ToRow(storageId, bo); err != nil {
 		return 0, err
-	} else if colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{})); err != nil {
+	} else if colsAndVals, err := reddo.ToMap(row, typeMap); err != nil {
 		return 0, err
 	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -625,13 +867,13 @@ func (dao *GenericDaoSql) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, stor
 	if err != nil {
 		return 0, err
 	}
-	colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{}))
+	colsAndVals, err := reddo.ToMap(row, typeMap)
 	if err != nil {
 		return 0, err
 	}
 	result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter)
 	if err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -668,14 +910,14 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 	if err != nil {
 		return 0, err
 	}
-	colsAndVals, err := reddo.ToMap(row, reflect.TypeOf(map[string]interface{}{}))
+	colsAndVals, err := reddo.ToMap(row, typeMap)
 	if err != nil {
 		return 0, err
 	}
 
 	// firstly: try to update row
 	if result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter); err != nil {
-		if dao.isErrorDuplicatedEntry(err) {
+		if dao.IsErrorDuplicatedEntry(err) {
 			return 0, godal.GdaoErrorDuplicatedEntry
 		}
 		return 0, err
@@ -685,7 +927,7 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 		// secondly: no row updated, try insert row
 		result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{}))
 		if err != nil {
-			if dao.isErrorDuplicatedEntry(err) {
+			if dao.IsErrorDuplicatedEntry(err) {
 				return 0, godal.GdaoErrorDuplicatedEntry
 			}
 			return 0, err

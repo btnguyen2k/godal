@@ -28,8 +28,8 @@ func prepareTablePgsql(sqlc *prom.SqlConnect, table string) error {
 /*---------------------------------------------------------------*/
 
 const (
-	envPgsqlDriver = "Pgsql_DRIVER"
-	envPgsqlUrl    = "Pgsql_URL"
+	envPgsqlDriver = "PGSQL_DRIVER"
+	envPgsqlUrl    = "PGSQL_URL"
 )
 
 func TestGenericDaoPgsql_SetGetSqlConnect(t *testing.T) {
@@ -42,6 +42,14 @@ func TestGenericDaoPgsql_SetGetSqlConnect(t *testing.T) {
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
 		t.Fatalf("%s failed: should equal", name)
+	}
+}
+
+func TestGenericDaoPgsql_StartTx(t *testing.T) {
+	name := "TestGenericDaoPgsql_StartTx"
+	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
+		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
 	}
 }
 
@@ -124,4 +132,14 @@ func TestGenericDaoPgsql_GdaoSaveTxModeOnWrite(t *testing.T) {
 	}
 	dao.SetTxModeOnWrite(true)
 	dotestGenericDaoSqlGdaoSave(t, name, dao)
+}
+
+func TestGenericDaoPgsql_Tx(t *testing.T) {
+	name := "TestGenericDaoPgsql_Tx"
+	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
+	}
+	dotestGenericDaoSql_Tx(t, name, dao)
 }

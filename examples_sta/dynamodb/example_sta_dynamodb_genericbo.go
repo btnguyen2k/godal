@@ -1,3 +1,6 @@
+/*
+$ go run example_sta_dynamodb_genericbo.go
+*/
 package main
 
 import (
@@ -42,6 +45,13 @@ func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
 
 // convenient function to create MyGenericDaoDynamodb instance
 func createMyGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+	err := adc.DeleteTable(nil, tableUserGeneric)
+	fmt.Printf("[INFO] Deleted table %s: %s\n", tableUserGeneric, err)
+	err = adc.CreateTable(nil, tableUserGeneric, 1, 1,
+		[]prom.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: prom.AwsAttrTypeString}},
+		[]prom.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: prom.AwsKeyTypePartition}})
+	fmt.Printf("[INFO] Created table %s: %s\n", tableUserGeneric, err)
+
 	dao := &MyGenericDaoDynamodb{}
 	dao.GenericDaoDynamodb = dynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
@@ -112,19 +122,15 @@ func main() {
 	}
 
 	{
-		fmt.Scanln()
-
 		// UPDATE
 		bo.GboSetAttr(fieldUserVersionGeneric, godal.NilValue)
 		bo.GboSetAttr("new_field", "a value")
 		bo.GboSetAttr(fieldUserActivedGeneric, false)
 		_, err := myDao.GdaoUpdate(tableUserGeneric, bo)
 		fmt.Printf("Updated user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
-		fmt.Scanln()
 
 		_, err = myDao.GdaoSave(tableUserGeneric, bo)
 		fmt.Printf("Saved user [%s]: %e\n", bo.GboToJsonUnsafe(), err)
-		fmt.Scanln()
 	}
 
 	{

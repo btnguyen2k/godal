@@ -1,5 +1,5 @@
 /*
-MongoDB Dao example. Run with command:
+AWS DynamoDB example. Run with command:
 
 $ go run examples_bo.go examples_dynamodb.go
 
