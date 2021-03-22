@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,13 +44,19 @@ func createDaoSql(sqlc *prom.SqlConnect, tableName string) *UserDaoSql {
 	rowMapper := &GenericRowMapperSql{
 		NameTransformation: NameTransfLowerCase,
 		GboFieldToColNameTranslator: map[string]map[string]interface{}{
-			tableName: {fieldGboId: colSqlId, fieldGboUsername: colSqlUsername, fieldGboData: colSqlData},
+			tableName: {
+				fieldGboId: colSqlId, fieldGboUsername: colSqlUsername, fieldGboData: colSqlData,
+				fieldGboValPInt: colSqlValPInt, fieldGboValPFloat: colSqlValPFloat, fieldGboValPString: colSqlValPString, fieldGboValPTime: colSqlValPTime,
+			},
 		},
 		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
-			tableName: {colSqlId: fieldGboId, colSqlUsername: fieldGboUsername, colSqlData: fieldGboData},
+			tableName: {
+				colSqlId: fieldGboId, colSqlUsername: fieldGboUsername, colSqlData: fieldGboData,
+				colSqlValPInt: fieldGboValPInt, colSqlValPFloat: fieldGboValPFloat, colSqlValPString: fieldGboValPString, colSqlValPTime: fieldGboValPTime,
+			},
 		},
 		ColumnsListMap: map[string][]string{
-			tableName: {colSqlId, colSqlUsername, colSqlData},
+			tableName: {colSqlId, colSqlUsername, colSqlData, colSqlValPInt, colSqlValPFloat, colSqlValPString, colSqlValPTime},
 		},
 	}
 	dao := &UserDaoSql{tableName: tableName}
@@ -122,7 +131,7 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		t.Fatalf("%s failed: %#v / %s", name, f, err)
 	}
 
-	inputF := &FilterFieldValue{Field: "field", Operation: "=", Value: 1}
+	inputF := &FilterFieldValue{Field: "field", Operator: "=", Value: 1}
 	if f, err := dao.BuildFilter(inputF); f != inputF || err != nil {
 		t.Fatalf("%s failed: %#v / %s", name, f, err)
 	}
@@ -161,14 +170,22 @@ func TestGenericDaoSql_BuildOrdering(t *testing.T) {
 }
 
 const (
-	testTableName  = "test_user"
-	colSqlId       = "userid"
-	colSqlUsername = "uusername"
-	colSqlData     = "udata"
+	testTableName    = "test_user"
+	colSqlId         = "userid"
+	colSqlUsername   = "uusername"
+	colSqlData       = "udata"
+	colSqlValPInt    = "pint"
+	colSqlValPFloat  = "pfloat"
+	colSqlValPString = "pstring"
+	colSqlValPTime   = "ptime"
 
-	fieldGboId       = "id"
-	fieldGboUsername = "username"
-	fieldGboData     = "data"
+	fieldGboId         = "id"
+	fieldGboUsername   = "username"
+	fieldGboData       = "data"
+	fieldGboValPInt    = "pint"
+	fieldGboValPFloat  = "pfloat"
+	fieldGboValPString = "pstring"
+	fieldGboValPTime   = "ptime"
 
 	testTimeZone = "Asia/Ho_Chi_Minh"
 )
@@ -183,13 +200,16 @@ func (dao *UserDaoSql) GdaoCreateFilter(tableName string, bo godal.IGenericBo) i
 	if tableName == dao.tableName {
 		return map[string]interface{}{colSqlId: bo.GboGetAttrUnsafe(fieldGboId, reddo.TypeString)}
 	}
-	return false
+	return nil
 }
 
 func (dao *UserDaoSql) toGbo(u *UserBoSql) godal.IGenericBo {
 	js, _ := json.Marshal(u)
 	gbo := godal.NewGenericBo()
-	if err := gbo.GboImportViaJson(map[string]interface{}{fieldGboId: u.Id, fieldGboUsername: u.Username, fieldGboData: string(js)}); err != nil {
+	if err := gbo.GboImportViaMap(map[string]interface{}{
+		fieldGboId: u.Id, fieldGboUsername: u.Username, fieldGboData: string(js),
+		fieldGboValPInt: u.ValPInt, fieldGboValPFloat: u.ValPFloat, fieldGboValPString: u.ValPString, fieldGboValPTime: u.ValPTime,
+	}); err != nil {
 		return nil
 	}
 	return gbo
@@ -208,12 +228,16 @@ func (dao *UserDaoSql) toUser(gbo godal.IGenericBo) *UserBoSql {
 }
 
 type UserBoSql struct {
-	Id       string    `json:"id"`
-	Username string    `json:"username"`
-	Name     string    `json:"name"`
-	Version  int       `json:"version"`
-	Active   bool      `json:"active"`
-	Created  time.Time `json:"created"`
+	Id         string     `json:"id"`
+	Username   string     `json:"username"`
+	Name       string     `json:"name"`
+	Version    int        `json:"version"`
+	Active     bool       `json:"active"`
+	Created    time.Time  `json:"created"`
+	ValPInt    *int64     `json:"pint"`
+	ValPFloat  *float64   `json:"pfloat"`
+	ValPString *string    `json:"pstring"`
+	ValPTime   *time.Time `json:"ptime"`
 }
 
 /*---------------------------------------------------------------*/
@@ -256,8 +280,8 @@ func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSq
 	filter := &FilterOr{
 		FilterAndOr: FilterAndOr{
 			Filters: []IFilter{
-				&FilterFieldValue{Field: colSqlId, Operation: ">=", Value: "8"},
-				&FilterFieldValue{Field: colSqlId, Operation: "<", Value: "3"},
+				&FilterFieldValue{Field: colSqlId, Operator: ">=", Value: "8"},
+				&FilterFieldValue{Field: colSqlId, Operator: "<", Value: "3"},
 			},
 		},
 	}
@@ -328,8 +352,8 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 	filter := &FilterAnd{
 		FilterAndOr: FilterAndOr{
 			Filters: []IFilter{
-				&FilterFieldValue{Field: colSqlId, Operation: "<=", Value: "8"},
-				&FilterFieldValue{Field: colSqlId, Operation: ">", Value: "3"},
+				&FilterFieldValue{Field: colSqlId, Operator: "<=", Value: "8"},
+				&FilterFieldValue{Field: colSqlId, Operator: ">", Value: "3"},
 			},
 		},
 	}
@@ -614,7 +638,7 @@ func dotestGenericDaoSql_Tx(t *testing.T, name string, dao *UserDaoSql) {
 					tx.Rollback()
 					return
 				}
-				fmt.Printf("\t{%d} - Withdraw %d tokens from user{1}[%d -> %d] / Status: %#v\n", id, amountToTransfer, origin, user1.Version, result1)
+				fmt.Printf("\tRoutine #{%d} - Withdraw %d tokens from user{1} [%d -> %d] / Status: %#v\n", id, amountToTransfer, origin, user1.Version, result1)
 
 				origin = user2.Version
 				user2.Version += amountToTransfer
@@ -624,9 +648,9 @@ func dotestGenericDaoSql_Tx(t *testing.T, name string, dao *UserDaoSql) {
 					tx.Rollback()
 					return
 				}
-				fmt.Printf("\t{%d} - Topup %d tokens to user{2}[%d -> %d] / Status: %#v\n", id, amountToTransfer, origin, user2.Version, result2)
+				fmt.Printf("\tRoutine {%d} - Topup %d tokens to user{2} [%d -> %d] / Status: %#v\n", id, amountToTransfer, origin, user2.Version, result2)
 			} else {
-				fmt.Printf("\t{%d} - User{1} has %d tokens, not enough to make the transfer of %d\n", id, user1.Version, amountToTransfer)
+				fmt.Printf("\tRoutine {%d} - User{1} has %d tokens, not enough to make the transfer of %d\n", id, user1.Version, amountToTransfer)
 			}
 		}(i)
 	}
@@ -638,6 +662,192 @@ func dotestGenericDaoSql_Tx(t *testing.T, name string, dao *UserDaoSql) {
 			if strings.Index(msg, "lock") < 0 && strings.Index(msg, "concurrent") < 0 {
 				t.Fatalf("%s failed: {%d} - %s", name, id, err)
 			}
+		}
+	}
+}
+
+func _checkFilterNull(t *testing.T, name string, expected, target *UserBoSql) {
+	if target == nil {
+		t.Fatalf("%s failed: target is nil", name)
+	}
+	if target.Id != expected.Id {
+		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
+	}
+	if target.Username != expected.Username {
+		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
+	}
+	if target.Name != expected.Name {
+		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
+	}
+	if target.Version != expected.Version {
+		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
+	}
+	if target.Active != expected.Active {
+		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
+	}
+	layout := time.RFC3339
+	if target.Created.Format(layout) != expected.Created.Format(layout) {
+		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
+	}
+
+	if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
+		t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
+	}
+	if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
+		t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
+	}
+	if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
+		t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
+	}
+	if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.Format(layout) != expected.ValPTime.Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
+		t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
+	}
+}
+
+func dotestGenericDaoSqlGdao_FilterNull(t *testing.T, name string, dao *UserDaoSql) {
+	rand.Seed(time.Now().UnixNano())
+	var userList = make([]*UserBoSql, 0)
+	for i := 0; i < 100; i++ {
+		id := strconv.Itoa(i)
+		user := &UserBoSql{
+			Id:       id,
+			Username: "user" + id,
+			Name:     "Thanh " + id,
+			Version:  int(time.Now().UnixNano()),
+			Active:   i%3 == 0,
+			Created:  time.Now().Round(time.Second).Add(time.Duration(rand.Intn(1024)) * time.Minute),
+		}
+		vInt := rand.Int63n(1024)
+		vFloat := math.Round(rand.Float64()) * 1e3 / 1e3
+		vString := fmt.Sprintf("%f", vFloat)
+		vTime := time.Now().Add(time.Duration(rand.Intn(1024)) * time.Minute)
+		if i%2 == 0 {
+			user.ValPInt = &vInt
+		}
+		if i%3 == 0 {
+			user.ValPFloat = &vFloat
+		}
+		if i%4 == 0 {
+			user.ValPString = &vString
+		}
+		if i%5 == 0 {
+			user.ValPTime = &vTime
+		}
+		_, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		if err != nil {
+			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+		}
+		userList = append(userList, user)
+	}
+
+	var filterInt IFilter = &FilterIsNull{FilterFieldValue{Field: colSqlValPInt}}
+	var filterFloat IFilter = &FilterIsNull{FilterFieldValue{Field: colSqlValPFloat}}
+	var filterString IFilter = &FilterIsNull{FilterFieldValue{Field: colSqlValPString}}
+	var filterTime IFilter = &FilterIsNull{FilterFieldValue{Field: colSqlValPTime}}
+	filerList := []IFilter{filterInt, filterFloat, filterString, filterTime}
+	for _, filter := range filerList {
+		filter = (&FilterAnd{}).Add(filter).
+			Add(&FilterFieldValue{Field: colSqlId, Operator: ">", Value: strconv.Itoa(rand.Intn(64))})
+		gboList, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 0)
+		if err != nil {
+			t.Fatalf("%s failed: %s", name+"/GdaoFetchMany", err)
+		}
+		if len(gboList) == 0 {
+			t.Fatalf("%s failed: empty result list", name+"/GdaoFetchMany")
+		}
+		for _, gbo := range gboList {
+			user := dao.toUser(gbo)
+			id, _ := strconv.Atoi(user.Id)
+			expected := userList[id]
+
+			if filter == filterInt && user.ValPInt != nil {
+				t.Fatalf("%s failed: field [PInt] should be nil, but %#v", name, *user.ValPInt)
+			}
+			if filter == filterFloat && user.ValPFloat != nil {
+				t.Fatalf("%s failed: field [PFloat] should be nil, but %#v", name, *user.ValPFloat)
+			}
+			if filter == filterString && user.ValPString != nil {
+				t.Fatalf("%s failed: field [PString] should be nil, but %#v", name, *user.ValPString)
+			}
+			if filter == filterTime && user.ValPTime != nil {
+				t.Fatalf("%s failed: field [PTime] should be nil, but %#v", name, *user.ValPTime)
+			}
+
+			_checkFilterNull(t, name, expected, user)
+		}
+	}
+}
+
+func dotestGenericDaoSqlGdao_FilterNotNull(t *testing.T, name string, dao *UserDaoSql) {
+	rand.Seed(time.Now().UnixNano())
+	var userList = make([]*UserBoSql, 0)
+	for i := 0; i < 100; i++ {
+		id := strconv.Itoa(i)
+		user := &UserBoSql{
+			Id:       id,
+			Username: "user" + id,
+			Name:     "Thanh " + id,
+			Version:  int(time.Now().UnixNano()),
+			Active:   i%3 == 0,
+			Created:  time.Now().Round(time.Second).Add(time.Duration(rand.Intn(1024)) * time.Minute),
+		}
+		vInt := rand.Int63n(1024)
+		vFloat := math.Round(rand.Float64()) * 1e3 / 1e3
+		vString := fmt.Sprintf("%f", vFloat)
+		vTime := time.Now().Add(time.Duration(rand.Intn(1024)) * time.Minute)
+		if i%2 == 0 {
+			user.ValPInt = &vInt
+		}
+		if i%3 == 0 {
+			user.ValPFloat = &vFloat
+		}
+		if i%4 == 0 {
+			user.ValPString = &vString
+		}
+		if i%5 == 0 {
+			user.ValPTime = &vTime
+		}
+		_, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		if err != nil {
+			t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
+		}
+		userList = append(userList, user)
+	}
+
+	var filterInt IFilter = &FilterIsNotNull{FilterFieldValue{Field: colSqlValPInt}}
+	var filterFloat IFilter = &FilterIsNotNull{FilterFieldValue{Field: colSqlValPFloat}}
+	var filterString IFilter = &FilterIsNotNull{FilterFieldValue{Field: colSqlValPString}}
+	var filterTime IFilter = &FilterIsNotNull{FilterFieldValue{Field: colSqlValPTime}}
+	filerList := []IFilter{filterInt, filterFloat, filterString, filterTime}
+	for _, filter := range filerList {
+		filter = (&FilterAnd{}).Add(filter).
+			Add(&FilterFieldValue{Field: colSqlId, Operator: ">", Value: strconv.Itoa(rand.Intn(64))})
+		gboList, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 0)
+		if err != nil {
+			t.Fatalf("%s failed: %s", name+"/GdaoFetchMany/"+reflect.TypeOf(filter).String(), err)
+		}
+		if len(gboList) == 0 {
+			t.Fatalf("%s failed: empty result list", name+"/GdaoFetchMany/"+reflect.TypeOf(filter).String())
+		}
+		for _, gbo := range gboList {
+			user := dao.toUser(gbo)
+			id, _ := strconv.Atoi(user.Id)
+			expected := userList[id]
+
+			if filter == filterInt && user.ValPInt == nil {
+				t.Fatalf("%s failed: field [PInt] should not be nil, but %#v", name, *user.ValPInt)
+			}
+			if filter == filterFloat && user.ValPFloat == nil {
+				t.Fatalf("%s failed: field [PFloat] should not be nil, but %#v", name, *user.ValPFloat)
+			}
+			if filter == filterString && user.ValPString == nil {
+				t.Fatalf("%s failed: field [PString] should not be nil, but %#v", name, *user.ValPString)
+			}
+			if filter == filterTime && user.ValPTime == nil {
+				t.Fatalf("%s failed: field [PTime] should not be nil, but %#v", name, *user.ValPTime)
+			}
+
+			_checkFilterNull(t, name, expected, user)
 		}
 	}
 }

@@ -14,7 +14,9 @@ func prepareTablePgsql(sqlc *prom.SqlConnect, table string) error {
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		return err
 	}
-	sql = fmt.Sprintf("CREATE TABLE %s (%s VARCHAR(64), %s VARCHAR(64), %s JSONB, PRIMARY KEY (%s))", table, colSqlId, colSqlUsername, colSqlData, colSqlId)
+	sql = fmt.Sprintf("CREATE TABLE %s (%s VARCHAR(64), %s VARCHAR(64), %s JSONB, %s INT, %s FLOAT8, %s VARCHAR(64), %s TIMESTAMP(0), PRIMARY KEY (%s))",
+		table, colSqlId, colSqlUsername, colSqlData, colSqlValPInt, colSqlValPFloat, colSqlValPString, colSqlValPTime,
+		colSqlId)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		return err
 	}
@@ -48,6 +50,7 @@ func TestGenericDaoPgsql_SetGetSqlConnect(t *testing.T) {
 func TestGenericDaoPgsql_StartTx(t *testing.T) {
 	name := "TestGenericDaoPgsql_StartTx"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
 		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
 	}
@@ -56,6 +59,7 @@ func TestGenericDaoPgsql_StartTx(t *testing.T) {
 func TestGenericDaoPgsql_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoSql_GdaoDelete"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -66,6 +70,7 @@ func TestGenericDaoPgsql_GdaoDelete(t *testing.T) {
 func TestGenericDaoPgsql_GdaoDeleteMany(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoDeleteMany"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -76,6 +81,7 @@ func TestGenericDaoPgsql_GdaoDeleteMany(t *testing.T) {
 func TestGenericDaoPgsql_GdaoFetchOne(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoDeleteMany"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -86,6 +92,7 @@ func TestGenericDaoPgsql_GdaoFetchOne(t *testing.T) {
 func TestGenericDaoPgsql_GdaoFetchMany(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoFetchMany"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -96,6 +103,7 @@ func TestGenericDaoPgsql_GdaoFetchMany(t *testing.T) {
 func TestGenericDaoPgsql_GdaoCreate(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoCreate"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -106,6 +114,7 @@ func TestGenericDaoPgsql_GdaoCreate(t *testing.T) {
 func TestGenericDaoPgsql_GdaoUpdate(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoUpdate"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -116,6 +125,7 @@ func TestGenericDaoPgsql_GdaoUpdate(t *testing.T) {
 func TestGenericDaoPgsql_GdaoSave(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoSave"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -126,6 +136,7 @@ func TestGenericDaoPgsql_GdaoSave(t *testing.T) {
 func TestGenericDaoPgsql_GdaoSaveTxModeOnWrite(t *testing.T) {
 	name := "TestGenericDaoPgsql_GdaoSaveTxModeOnWrite"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
@@ -137,9 +148,32 @@ func TestGenericDaoPgsql_GdaoSaveTxModeOnWrite(t *testing.T) {
 func TestGenericDaoPgsql_Tx(t *testing.T) {
 	name := "TestGenericDaoPgsql_Tx"
 	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
 	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
 	}
 	dotestGenericDaoSql_Tx(t, name, dao)
+}
+
+func TestGenericDaoPgsql_FilterNull(t *testing.T) {
+	name := "TestGenericDaoPgsql_FilterNull"
+	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
+	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
+	}
+	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+}
+
+func TestGenericDaoPgsql_FilterNotNull(t *testing.T) {
+	name := "TestGenericDaoPgsql_FilterNotNull"
+	dao := initDao(t, name, os.Getenv(envPgsqlDriver), os.Getenv(envPgsqlUrl), testTableName, prom.FlavorPgSql)
+	defer dao.sqlConnect.Close()
+	err := prepareTablePgsql(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTablePgsql", err)
+	}
+	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
 }

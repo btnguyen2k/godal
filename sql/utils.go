@@ -71,16 +71,16 @@ func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
 
 /*----------------------------------------------------------------------*/
 
-// OptionOpLiteral controls literal forms of operations.
+// OptionOpLiteral controls literal forms of operators.
 type OptionOpLiteral struct {
-	OpAnd      string // 'and' operation, default is "AND"
-	OpOr       string // 'or' operation, default is "OR"
-	OpEqual    string // 'equal' operation, default is "="
-	OpNotEqual string // 'not equal' operation, default is "!="
+	OpAnd      string // 'and' operator, default is "AND"
+	OpOr       string // 'or' operator, default is "OR"
+	OpEqual    string // 'equal' operator, default is "="
+	OpNotEqual string // 'not equal' operator, default is "!="
 }
 
-// DefaultOptionLiteralOperation uses "AND" for 'and' operation, "OR" for 'or' operation, "=" for equal and "!=" for not equal.
-var DefaultOptionLiteralOperation = &OptionOpLiteral{
+// DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
+var DefaultOptionLiteralOperator = &OptionOpLiteral{
 	OpAnd:      "AND",
 	OpOr:       "OR",
 	OpEqual:    "=",
@@ -92,6 +92,11 @@ var DefaultOptionLiteralOperation = &OptionOpLiteral{
 // OptTableAlias is used to prefix table alias to field name when building ISorting, IFilter or ISqlBuilder.
 type OptTableAlias struct {
 	TableAlias string
+}
+
+// OptDbFlavor is used to specify the db flavor that affects the generated SQL statement.
+type OptDbFlavor struct {
+	Flavor prom.DbFlavor
 }
 
 /*----------------------------------------------------------------------*/
@@ -162,14 +167,36 @@ type IFilter interface {
 	Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{})
 }
 
+// // BaseFilter is the base struct to implement other filters.
+// //
+// // Available since v0.4.0
+// type BaseFilter struct {
+// 	Flavor prom.DbFlavor
+// }
+//
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *BaseFilter) WithFlavor(flavor prom.DbFlavor) *BaseFilter {
+// 	f.Flavor = flavor
+// 	return f
+// }
+
+/*----------------------------------------------------------------------*/
+
 // FilterAndOr combines two or more filters using AND/OR clause.
 // It is recommended to use FilterAnd and FilterOr instead of using FilterAndOr directly.
 //
 // Available since v0.3.0
 type FilterAndOr struct {
+	// BaseFilter
 	Filters  []IFilter
 	Operator string // literal form for the operator
 }
+
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterAndOr) WithFlavor(flavor prom.DbFlavor) *FilterAndOr {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
 
 // Add appends a filter to the list.
 func (f *FilterAndOr) Add(filter IFilter) *FilterAndOr {
@@ -205,6 +232,12 @@ type FilterAnd struct {
 	FilterAndOr
 }
 
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterAnd) WithFlavor(flavor prom.DbFlavor) *FilterAnd {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
 // Add appends a filter to the list.
 func (f *FilterAnd) Add(filter IFilter) *FilterAnd {
 	f.FilterAndOr.Add(filter)
@@ -224,6 +257,12 @@ type FilterOr struct {
 	FilterAndOr
 }
 
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterOr) WithFlavor(flavor prom.DbFlavor) *FilterOr {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
 // Add appends a filter to the list.
 func (f *FilterOr) Add(filter IFilter) *FilterOr {
 	f.FilterAndOr.Add(filter)
@@ -238,15 +277,33 @@ func (f *FilterOr) Build(placeholderGenerator PlaceholderGenerator, opts ...inte
 	return f.FilterAndOr.Build(placeholderGenerator, opts...)
 }
 
-// FilterFieldValue represents single filter: <field> <operation> <value>.
-type FilterFieldValue struct {
-	Field     string      // field to check
-	Operation string      // operation to perform
-	Value     interface{} // value to test against
+/*----------------------------------------------------------------------*/
+
+// FilterBetween represents single filter: <field> BETWEEN <value1> AND <value2>.
+//
+// Available since v0.4.0
+type FilterBetween struct {
+	// BaseFilter
+	Field      string      // field to check
+	Operator   string      // the operator itself (default value is BETWEEN)
+	ValueLeft  interface{} // left value of the BETWEEN operator
+	ValueRight interface{} // right value of the BETWEEN operator
 }
 
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterBetween) WithFlavor(flavor prom.DbFlavor) *FilterBetween {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
 // Build implements IFilter.Build.
-func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+func (f *FilterBetween) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	if placeholderGenerator == nil {
+		return "", []interface{}{}
+	}
+	if strings.TrimSpace(f.Operator) == "" {
+		f.Operator = "BETWEEN"
+	}
 	tableAlias := ""
 	for _, opt := range opts {
 		switch opt.(type) {
@@ -256,21 +313,143 @@ func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts
 			tableAlias = opt.(*OptTableAlias).TableAlias + "."
 		}
 	}
-	values := make([]interface{}, 0)
-	values = append(values, f.Value)
-	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operation) + " " + placeholderGenerator(f.Field)
+	values := []interface{}{f.ValueLeft, f.ValueRight}
+	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " " + placeholderGenerator(f.Field) + " AND " + placeholderGenerator(f.Field)
 	return clause, values
 }
 
-// FilterExpression represents single filter: <left> <operation> <right>.
-type FilterExpression struct {
-	Left, Right string // left & right parts of the expression
-	Operation   string // operation to perform
+/*----------------------------------------------------------------------*/
+
+// FilterFieldValue represents single filter: <field> <operator> <value>.
+type FilterFieldValue struct {
+	// BaseFilter
+	Field    string      // field to check
+	Operator string      // the operator to perform
+	Value    interface{} // value to test against
 }
+
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterFieldValue) WithFlavor(flavor prom.DbFlavor) *FilterFieldValue {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
+// Build implements IFilter.Build.
+func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	tableAlias := ""
+	flavor := prom.FlavorDefault
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias:
+			tableAlias = opt.(OptTableAlias).TableAlias + "."
+		case *OptTableAlias:
+			tableAlias = opt.(*OptTableAlias).TableAlias + "."
+		case OptDbFlavor:
+			flavor = opt.(OptDbFlavor).Flavor
+		case *OptDbFlavor:
+			flavor = opt.(*OptDbFlavor).Flavor
+		}
+	}
+	values := make([]interface{}, 0)
+	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " NULL"
+	if flavor == prom.FlavorCosmosDb {
+		clause = tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " null"
+	}
+	if f.Value != nil {
+		clause = tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " " + placeholderGenerator(f.Field)
+		values = append(values, f.Value)
+	}
+	return clause, values
+}
+
+/*----------------------------------------------------------------------*/
+
+// FilterIsNil represents single filter: <field> IS NULL.
+//
+// Available since v0.4.0
+type FilterIsNull struct {
+	FilterFieldValue
+}
+
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterIsNull) WithFlavor(flavor prom.DbFlavor) *FilterIsNull {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
+// Build implements IFilter.Build.
+func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	f.Value = nil
+	if strings.TrimSpace(f.Operator) == "" {
+		f.Operator = "IS"
+		flavor := prom.FlavorDefault
+		for _, opt := range opts {
+			switch opt.(type) {
+			case OptDbFlavor:
+				flavor = opt.(OptDbFlavor).Flavor
+			case *OptDbFlavor:
+				flavor = opt.(*OptDbFlavor).Flavor
+			}
+		}
+		if flavor == prom.FlavorCosmosDb {
+			f.Operator = "="
+		}
+	}
+	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
+}
+
+// FilterIsNotNil represents single filter: <field> IS NOT NULL.
+//
+// Available since v0.4.0
+type FilterIsNotNull struct {
+	FilterFieldValue
+}
+
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterIsNotNull) WithFlavor(flavor prom.DbFlavor) *FilterIsNotNull {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
+
+// Build implements IFilter.Build.
+func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	f.Value = nil
+	if strings.TrimSpace(f.Operator) == "" {
+		f.Operator = "IS NOT"
+		flavor := prom.FlavorDefault
+		for _, opt := range opts {
+			switch opt.(type) {
+			case OptDbFlavor:
+				flavor = opt.(OptDbFlavor).Flavor
+			case *OptDbFlavor:
+				flavor = opt.(*OptDbFlavor).Flavor
+			}
+		}
+		if flavor == prom.FlavorCosmosDb {
+			f.Operator = "!="
+		}
+	}
+	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
+}
+
+/*----------------------------------------------------------------------*/
+
+// FilterExpression represents single filter: <left> <operator> <right>.
+type FilterExpression struct {
+	// BaseFilter
+	Left, Right string // left & right parts of the expression
+	Operator    string // the operator to perform
+}
+
+// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
+// func (f *FilterExpression) WithFlavor(flavor prom.DbFlavor) *FilterExpression {
+// 	f.BaseFilter.WithFlavor(flavor)
+// 	return f
+// }
 
 // Build implements IFilter.Build.
 func (f *FilterExpression) Build(_ PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
-	clause := f.Left + " " + strings.TrimSpace(f.Operation) + " " + f.Right
+	clause := f.Left + " " + strings.TrimSpace(f.Operator) + " " + f.Right
 	return clause, make([]interface{}, 0)
 }
 
@@ -365,6 +544,7 @@ func (b *DeleteBuilder) WithFilter(filter IFilter) *DeleteBuilder {
 // As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
 func (b *DeleteBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	if b.Filter != nil {
+		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
 		whereClause, values := b.Filter.Build(b.PlaceholderGenerator, opts...)
 		sql := fmt.Sprintf("DELETE FROM %s WHERE %s", b.Table, whereClause)
 		return sql, values
@@ -548,6 +728,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 
 	whereClause := ""
 	if b.Filter != nil {
+		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
 		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)
 	}
@@ -570,6 +751,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 
 	havingClause := ""
 	if b.Having != nil {
+		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
 		havingClause, tempValues = b.Having.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)
 	}
@@ -780,6 +962,7 @@ func (b *UpdateBuilder) Build(opts ...interface{}) (string, []interface{}) {
 
 	whereClause := ""
 	if b.Filter != nil {
+		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
 		var tempValues []interface{}
 		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
 		values = append(values, tempValues...)

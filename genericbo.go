@@ -76,6 +76,11 @@ type IGenericBo interface {
 	// GboImportViaJson imports bo's data from an external source using JSON transformation.
 	// Firstly, src is marshaled to JSON data. Then the JSON data is unmarshaled/imported to bo's attributes.
 	GboImportViaJson(src interface{}) error
+
+	// GboImportViaMap imports bo's data from an external map.
+	//
+	// Available: since v0.4.0
+	GboImportViaMap(src map[string]interface{}) error
 }
 
 // NewGenericBo constructs a new 'IGenericBo' instance.
@@ -274,4 +279,19 @@ func (bo *GenericBo) GboImportViaJson(src interface{}) error {
 	// 	return err
 	// }
 	return bo.GboFromJson(js)
+}
+
+// GboImportViaMap implements IGenericBo.GboImportViaMap.
+//
+// Existing data is removed upon importing.
+func (bo *GenericBo) GboImportViaMap(src map[string]interface{}) error {
+	bo.m.Lock()
+	defer bo.m.Unlock()
+	data := make(map[string]interface{})
+	for k, v := range src {
+		data[k] = v
+	}
+	bo.data = data
+	bo.s = semita.NewSemita(bo.data)
+	return nil
 }

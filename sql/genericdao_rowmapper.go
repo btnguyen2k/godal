@@ -131,8 +131,11 @@ func (mapper *GenericRowMapperSql) ToRow(storageId string, gbo godal.IGenericBo)
 			return
 		}
 		colName = mapper.translateGboFieldToColName(storageId, mapper.transformName(colName))
-
 		v := reflect.ValueOf(value)
+		if value == nil || (v.Kind() == reflect.Ptr && v.IsNil()) {
+			row[colName] = nil
+			return
+		}
 		for ; v.Kind() == reflect.Ptr; v = v.Elem() {
 		}
 		k := v.Kind()

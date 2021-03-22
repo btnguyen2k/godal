@@ -12,7 +12,9 @@ import (
 func prepareTableOracle(sqlc *prom.SqlConnect, table string) error {
 	sql := fmt.Sprintf("DROP TABLE %s", table)
 	sqlc.GetDB().Exec(sql)
-	sql = fmt.Sprintf("CREATE TABLE %s (%s NVARCHAR2(64), %s NVARCHAR2(64), %s CLOB, PRIMARY KEY (%s))", table, colSqlId, colSqlUsername, colSqlData, colSqlId)
+	sql = fmt.Sprintf("CREATE TABLE %s (%s NVARCHAR2(64), %s NVARCHAR2(64), %s CLOB, %s INT, %s DECIMAL(32,3), %s NVARCHAR2(64), %s TIMESTAMP(0), PRIMARY KEY (%s))",
+		table, colSqlId, colSqlUsername, colSqlData, colSqlValPInt, colSqlValPFloat, colSqlValPString, colSqlValPTime,
+		colSqlId)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		fmt.Println(sql, err)
 		return err
@@ -48,6 +50,7 @@ func TestGenericDaoOracle_SetGetSqlConnect(t *testing.T) {
 func TestGenericDaoOracle_StartTx(t *testing.T) {
 	name := "TestGenericDaoOracle_StartTx"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
 		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
 	}
@@ -56,6 +59,7 @@ func TestGenericDaoOracle_StartTx(t *testing.T) {
 func TestGenericDaoOracle_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoSql_GdaoDelete"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -66,6 +70,7 @@ func TestGenericDaoOracle_GdaoDelete(t *testing.T) {
 func TestGenericDaoOracle_GdaoDeleteMany(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoDeleteMany"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -76,6 +81,7 @@ func TestGenericDaoOracle_GdaoDeleteMany(t *testing.T) {
 func TestGenericDaoOracle_GdaoFetchOne(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoDeleteMany"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -86,6 +92,7 @@ func TestGenericDaoOracle_GdaoFetchOne(t *testing.T) {
 func TestGenericDaoOracle_GdaoFetchMany(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoFetchMany"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -96,6 +103,7 @@ func TestGenericDaoOracle_GdaoFetchMany(t *testing.T) {
 func TestGenericDaoOracle_GdaoCreate(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoCreate"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -106,6 +114,7 @@ func TestGenericDaoOracle_GdaoCreate(t *testing.T) {
 func TestGenericDaoOracle_GdaoUpdate(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoUpdate"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -116,6 +125,7 @@ func TestGenericDaoOracle_GdaoUpdate(t *testing.T) {
 func TestGenericDaoOracle_GdaoSave(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoSave"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -126,6 +136,7 @@ func TestGenericDaoOracle_GdaoSave(t *testing.T) {
 func TestGenericDaoOracle_GdaoSaveTxModeOnWrite(t *testing.T) {
 	name := "TestGenericDaoOracle_GdaoSaveTxModeOnWrite"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
@@ -137,9 +148,32 @@ func TestGenericDaoOracle_GdaoSaveTxModeOnWrite(t *testing.T) {
 func TestGenericDaoOracle_Tx(t *testing.T) {
 	name := "TestGenericDaoOracle_Tx"
 	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
 	}
 	dotestGenericDaoSql_Tx(t, name, dao)
+}
+
+func TestGenericDaoOracle_FilterNull(t *testing.T) {
+	name := "TestGenericDaoOracle_FilterNull"
+	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
+	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
+	}
+	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+}
+
+func TestGenericDaoOracle_FilterNotNull(t *testing.T) {
+	name := "TestGenericDaoOracle_FilterNotNull"
+	dao := initDao(t, name, os.Getenv(envOracleDriver), os.Getenv(envOracleUrl), testTableName, prom.FlavorOracle)
+	defer dao.sqlConnect.Close()
+	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name+"/prepareTableOracle", err)
+	}
+	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
 }
