@@ -167,19 +167,6 @@ type IFilter interface {
 	Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{})
 }
 
-// // BaseFilter is the base struct to implement other filters.
-// //
-// // Available since v0.4.0
-// type BaseFilter struct {
-// 	Flavor prom.DbFlavor
-// }
-//
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *BaseFilter) WithFlavor(flavor prom.DbFlavor) *BaseFilter {
-// 	f.Flavor = flavor
-// 	return f
-// }
-
 /*----------------------------------------------------------------------*/
 
 // FilterAndOr combines two or more filters using AND/OR clause.
@@ -187,16 +174,9 @@ type IFilter interface {
 //
 // Available since v0.3.0
 type FilterAndOr struct {
-	// BaseFilter
 	Filters  []IFilter
 	Operator string // literal form for the operator
 }
-
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterAndOr) WithFlavor(flavor prom.DbFlavor) *FilterAndOr {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
 
 // Add appends a filter to the list.
 func (f *FilterAndOr) Add(filter IFilter) *FilterAndOr {
@@ -232,12 +212,6 @@ type FilterAnd struct {
 	FilterAndOr
 }
 
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterAnd) WithFlavor(flavor prom.DbFlavor) *FilterAnd {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
-
 // Add appends a filter to the list.
 func (f *FilterAnd) Add(filter IFilter) *FilterAnd {
 	f.FilterAndOr.Add(filter)
@@ -256,12 +230,6 @@ func (f *FilterAnd) Build(placeholderGenerator PlaceholderGenerator, opts ...int
 type FilterOr struct {
 	FilterAndOr
 }
-
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterOr) WithFlavor(flavor prom.DbFlavor) *FilterOr {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
 
 // Add appends a filter to the list.
 func (f *FilterOr) Add(filter IFilter) *FilterOr {
@@ -283,18 +251,11 @@ func (f *FilterOr) Build(placeholderGenerator PlaceholderGenerator, opts ...inte
 //
 // Available since v0.4.0
 type FilterBetween struct {
-	// BaseFilter
 	Field      string      // field to check
 	Operator   string      // the operator itself (default value is BETWEEN)
 	ValueLeft  interface{} // left value of the BETWEEN operator
 	ValueRight interface{} // right value of the BETWEEN operator
 }
-
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterBetween) WithFlavor(flavor prom.DbFlavor) *FilterBetween {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
 
 // Build implements IFilter.Build.
 func (f *FilterBetween) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
@@ -322,17 +283,10 @@ func (f *FilterBetween) Build(placeholderGenerator PlaceholderGenerator, opts ..
 
 // FilterFieldValue represents single filter: <field> <operator> <value>.
 type FilterFieldValue struct {
-	// BaseFilter
 	Field    string      // field to check
 	Operator string      // the operator to perform
 	Value    interface{} // value to test against
 }
-
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterFieldValue) WithFlavor(flavor prom.DbFlavor) *FilterFieldValue {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
 
 // Build implements IFilter.Build.
 func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
@@ -371,12 +325,6 @@ type FilterIsNull struct {
 	FilterFieldValue
 }
 
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterIsNull) WithFlavor(flavor prom.DbFlavor) *FilterIsNull {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
-
 // Build implements IFilter.Build.
 func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	f.Value = nil
@@ -405,12 +353,6 @@ type FilterIsNotNull struct {
 	FilterFieldValue
 }
 
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterIsNotNull) WithFlavor(flavor prom.DbFlavor) *FilterIsNotNull {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
-
 // Build implements IFilter.Build.
 func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	f.Value = nil
@@ -436,16 +378,9 @@ func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts 
 
 // FilterExpression represents single filter: <left> <operator> <right>.
 type FilterExpression struct {
-	// BaseFilter
 	Left, Right string // left & right parts of the expression
 	Operator    string // the operator to perform
 }
-
-// // WithFlavor sets the SQL flavor that affect the generated SQL statement.
-// func (f *FilterExpression) WithFlavor(flavor prom.DbFlavor) *FilterExpression {
-// 	f.BaseFilter.WithFlavor(flavor)
-// 	return f
-// }
 
 // Build implements IFilter.Build.
 func (f *FilterExpression) Build(_ PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {

@@ -1,5 +1,14 @@
 # godal release notes
 
+## 2021-03-21 - v0.4.0
+
+- `IGenericBo`: new function `GboImportViaMap(src map[string]interface{}) error`
+- Package `sql`: new filters
+  - `FilterBetween`: represents single filter `<field> BETWEEN <value1> AND <value2>`.
+  - `FilterIsNull`: represents single filter `<field> IS NULL`.
+  - `FilterIsNotNull`: represents single filter `<field> IS NOT NULL`.
+- Bug fixes, enhancements and refactoring.
+
 ## 2021-01-15 - v0.3.0
 
 - `GenericDaoMongo`:
