@@ -161,8 +161,8 @@ func Test_GenericSorting(t *testing.T) {
 	}
 }
 
-func Test_FilterAnd(t *testing.T) {
-	name := "Test_FilterAnd"
+func TestFilterAnd(t *testing.T) {
+	name := "TestFilterAnd"
 	filter := &FilterAnd{}
 
 	if clause, values := filter.Build(nil); clause != "" || len(values) != 0 {
@@ -170,8 +170,8 @@ func Test_FilterAnd(t *testing.T) {
 	}
 
 	placeholderGenerator := NewPlaceholderGeneratorQuestion()
-	filter.Add(&FilterFieldValue{Field: "field1", Operation: ">", Value: 1}).
-		Add(&FilterFieldValue{Field: "field2", Operation: "=", Value: "a"})
+	filter.Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+		Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
 	if clause, values := filter.Build(placeholderGenerator); clause != "(field1 > ?) AND (field2 = ?)" || len(values) != 2 || values[0] != 1 || values[1] != "a" {
 		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
 	}
@@ -185,8 +185,8 @@ func Test_FilterAnd(t *testing.T) {
 	}
 }
 
-func Test_FilterOr(t *testing.T) {
-	name := "Test_FilterOr"
+func TestFilterOr(t *testing.T) {
+	name := "TestFilterOr"
 	filter := &FilterOr{}
 
 	if clause, values := filter.Build(nil); clause != "" || len(values) != 0 {
@@ -194,9 +194,67 @@ func Test_FilterOr(t *testing.T) {
 	}
 
 	placeholderGenerator := NewPlaceholderGeneratorQuestion()
-	filter.Add(&FilterExpression{Left: "field1", Operation: ">", Right: "field2"}).
-		Add(&FilterExpression{Left: "field3", Operation: "IS", Right: "null"})
+	filter.Add(&FilterExpression{Left: "field1", Operator: ">", Right: "field2"}).
+		Add(&FilterExpression{Left: "field3", Operator: "IS", Right: "null"})
 	if clause, values := filter.Build(placeholderGenerator); clause != "(field1 > field2) OR (field3 IS null)" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+}
+
+func TestFilterIsNull(t *testing.T) {
+	name := "TestFilterIsNull"
+	filter := &FilterIsNull{}
+
+	filter.Field = "myfield"
+	if clause, values := filter.Build(nil); clause != "myfield IS NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+
+	opt := OptTableAlias{TableAlias: "myalias"}
+	if clause, values := filter.Build(nil, opt); clause != "myalias.myfield IS NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+	if clause, values := filter.Build(nil, &opt); clause != "myalias.myfield IS NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+}
+
+func TestFilterIsNotNull(t *testing.T) {
+	name := "TestFilterIsNotNull"
+	filter := &FilterIsNotNull{}
+
+	filter.Field = "myfield"
+	if clause, values := filter.Build(nil); clause != "myfield IS NOT NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+
+	opt := OptTableAlias{TableAlias: "myalias"}
+	if clause, values := filter.Build(nil, opt); clause != "myalias.myfield IS NOT NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+	if clause, values := filter.Build(nil, &opt); clause != "myalias.myfield IS NOT NULL" || len(values) != 0 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+}
+
+func TestFilterBetween(t *testing.T) {
+	name := "TestFilterBetween"
+	filter := &FilterBetween{Field: "myfield", ValueLeft: 0, ValueRight: 9}
+
+	if clause, values := filter.Build(nil); clause != "" || len(values) != 0 {
+		t.Fatalf("%s failed: expected empty/0 but received %#v/%#v", name, clause, len(values))
+	}
+
+	placeholderGenerator := NewPlaceholderGeneratorQuestion()
+	if clause, values := filter.Build(placeholderGenerator); clause != "myfield BETWEEN ? AND ?" || len(values) != 2 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+
+	opt := OptTableAlias{TableAlias: "myalias"}
+	if clause, values := filter.Build(placeholderGenerator, opt); clause != "myalias.myfield BETWEEN ? AND ?" || len(values) != 2 {
+		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
+	}
+	if clause, values := filter.Build(placeholderGenerator, &opt); clause != "myalias.myfield BETWEEN ? AND ?" || len(values) != 2 {
 		t.Fatalf("%s failed: %#v/%#v", name, clause, values)
 	}
 }
@@ -220,7 +278,7 @@ func Test_DeleteBuilder(t *testing.T) {
 			t.Fatalf("%s failed: %#v / %#v", name, sql, values)
 		}
 
-		filter := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operation: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operation: "=", Value: "a"})
+		filter := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
 		builder.WithFilter(filter)
 		if sql, values := builder.Build(); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
 			t.Fatalf("%s failed: (%#v) expected %#v but received %#v / %#v", name, flavor, expectedSql[flavor], sql, values)
@@ -291,7 +349,7 @@ func Test_UpdateBuilder_WithFilter(t *testing.T) {
 		prom.FlavorDefault:  "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
 	}
 	for _, flavor := range flavorList {
-		filter := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operation: ">", Value: 2}).Add(&FilterFieldValue{Field: "field2", Operation: "=", Value: "b"})
+		filter := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 2}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "b"})
 		builder := NewUpdateBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).WithFilter(filter).WithTable("mytable")
 		builder.AddValues(map[string]interface{}{"1": 1, "2": "two"})
 		if !reflect.DeepEqual(builder.Values, map[string]interface{}{"1": 1, "2": "two"}) {
@@ -320,7 +378,7 @@ func Test_SelectBuilder(t *testing.T) {
 		prom.FlavorDefault:  "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc",
 	}
 	for _, flavor := range flavorList {
-		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operation: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operation: "=", Value: "a"})
+		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
 		builder := NewSelectBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).WithFilter(filterMain)
 
 		builder.WithTable("table0").AddTables("table1", "table2")
@@ -341,7 +399,7 @@ func Test_SelectBuilder(t *testing.T) {
 		}
 		builder.WithGroupBy("cola", "colb")
 
-		filterHaving := (&FilterOr{}).Add(&FilterFieldValue{Field: "cola", Operation: ">", Value: 2}).Add(&FilterExpression{Left: "colb", Operation: "=", Right: "b"})
+		filterHaving := (&FilterOr{}).Add(&FilterFieldValue{Field: "cola", Operator: ">", Value: 2}).Add(&FilterExpression{Left: "colb", Operator: "=", Right: "b"})
 		builder.WithHaving(filterHaving)
 
 		builder.WithSorting((&GenericSorting{}).Add("a").Add("b:-1").Add("c:desc"))
@@ -357,11 +415,11 @@ func Test_SelectBuilderCosmosdb(t *testing.T) {
 	name := "Test_SelectBuilderCosmosdb"
 	flavor := prom.FlavorCosmosDb
 	expectedSql := "SELECT m.a,m.b,m.c FROM mytable m WHERE (m.field1 > $1) AND (m.field2 = $2) GROUP BY m.cola,m.colb HAVING (m.cola > $3) OR (colb = b) ORDER BY m.a,m.b DESC,m.c desc OFFSET 5 LIMIT 3 WITH cross_partition=true"
-	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operation: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operation: "=", Value: "a"})
+	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
 	builder := NewSelectBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).
 		WithFilter(filterMain).WithTables("mytable m").WithColumns("a", "b", "c").
 		WithGroupBy("cola", "colb")
-	filterHaving := (&FilterOr{}).Add(&FilterFieldValue{Field: "cola", Operation: ">", Value: 2}).Add(&FilterExpression{Left: "colb", Operation: "=", Right: "b"})
+	filterHaving := (&FilterOr{}).Add(&FilterFieldValue{Field: "cola", Operator: ">", Value: 2}).Add(&FilterExpression{Left: "colb", Operator: "=", Right: "b"})
 	builder.WithHaving(filterHaving)
 	builder.WithSorting((&GenericSorting{}).Add("a").Add("b:-1").Add("c:desc"))
 	builder.WithLimit(3, 5)

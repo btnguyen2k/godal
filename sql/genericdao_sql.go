@@ -147,7 +147,7 @@ func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericD
 		sqlFlavor:                   prom.FlavorDefault,
 		txModeOnWrite:               true,
 		txIsolationLevel:            sql.LevelDefault,
-		optionOpLiteral:             DefaultOptionLiteralOperation,
+		optionOpLiteral:             DefaultOptionLiteralOperator,
 		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
 	}
 	if dao.GetRowMapper() == nil {
@@ -473,11 +473,11 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 		result := &FilterAnd{FilterAndOr: FilterAndOr{Filters: make([]IFilter, 0)}}
 		ops := dao.optionOpLiteral
 		if ops == nil {
-			ops = DefaultOptionLiteralOperation
+			ops = DefaultOptionLiteralOperator
 		}
 		for iter := v.MapRange(); iter.Next(); {
 			key, _ := reddo.ToString(iter.Key().Interface())
-			result.Add(&FilterFieldValue{Field: key, Operation: ops.OpEqual, Value: iter.Value().Interface()})
+			result.Add(&FilterFieldValue{Field: key, Operator: ops.OpEqual, Value: iter.Value().Interface()})
 		}
 		return result, nil
 	}
