@@ -262,6 +262,36 @@ func TestGenericRowMapperMongo_ToRow(t *testing.T) {
 	}
 }
 
+func TestGenericRowMapperMongo_ToDbColName(t *testing.T) {
+	name := "TestGenericRowMapperMongo_ToDbColName"
+	table := "table"
+	colA, colB := "cola", "ColB"
+	rowMapper := &GenericRowMapperMongo{}
+
+	if fieldName := rowMapper.ToDbColName(table, colA); fieldName != colA {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colA, fieldName)
+	}
+
+	if fieldName := rowMapper.ToDbColName("table", colB); fieldName != colB {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colB, fieldName)
+	}
+}
+
+func TestGenericRowMapperMongo_ToBoFieldName(t *testing.T) {
+	name := "TestGenericRowMapperMongo_ToBoFieldName"
+	table := "table"
+	colA, colB := "cola", "ColB"
+	rowMapper := &GenericRowMapperMongo{}
+
+	if colName := rowMapper.ToBoFieldName(table, colA); colName != colA {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colA, colName)
+	}
+
+	if colName := rowMapper.ToBoFieldName("table", colB); colName != colB {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colB, colName)
+	}
+}
+
 func TestNewGenericDaoMongo(t *testing.T) {
 	name := "TestNewGenericDaoMongo"
 	dao := _initDao(t, name, testMongoCollectionName)

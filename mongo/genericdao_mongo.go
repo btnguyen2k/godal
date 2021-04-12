@@ -134,12 +134,15 @@ import (
 //   - ToRow: transform godal.IGenericBo "as-is" to map[string]interface{}.
 //   - ToBo: expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
 //   - ColumnsList: return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
+//   - ToDbColName  : returns the input field name "as-is".
+//   - ToBoFieldName: returns the input column name "as-is".
 //
 // Available: since v0.0.2.
 type GenericRowMapperMongo struct {
 }
 
 // ToRow implements godal.IRowMapper.ToRow.
+//
 // This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 func (mapper *GenericRowMapperMongo) ToRow(collectionName string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
@@ -150,6 +153,7 @@ func (mapper *GenericRowMapperMongo) ToRow(collectionName string, bo godal.IGene
 }
 
 // ToBo implements godal.IRowMapper.ToBo.
+//
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
 func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
@@ -218,9 +222,24 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 }
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
+//
 // This function returns []string{"*"} since MongoDB is schema-free (hence column-list is not used).
 func (mapper *GenericRowMapperMongo) ColumnsList(collectionName string) []string {
 	return []string{"*"}
+}
+
+// ToDbColName implements godal.IRowMapper.ToDbColName.
+//
+// This function returns the input field name "as-is".
+func (mapper *GenericRowMapperMongo) ToDbColName(_, fieldName string) string {
+	return fieldName
+}
+
+// ToBoFieldName implements godal.IRowMapper.ToBoFieldName.
+//
+// This function returns the input column name "as-is".
+func (mapper *GenericRowMapperMongo) ToBoFieldName(_, colName string) string {
+	return colName
 }
 
 var (
