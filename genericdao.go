@@ -14,6 +14,16 @@ type IRowMapper interface {
 
 	// ColumnsList returns list of a column names corresponding to a database store.
 	ColumnsList(storageId string) []string
+
+	// ToDbColName maps a IGenericBo field name to the corresponding column name for the database store.
+	//
+	// Available since v0.5.0
+	ToDbColName(storageId, fieldName string) string
+
+	// ToBoFieldName maps a database store's column name to the corresponding IGenericBo field name.
+	//
+	// Available since v0.5.0
+	ToBoFieldName(storageId, colName string) string
 }
 
 /*----------------------------------------------------------------------*/
@@ -45,7 +55,7 @@ type IGenericDao interface {
 	// Filter should match exactly one BO. If there are more than one BO matching the filter, only the first one is returned.
 	GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
 
-	// GdaoFetchOne fetches many BOs from database store and returns them as a list.
+	// GdaoFetchMany fetches many BOs from database store and returns them as a list.
 	//
 	// startOffset (0-based) and numItems are for paging. numItems <= 0 means no limit. Be noted that some databases do not support startOffset nor paging at all.
 	GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
