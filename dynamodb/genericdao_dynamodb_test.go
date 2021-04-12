@@ -366,6 +366,38 @@ func TestGenericRowMapperDynamodb_ToRow_Nil(t *testing.T) {
 	}
 }
 
+func TestGenericRowMapperDynamodb_ToDbColName(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ToDbColName"
+	table := "table"
+	colA, colB, colC := "cola", "ColB", "colC"
+	cols := []string{colA, colB, colC}
+	rowMapper := &GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{table: cols}}
+
+	if fieldName := rowMapper.ToDbColName(table, colA); fieldName != colA {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colA, fieldName)
+	}
+
+	if fieldName := rowMapper.ToDbColName("table", colB); fieldName != colB {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colB, fieldName)
+	}
+}
+
+func TestGenericRowMapperDynamodb_ToBoFieldName(t *testing.T) {
+	name := "TestGenericRowMapperDynamodb_ToBoFieldName"
+	table := "table"
+	colA, colB, colC := "cola", "ColB", "colC"
+	cols := []string{colA, colB, colC}
+	rowMapper := &GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{table: cols}}
+
+	if colName := rowMapper.ToBoFieldName(table, colA); colName != colA {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colA, colName)
+	}
+
+	if colName := rowMapper.ToBoFieldName("table", colB); colName != colB {
+		t.Fatalf("%s failed, expect %#v but received %#v", name, colB, colName)
+	}
+}
+
 const (
 	envAwsDynamodbTestTableName = "DYNAMODB_TEST_TABLE_NAME"
 	envAwsDynamodbTestGsiName   = "DYNAMODB_TEST_GSI_NAME"

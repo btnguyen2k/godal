@@ -4,7 +4,7 @@ Package dynamodb provides a generic AWS DynamoDB implementation of godal.IGeneri
 General guideline:
 
 	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
-	- Row-mapper's 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	- Row-mapper's function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
 
 Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 
@@ -42,7 +42,7 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	}
 
 	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
-	its function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	its function 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
 
 Guideline: Implement custom AWS DynamoDB business dao and bo
 
@@ -143,9 +143,11 @@ import (
 // GenericRowMapperDynamodb is a generic implementation of godal.IRowMapper for AWS DynamoDB.
 //
 // Implementation rules:
-// 	 - ToRow      : transform godal.IGenericBo "as-is" to map[string]interface{}.
-// 	 - ToBo       : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-// 	 - ColumnsList: lookup column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant).
+// 	 - ToRow        : transform godal.IGenericBo "as-is" to map[string]interface{}.
+// 	 - ToBo         : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+// 	 - ColumnsList  : looks up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
+//   - ToDbColName  : returns the input field name "as-is".
+//   - ToBoFieldName: returns the input column name "as-is".
 //
 // Available: since v0.2.0
 type GenericRowMapperDynamodb struct {
@@ -154,6 +156,7 @@ type GenericRowMapperDynamodb struct {
 }
 
 // ToRow implements godal.IRowMapper.ToRow.
+//
 // This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 func (mapper *GenericRowMapperDynamodb) ToRow(_ string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
@@ -164,6 +167,7 @@ func (mapper *GenericRowMapperDynamodb) ToRow(_ string, bo godal.IGenericBo) (in
 }
 
 // ToBo implements godal.IRowMapper.ToBo.
+//
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
 func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
@@ -236,12 +240,26 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
 //
-// This function lookups column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant).
+// This function looks up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
 func (mapper *GenericRowMapperDynamodb) ColumnsList(table string) []string {
 	if result, ok := mapper.ColumnsListMap[table]; ok {
 		return result
 	}
 	return nil
+}
+
+// ToDbColName implements godal.IRowMapper.ToDbColName.
+//
+// This function returns the input field name "as-is".
+func (mapper *GenericRowMapperDynamodb) ToDbColName(_, fieldName string) string {
+	return fieldName
+}
+
+// ToBoFieldName implements godal.IRowMapper.ToBoFieldName.
+//
+// This function returns the input column name "as-is".
+func (mapper *GenericRowMapperDynamodb) ToBoFieldName(_, colName string) string {
+	return colName
 }
 
 var (
