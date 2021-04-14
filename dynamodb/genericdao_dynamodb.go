@@ -144,10 +144,10 @@ import (
 //
 // Implementation rules:
 // 	 - ToRow        : transform godal.IGenericBo "as-is" to map[string]interface{}.
-// 	 - ToBo         : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-// 	 - ColumnsList  : looks up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
-//   - ToDbColName  : returns the input field name "as-is".
-//   - ToBoFieldName: returns the input column name "as-is".
+// 	 - ToBo         : expect input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+// 	 - ColumnsList  : look up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
+//   - ToDbColName  : return the input field name "as-is".
+//   - ToBoFieldName: return the input column name "as-is".
 //
 // Available: since v0.2.0
 type GenericRowMapperDynamodb struct {

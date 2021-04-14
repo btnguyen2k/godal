@@ -233,7 +233,7 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 	driver = strings.Trim(driver, "\"")
 	url = strings.Trim(url, "\"")
 	if driver == "" || url == "" {
-		t.Skipf("%s skilled", testName)
+		t.Skipf("%s skipped", testName)
 	}
 
 	url += ";Db=godal"

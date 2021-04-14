@@ -166,7 +166,7 @@ var (
 //
 // Available since v0.3.0
 type IGenericDaoSql interface {
-	// inherit all functions from godal.IGenericDao
+	// IGenericDao instance to inherit existing functions.
 	godal.IGenericDao
 
 	// GdaoDeleteWithTx is database/sql variant of GdaoDelete.
@@ -190,7 +190,6 @@ type IGenericDaoSql interface {
 	// GdaoSaveWithTx is database/sql variant of godal.IGenericDao.GdaoSave.
 	GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
 
-	/*----------------------------------------------------------------------*/
 	// SetRowMapper attaches an IRowMapper to the DAO for latter use.
 	SetRowMapper(rowMapper godal.IRowMapper) IGenericDaoSql
 

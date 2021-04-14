@@ -131,11 +131,11 @@ import (
 // GenericRowMapperMongo is a generic implementation of godal.IRowMapper for MongoDB.
 //
 // Implementation rules:
-//   - ToRow: transform godal.IGenericBo "as-is" to map[string]interface{}.
-//   - ToBo: expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-//   - ColumnsList: return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
-//   - ToDbColName  : returns the input field name "as-is".
-//   - ToBoFieldName: returns the input column name "as-is".
+//   - ToRow        : transform godal.IGenericBo "as-is" to map[string]interface{}.
+//   - ToBo         : expect input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+//   - ColumnsList  : return []string{"*"} (MongoDB is schema-free, hence column-list is not used).
+//   - ToDbColName  : return the input field name "as-is".
+//   - ToBoFieldName: return the input column name "as-is".
 //
 // Available: since v0.0.2.
 type GenericRowMapperMongo struct {
