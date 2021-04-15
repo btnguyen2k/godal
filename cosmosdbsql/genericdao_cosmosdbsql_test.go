@@ -142,8 +142,17 @@ func TestGenericRowMapperCosmosdb_ToBo(t *testing.T) {
 func TestGenericRowMapperCosmosdb_ToBo_Invalid(t *testing.T) {
 	name := "TestGenericRowMapperCosmosdb_ToBo_Invalid"
 	rm := &GenericRowMapperCosmosdb{}
-	row, err := rm.ToBo("", time.Time{})
-	if err == nil || row != nil {
+	gbo, err := rm.ToBo("", time.Time{})
+	if err == nil || gbo != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
+	}
+}
+
+func TestGenericRowMapperCosmosdb_ToBo_Nil(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToBo_Nil"
+	rm := &GenericRowMapperCosmosdb{}
+	gbo, err := rm.ToBo("", nil)
+	if err != nil || gbo != nil {
 		t.Fatalf("%s failed: error: %#v", name, err)
 	}
 }
@@ -212,6 +221,50 @@ func TestGenericRowMapperCosmosdb_ToGbo_Intact(t *testing.T) {
 		if v, e := gbo.GboGetAttr("colD", reddo.TypeBool); e != nil || v.(bool) != true {
 			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "colD", true, v)
 		}
+	}
+}
+
+func TestGenericRowMapperCosmosdb_ToDbColName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToDbColName_Intact"
+	cola := "field1"
+	colb := "FIELD2"
+	colc := "Field3"
+	cold := "FielD4"
+	rm := &GenericRowMapperCosmosdb{}
+
+	if colName, expected := rm.ToDbColName("table", "field1"), cola; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("-", "FIELD2"), colb; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "Field3"), colc; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "FielD4"), cold; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+}
+
+func TestGenericRowMapperCosmosdb_ToBoFieldName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToBoFieldName_Intact"
+	fielda := "col1"
+	fieldb := "COL2"
+	fieldc := "Col3"
+	fieldd := "CoL4"
+	rm := &GenericRowMapperCosmosdb{}
+
+	if fieldName, expected := rm.ToBoFieldName("table", "col1"), fielda; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("-", "COL2"), fieldb; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "Col3"), fieldc; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "CoL4"), fieldd; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
 	}
 }
 

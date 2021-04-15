@@ -161,6 +161,8 @@ import (
 //   - ToRow      : transform godal.IGenericBo "as-is" to map[string]interface{}.
 //   - ToBo       : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
 //   - ColumnsList: return []string{"*"} (CosmosDB is schema-free, hence column-list is not used).
+//   - ToDbColName  : return the input field name "as-is".
+//   - ToBoFieldName: return the input column name "as-is".
 //
 // Available: since v0.3.0
 type GenericRowMapperCosmosdb struct {
@@ -248,6 +250,20 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 // This function returns []string{"*"} since CosmosDB is schema-free (hence column-list is not used).
 func (mapper *GenericRowMapperCosmosdb) ColumnsList(_ string) []string {
 	return []string{"*"}
+}
+
+// ToDbColName implements godal.IRowMapper.ToDbColName.
+//
+// This function returns the input field name "as-is".
+func (mapper *GenericRowMapperCosmosdb) ToDbColName(_, fieldName string) string {
+	return fieldName
+}
+
+// ToBoFieldName implements godal.IRowMapper.ToBoFieldName.
+//
+// This function returns the input column name "as-is".
+func (mapper *GenericRowMapperCosmosdb) ToBoFieldName(_, colName string) string {
+	return colName
 }
 
 var (
