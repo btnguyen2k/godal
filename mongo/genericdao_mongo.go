@@ -265,7 +265,7 @@ func NewGenericDaoMongo(mongoConnect *prom.MongoConnect, agdao *godal.AbstractGe
 // 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
 // 	 - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(storageId string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
 // 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)

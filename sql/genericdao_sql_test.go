@@ -152,14 +152,14 @@ func TestGenericDaoSql_BuildOrdering(t *testing.T) {
 	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "tbl_test", prom.FlavorDefault)
 
 	var opts *godal.SortingOpt = nil
-	if ordering, err := dao.BuildOrdering("tbl_test", opts); ordering != nil || err != nil {
+	if ordering, err := dao.BuildSorting("tbl_test", opts); ordering != nil || err != nil {
 		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
 	}
 
 	opts = &godal.SortingOpt{}
 	opts.Add(&godal.SortingField{FieldName: fieldGboUsername})
 	expected := colSqlUsername
-	if ordering, err := dao.BuildOrdering("tbl_test", opts); err != nil || ordering == nil {
+	if ordering, err := dao.BuildSorting("tbl_test", opts); err != nil || ordering == nil {
 		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
 	} else if ordering.Build() != expected {
 		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, ordering.Build())
@@ -167,7 +167,7 @@ func TestGenericDaoSql_BuildOrdering(t *testing.T) {
 
 	opts.Add(&godal.SortingField{FieldName: fieldGboId, Descending: true})
 	expected += "," + colSqlId + " DESC"
-	if ordering, err := dao.BuildOrdering("tbl_test", opts); err != nil || ordering == nil {
+	if ordering, err := dao.BuildSorting("tbl_test", opts); err != nil || ordering == nil {
 		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
 	} else if ordering.Build() != expected {
 		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, ordering.Build())

@@ -570,7 +570,7 @@ func (dao *GenericDaoCosmosdb) GdaoFetchManyWithTx(ctx context.Context, tx *sql.
 		return nil, err
 	}
 
-	o, _ := dao.BuildOrdering(ordering)
+	o, _ := dao.BuildSorting(ordering)
 	columns := dao.GetRowMapper().ColumnsList(collection)
 	builder := &cosmosdbSelectBuilder{
 		SelectBuilder: godalsql.NewSelectBuilder().WithFlavor(dao.GetSqlFlavor()).WithColumns(columns...).
