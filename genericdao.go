@@ -58,7 +58,7 @@ type IGenericDao interface {
 	// GdaoFetchMany fetches many BOs from database store and returns them as a list.
 	//
 	// startOffset (0-based) and numItems are for paging. numItems <= 0 means no limit. Be noted that some databases do not support startOffset nor paging at all.
-	GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
+	GdaoFetchMany(storageId string, filter interface{}, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
 
 	// GdaoCreate persists one BO to database store and returns the number of saved items.
 	//
@@ -95,7 +95,7 @@ func NewAbstractGenericDao(gdao IGenericDao) *AbstractGenericDao {
 //   - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
 //   - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
 //   - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
-//   - (n) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]IGenericBo, error)
+//   - (n) GdaoFetchMany(storageId string, filter interface{}, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
 //   - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
 //   - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
 //   - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
