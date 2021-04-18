@@ -129,6 +129,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -179,7 +180,7 @@ type IGenericDaoSql interface {
 	GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (godal.IGenericBo, error)
 
 	// GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
-	GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error)
+	GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error)
 
 	// GdaoCreateWithTx is database/sql variant of GdaoCreate.
 	GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
@@ -244,12 +245,9 @@ type IGenericDaoSql interface {
 	BuildFilter(filter interface{}) (IFilter, error)
 
 	// BuildOrdering builds elements for 'ORDER BY' clause, based on the following rules:
-	//   - If 'ordering' is nil: return nil.
-	//   - If 'ordering' is ISorting: return 'ordering'.
-	//   - If 'ordering' is a map: build a GenericSorting combining all map entries, where map key is field name and map value is ordering specification (1 for ASC, -1 for DESC).
-	//   - If 'ordering' is a slice/array: build a GenericSorting combining all list entries, assuming each entry is a string in the format '<field_name[<:order>]>' ('order>=0' means 'ascending' and 'order<0' means 'descending').
-	//   - Otherwise, return error.
-	BuildOrdering(ordering interface{}) (ISorting, error)
+	//
+	// Available since v0.5.0
+	BuildOrdering(storageId string, ordering *godal.SortingOpt) (ISorting, error)
 
 	// SqlExecute executes a non-SELECT SQL statement within a context/transaction.
 	//   - If tx is not nil, the transaction context is used to execute the query.
@@ -323,7 +321,7 @@ type IGenericDaoSql interface {
 //   - (Y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
 //   - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-//   - (y) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numItems int) ([]godal.IGenericBo, error)
+//   - (y) GdaoFetchMany(storageId string, filter interface{}, ordering *godal.SortingOpt, fromOffset, numItems int) ([]godal.IGenericBo, error)
 //   - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
@@ -492,26 +490,47 @@ func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
 //   - Otherwise, return error.
 //
 // Available since v0.0.2
-func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) {
-	if ordering == nil {
+
+// BuildOrdering builds elements for 'ORDER BY' clause.
+//
+// Available since v0.5.0
+func (dao *GenericDaoSql) BuildOrdering(storageId string, ordering *godal.SortingOpt) (ISorting, error) {
+	if ordering == nil || len(ordering.Fields) == 0 {
 		return nil, nil
 	}
-	v := reflect.ValueOf(ordering)
-	if v.Type().AssignableTo(isortingType) {
-		return ordering.(ISorting), nil
+	rm := dao.GetRowMapper()
+	if rm == nil {
+		return nil, errors.New("row-mapper is needed to build ordering clause")
 	}
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-	}
-	if v.Kind() == reflect.Map {
-		result := &GenericSorting{Flavor: dao.sqlFlavor}
-		for iter := v.MapRange(); iter.Next(); {
-			key, _ := reddo.ToString(iter.Key().Interface())
-			value, _ := reddo.ToString(iter.Value().Interface())
-			result.Add(key + ":" + value)
+	result := &GenericSorting{Flavor: dao.sqlFlavor}
+	for _, field := range ordering.Fields {
+		colName := rm.ToDbColName(storageId, field.FieldName)
+		if colName == "" {
+			return nil, fmt.Errorf("cannot map field \"%s\" to db column name", field.FieldName)
 		}
-		return result, nil
+		if field.Descending {
+			colName += ":-1"
+		}
+		result.Add(colName)
 	}
-	return nil, fmt.Errorf("cannot build ordering from %v", ordering)
+	return result, nil
+
+	// v := reflect.ValueOf(ordering)
+	// if v.Type().AssignableTo(isortingType) {
+	// 	return ordering.(ISorting), nil
+	// }
+	// for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+	// }
+	// if v.Kind() == reflect.Map {
+	// 	result := &GenericSorting{Flavor: dao.sqlFlavor}
+	// 	for iter := v.MapRange(); iter.Next(); {
+	// 		key, _ := reddo.ToString(iter.Key().Interface())
+	// 		value, _ := reddo.ToString(iter.Value().Interface())
+	// 		result.Add(key + ":" + value)
+	// 	}
+	// 	return result, nil
+	// }
+	// return nil, fmt.Errorf("cannot build ordering from %v", ordering)
 }
 
 /*----------------------------------------------------------------------*/
@@ -778,19 +797,19 @@ func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, st
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, ordering *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithTx(nil, nil, storageId, filter, ordering, fromOffset, numRows)
 }
 
 // GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
 	f, err := dao.BuildFilter(filter)
 	if err != nil {
 		return nil, err
 	}
-	o, _ := dao.BuildOrdering(ordering)
+	o, _ := dao.BuildOrdering(storageId, ordering)
 	dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
 	if dbRows != nil {
 		defer func() { _ = dbRows.Close() }()
