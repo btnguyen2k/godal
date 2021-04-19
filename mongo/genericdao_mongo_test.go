@@ -366,41 +366,6 @@ func TestToMap(t *testing.T) {
 	}
 }
 
-func TestToSortingMap(t *testing.T) {
-	name := "TestToSortingMap"
-
-	input := make(map[string]interface{})
-	if m, err := toSortingMap(input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toSortingMap(&input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputString := `{"id":1, "username":-1}`
-	if m, err := toSortingMap(inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toSortingMap(&inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputBytes := []byte(`{"id":1, "username":-1}`)
-	if m, err := toSortingMap(inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toSortingMap(&inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	if m, err := toSortingMap([]interface{}{"invalid", "input"}); m != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toSortingMap(time.Time{}); m != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-}
-
 func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoDelete"
 	dao := _initDao(t, name, testMongoCollectionName)

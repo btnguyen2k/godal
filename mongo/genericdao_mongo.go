@@ -367,14 +367,12 @@ func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName s
 }
 
 // MongoInsertOne performs a MongoDB's insert-one command on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 func (dao *GenericDaoMongo) MongoInsertOne(ctx context.Context, collectionName string, doc interface{}) (*mongo.InsertOneResult, error) {
 	return dao.GetMongoCollection(collectionName).InsertOne(ctx, doc)
 }
 
 // MongoUpdateOne performs a MongoDB's find-one-and-replace command with 'upsert=false' on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoUpdateOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
@@ -384,7 +382,6 @@ func (dao *GenericDaoMongo) MongoUpdateOne(ctx context.Context, collectionName s
 }
 
 // MongoSaveOne performs a MongoDB's find-one-and-replace command with 'upsert=true' on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoSaveOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
@@ -427,38 +424,6 @@ func toMap(input interface{}) (map[string]interface{}, error) {
 	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
 }
 
-func toSortingMap(input interface{}) (map[string]int, error) {
-	if input == nil {
-		return nil, nil
-	}
-	v := reflect.ValueOf(input)
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	switch v.Kind() {
-	case reflect.String:
-		// expect input to be a map in JSON
-		result := make(map[string]int)
-		err := json.Unmarshal([]byte(v.Interface().(string)), &result)
-		return result, err
-	case reflect.Array, reflect.Slice:
-		// expect input to be a map in JSON
-		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
-		if err != nil {
-			return nil, err
-		}
-		result := make(map[string]int)
-		err = json.Unmarshal(t.([]byte), &result)
-		return result, err
-	case reflect.Map:
-		t := make(map[string]int)
-		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(t))
-		return result.(map[string]int), err
-
-	}
-	return nil, fmt.Errorf("cannot convert %v to map[string]int", input)
-}
-
 // GdaoDelete implements godal.IGenericDao.GdaoDelete.
 //
 // Available: since v0.1.0
@@ -475,7 +440,6 @@ func (dao *GenericDaoMongo) GdaoDeleteWithContext(ctx context.Context, collectio
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-//
 //   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
 //   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) GdaoDeleteMany(collectionName string, filter interface{}) (int, error) {
@@ -498,7 +462,6 @@ func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, colle
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-//
 //   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
 //   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) GdaoFetchOne(collectionName string, filter interface{}) (godal.IGenericBo, error) {
@@ -522,7 +485,6 @@ func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collect
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-//
 //   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
 //   - nil filter means "match all".
 //   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
@@ -599,7 +561,6 @@ func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName
 }
 
 // WrapTransaction wraps a function inside a transaction.
-//
 //   - txFunc: the function to wrap. If the function returns error, the transaction will be aborted, otherwise transaction is committed.
 //
 // Available: since v0.0.4
