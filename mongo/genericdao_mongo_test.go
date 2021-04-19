@@ -552,7 +552,8 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 		}
 	}
 
-	sorting := bson.M{fieldId: -1}
+	// sorting := bson.M{fieldId: -1}
+	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: fieldId, Descending: true})
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, sorting, 1, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {

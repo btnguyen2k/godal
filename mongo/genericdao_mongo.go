@@ -120,6 +120,7 @@ import (
 
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/prom"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
@@ -160,6 +161,13 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 		return nil, nil
 	}
 	switch row.(type) {
+	case *map[string]interface{}:
+		// unwrap if pointer
+		m := row.(*map[string]interface{})
+		if m == nil {
+			return nil, nil
+		}
+		return mapper.ToBo(collectionName, *m)
 	case map[string]interface{}:
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
@@ -170,11 +178,12 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson([]byte(row.(string)))
 	case *string:
-		if row.(*string) == nil {
+		// unwrap if pointer
+		s := row.(*string)
+		if s == nil {
 			return nil, nil
 		}
-		bo := godal.NewGenericBo()
-		return bo, bo.GboFromJson([]byte(*row.(*string)))
+		return mapper.ToBo(collectionName, *s)
 	case []byte:
 		if row.([]byte) == nil {
 			return nil, nil
@@ -182,14 +191,17 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson(row.([]byte))
 	case *[]byte:
-		if row.(*[]byte) == nil {
+		// unwrap if pointer
+		ba := row.(*[]byte)
+		if ba == nil {
 			return nil, nil
 		}
-		return mapper.ToBo(collectionName, *row.(*[]byte))
+		return mapper.ToBo(collectionName, *ba)
 	}
 
 	v := reflect.ValueOf(row)
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+		// unwrap if pointer
 	}
 	switch v.Kind() {
 	case reflect.Map:
@@ -224,7 +236,7 @@ func (mapper *GenericRowMapperMongo) ToBo(collectionName string, row interface{}
 // ColumnsList implements godal.IRowMapper.ColumnsList.
 //
 // This function returns []string{"*"} since MongoDB is schema-free (hence column-list is not used).
-func (mapper *GenericRowMapperMongo) ColumnsList(collectionName string) []string {
+func (mapper *GenericRowMapperMongo) ColumnsList(_ string) []string {
 	return []string{"*"}
 }
 
@@ -315,7 +327,6 @@ func (dao *GenericDaoMongo) GetMongoCollection(collectionName string, opts ...*o
 }
 
 // MongoDeleteMany performs a MongoDB's delete-many command on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoDeleteMany(ctx context.Context, collectionName string, filter map[string]interface{}) (*mongo.DeleteResult, error) {
@@ -323,7 +334,6 @@ func (dao *GenericDaoMongo) MongoDeleteMany(ctx context.Context, collectionName 
 }
 
 // MongoFetchOne performs a MongoDB's find-one command on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 func (dao *GenericDaoMongo) MongoFetchOne(ctx context.Context, collectionName string, filter map[string]interface{}) *mongo.SingleResult {
@@ -331,14 +341,21 @@ func (dao *GenericDaoMongo) MongoFetchOne(ctx context.Context, collectionName st
 }
 
 // MongoFetchMany performs a MongoDB's find command on the specified collection.
-//
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 //   - sorting: see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
-func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName string, filter map[string]interface{}, sorting map[string]int, startOffset, numItems int) (*mongo.Cursor, error) {
+func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName string, filter map[string]interface{}, sorting *godal.SortingOpt, startOffset, numItems int) (*mongo.Cursor, error) {
 	opt := &options.FindOptions{}
-	if sorting != nil && len(sorting) > 0 {
-		opt.SetSort(sorting)
+	if sorting != nil && len(sorting.Fields) > 0 {
+		sortingInfo := bson.D{}
+		for _, field := range sorting.Fields {
+			if field.Descending {
+				sortingInfo = append(sortingInfo, bson.E{Key: field.FieldName, Value: -1})
+			} else {
+				sortingInfo = append(sortingInfo, bson.E{Key: field.FieldName, Value: 1})
+			}
+		}
+		opt.SetSort(sortingInfo)
 	}
 	if numItems > 0 {
 		opt.SetLimit(int64(numItems))
@@ -511,24 +528,20 @@ func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collect
 //   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 //   - sorting should be a map[string]int, or it can be a string/[]byte representing map[string]int in JSON, then it is unmarshalled to map[string]int.
 //   - see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
-func (dao *GenericDaoMongo) GdaoFetchMany(collectionName string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoMongo) GdaoFetchMany(collectionName string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, collectionName, filter, sorting, startOffset, numItems)
 }
 
 // GdaoFetchManyWithContext is is MongoDB variant of GdaoFetchMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collectionName string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collectionName string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	f, err := toMap(filter)
 	if err != nil {
 		return nil, err
 	}
-	s, err := toSortingMap(sorting)
-	if err != nil {
-		return nil, err
-	}
 	ctx = dao.mongoConnect.NewContextIfNil(ctx)
-	cursor, err := dao.MongoFetchMany(ctx, collectionName, f, s, startOffset, numItems)
+	cursor, err := dao.MongoFetchMany(ctx, collectionName, f, sorting, startOffset, numItems)
 	if cursor != nil {
 		defer func() { _ = cursor.Close(ctx) }()
 	}
