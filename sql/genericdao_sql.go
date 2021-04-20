@@ -781,7 +781,10 @@ func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, s
 	if err != nil {
 		return nil, err
 	}
-	o, _ := dao.BuildSorting(storageId, sorting)
+	o, err := dao.BuildSorting(storageId, sorting)
+	if err != nil {
+		return nil, err
+	}
 	dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
 	if dbRows != nil {
 		defer func() { _ = dbRows.Close() }()

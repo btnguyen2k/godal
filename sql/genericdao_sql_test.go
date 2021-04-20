@@ -384,20 +384,20 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 		}
 	}
 
-	// fetchIdList := []string{"7", "6", "5"}
-	// sorting := map[string]int{colSqlUsername: -1}
-	// if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, sorting, 1, 3); err != nil {
-	// 	t.Fatalf("%s failed: %e", name, err)
-	// } else if dbRows == nil || len(dbRows) != 3 {
-	// 	t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
-	// } else {
-	// 	for i, row := range dbRows {
-	// 		u := dao.toUser(row)
-	// 		if u.Id != fetchIdList[i] {
-	// 			t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], u.Id)
-	// 		}
-	// 	}
-	// }
+	fetchIdList := []string{"7", "6", "5"}
+	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: fieldGboUsername, Descending: true})
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, sorting, 1, 3); err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	} else if dbRows == nil || len(dbRows) != 3 {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
+	} else {
+		for i, row := range dbRows {
+			u := dao.toUser(row)
+			if u.Id != fetchIdList[i] {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], u.Id)
+			}
+		}
+	}
 }
 
 func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {

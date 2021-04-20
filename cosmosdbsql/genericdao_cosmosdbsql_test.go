@@ -631,7 +631,7 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 	}
 
 	fetchIdList := []string{"7", "6", "5"}
-	sorting := map[string]int{colSqlUsername: -1}
+	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: fieldGboUsername, Descending: true})
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, sorting, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
