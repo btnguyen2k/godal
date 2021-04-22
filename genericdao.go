@@ -38,7 +38,7 @@ var (
 // Sample usage: see AbstractGenericDao for an abstract implementation of IGenericDao.
 type IGenericDao interface {
 	// GdaoCreateFilter creates a filter object to match exactly one specific BO.
-	GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
+	GdaoCreateFilter(storageId string, bo IGenericBo) FilterOpt
 
 	// GdaoDelete removes the specified BO from database store and returns the number of effected items.
 	//
@@ -48,17 +48,17 @@ type IGenericDao interface {
 	// GdaoDeleteMany removes many BOs from database store at once and returns the number of effected items.
 	//
 	// Upon successful call, this function may return 0 if no BO matches the filter.
-	GdaoDeleteMany(storageId string, filter interface{}) (int, error)
+	GdaoDeleteMany(storageId string, filter FilterOpt) (int, error)
 
 	// GdaoFetchOne fetches one BO from database store.
 	//
 	// Filter should match exactly one BO. If there are more than one BO matching the filter, only the first one is returned.
-	GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
+	GdaoFetchOne(storageId string, filter FilterOpt) (IGenericBo, error)
 
 	// GdaoFetchMany fetches many BOs from database store and returns them as a list.
 	//
 	// startOffset (0-based) and numItems are for paging. numItems <= 0 means no limit. Be noted that some databases do not support startOffset nor paging at all.
-	GdaoFetchMany(storageId string, filter interface{}, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
+	GdaoFetchMany(storageId string, filter FilterOpt, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
 
 	// GdaoCreate persists one BO to database store and returns the number of saved items.
 	//
@@ -91,11 +91,11 @@ func NewAbstractGenericDao(gdao IGenericDao) *AbstractGenericDao {
 // AbstractGenericDao is an abstract implementation of IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo IGenericBo) interface{}
+//   - (n) GdaoCreateFilter(storageId string, bo IGenericBo) FilterOpt
 //   - (n) GdaoDelete(storageId string, bo IGenericBo) (int, error)
-//   - (n) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-//   - (n) GdaoFetchOne(storageId string, filter interface{}) (IGenericBo, error)
-//   - (n) GdaoFetchMany(storageId string, filter interface{}, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
+//   - (n) GdaoDeleteMany(storageId string, filter FilterOpt) (int, error)
+//   - (n) GdaoFetchOne(storageId string, filter FilterOpt) (IGenericBo, error)
+//   - (n) GdaoFetchMany(storageId string, filter FilterOpt, sorting *SortingOpt, startOffset, numItems int) ([]IGenericBo, error)
 //   - (n) GdaoCreate(storageId string, bo IGenericBo) (int, error)
 //   - (n) GdaoUpdate(storageId string, bo IGenericBo) (int, error)
 //   - (n) GdaoSave(storageId string, bo IGenericBo) (int, error)
