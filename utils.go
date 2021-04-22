@@ -47,18 +47,10 @@ const (
 	FilterOpLessOrEqual
 )
 
-// FilterTransformer is a function that receives an FilterOpt instance and transforms it to
-// suitable filter object the the underlying database engine.
-//
-// Available since v0.5.0
-type FilterTransformer func(self FilterOpt) (interface{}, error)
-
 // FilterOpt is the abstract interface for specifying filter.
 //
 // Available since v0.5.0
 type FilterOpt interface {
-	// // Build passes the FilterOpt instance to the transformer function and returns its output.
-	// Build(transformer FilterTransformer) (interface{}, error)
 }
 
 // FilterOptAnd combines two or more filters using AND clause.
@@ -76,11 +68,6 @@ func (f *FilterOptAnd) Add(filter FilterOpt) *FilterOptAnd {
 	return f
 }
 
-// // Build implements FilterOpt.Build.
-// func (f *FilterOptAnd) Build(transformer FilterTransformer) (interface{}, error) {
-// 	return transformer(f)
-// }
-
 // FilterOptOr combines two or more filters using OR clause.
 //
 // Available since v0.5.0
@@ -95,11 +82,6 @@ func (f *FilterOptOr) Add(filter FilterOpt) *FilterOptOr {
 	}
 	return f
 }
-
-// // Build implements FilterOpt.Build.
-// func (f *FilterOptOr) Build(transformer FilterTransformer) (interface{}, error) {
-// 	return transformer(f)
-// }
 
 // FilterOptFieldOpValue represents single filter: <field> <operator> <value>.
 type FilterOptFieldOpValue struct {
