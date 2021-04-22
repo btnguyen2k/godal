@@ -71,21 +71,21 @@ func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
 
 /*----------------------------------------------------------------------*/
 
-// OptionOpLiteral controls literal forms of operators.
-type OptionOpLiteral struct {
-	OpAnd      string // 'and' operator, default is "AND"
-	OpOr       string // 'or' operator, default is "OR"
-	OpEqual    string // 'equal' operator, default is "="
-	OpNotEqual string // 'not equal' operator, default is "!="
-}
+// // OptionOpLiteral controls literal forms of operators.
+// type OptionOpLiteral struct {
+// 	OpAnd      string // 'and' operator, default is "AND"
+// 	OpOr       string // 'or' operator, default is "OR"
+// 	OpEqual    string // 'equal' operator, default is "="
+// 	OpNotEqual string // 'not equal' operator, default is "!="
+// }
 
-// DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
-var DefaultOptionLiteralOperator = &OptionOpLiteral{
-	OpAnd:      "AND",
-	OpOr:       "OR",
-	OpEqual:    "=",
-	OpNotEqual: "!=",
-}
+// // DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
+// var DefaultOptionLiteralOperator = &OptionOpLiteral{
+// 	OpAnd:      "AND",
+// 	OpOr:       "OR",
+// 	OpEqual:    "=",
+// 	OpNotEqual: "!=",
+// }
 
 /*----------------------------------------------------------------------*/
 
