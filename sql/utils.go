@@ -318,7 +318,7 @@ func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts
 
 /*----------------------------------------------------------------------*/
 
-// FilterIsNil represents single filter: <field> IS NULL.
+// FilterIsNull represents single filter: <field> IS NULL.
 //
 // Available since v0.4.0
 type FilterIsNull struct {
@@ -346,7 +346,7 @@ func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...
 	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
 }
 
-// FilterIsNotNil represents single filter: <field> IS NOT NULL.
+// FilterIsNotNull represents single filter: <field> IS NOT NULL.
 //
 // Available since v0.4.0
 type FilterIsNotNull struct {
