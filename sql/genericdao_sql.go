@@ -143,12 +143,11 @@ import (
 // NewGenericDaoSql constructs a new GenericDaoSql with 'txModeOnWrite=true'.
 func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoSql {
 	dao := &GenericDaoSql{
-		AbstractGenericDao: agdao,
-		sqlConnect:         sqlConnect,
-		sqlFlavor:          prom.FlavorDefault,
-		txModeOnWrite:      true,
-		txIsolationLevel:   sql.LevelDefault,
-		// optionOpLiteral:              DefaultOptionLiteralOperator,
+		AbstractGenericDao:           agdao,
+		sqlConnect:                   sqlConnect,
+		sqlFlavor:                    prom.FlavorDefault,
+		txModeOnWrite:                true,
+		txIsolationLevel:             sql.LevelDefault,
 		funcNewPlaceholderGenerator:  NewPlaceholderGeneratorQuestion,
 		funcFilterOperatorTranslator: DefaultFilterOperatorTranslator,
 	}
@@ -225,12 +224,6 @@ type IGenericDaoSql interface {
 
 	// StartTx starts a new transaction.
 	StartTx(ctx context.Context) (*sql.Tx, error)
-
-	// // GetOptionOpLiteral returns operation literal settings.
-	// GetOptionOpLiteral() *OptionOpLiteral
-
-	// // SetOptionOpLiteral sets operation literal settings.
-	// SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql
 
 	// GetFuncNewPlaceholderGenerator returns the function creates 'PlaceholderGenerator'.
 	GetFuncNewPlaceholderGenerator() NewPlaceholderGenerator
@@ -363,11 +356,10 @@ func DefaultFilterOperatorTranslator(op godal.FilterOperator) (string, error) {
 // Note: IGenericDaoSql and GenericDaoSql should be in sync.
 type GenericDaoSql struct {
 	*godal.AbstractGenericDao
-	sqlConnect       *prom.SqlConnect
-	sqlFlavor        prom.DbFlavor
-	txModeOnWrite    bool
-	txIsolationLevel sql.IsolationLevel
-	// optionOpLiteral              *OptionOpLiteral
+	sqlConnect                   *prom.SqlConnect
+	sqlFlavor                    prom.DbFlavor
+	txModeOnWrite                bool
+	txIsolationLevel             sql.IsolationLevel
 	funcFilterOperatorTranslator FilterOperatorTranslator
 	funcNewPlaceholderGenerator  NewPlaceholderGenerator
 }
@@ -463,17 +455,6 @@ func (dao *GenericDaoSql) StartTx(ctx context.Context) (*sql.Tx, error) {
 	return dao.sqlConnect.GetDB().BeginTx(dao.sqlConnect.NewContextIfNil(ctx), &sql.TxOptions{Isolation: dao.txIsolationLevel})
 }
 
-// // GetOptionOpLiteral returns operation literal settings.
-// func (dao *GenericDaoSql) GetOptionOpLiteral() *OptionOpLiteral {
-// 	return dao.optionOpLiteral
-// }
-
-// // SetOptionOpLiteral sets operation literal settings.
-// func (dao *GenericDaoSql) SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql {
-// 	dao.optionOpLiteral = optionOpLiteral
-// 	return dao
-// }
-
 // GetFuncNewPlaceholderGenerator returns the function creates 'PlaceholderGenerator'.
 func (dao *GenericDaoSql) GetFuncNewPlaceholderGenerator() NewPlaceholderGenerator {
 	return dao.funcNewPlaceholderGenerator
@@ -486,6 +467,7 @@ func (dao *GenericDaoSql) SetFuncNewPlaceholderGenerator(funcNewPlaceholderGener
 }
 
 // BuildFilter transforms a godal.FilterOpt to IFilter.
+//
 // Available since v0.5.0
 func (dao *GenericDaoSql) BuildFilter(storageId string, filter godal.FilterOpt) (IFilter, error) {
 	if filter == nil {
