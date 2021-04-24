@@ -1,5 +1,12 @@
 # godal release notes
 
+## 2021-04-24 - v0.5.0
+
+- (BREAKING CHANGE) `IRowMapper` has 2 new functions `ToDbColName(storageId, fieldName string) string` and `ToBoFieldName(storageId, colName string) string`.
+- (BREAKING CHANGE) Introduce `SortingOpt` to abstract sorting of query's result. `IGenericDao` changes accordingly.
+- (BREAKING CHANGE) Introduce `FilterOpt` to abstract filtering of query's result. `IGenericDao` changes accordingly.
+- Other fixes and enhancements
+
 ## 2021-03-21 - v0.4.0
 
 - `IGenericBo`: new function `GboImportViaMap(src map[string]interface{}) error`
