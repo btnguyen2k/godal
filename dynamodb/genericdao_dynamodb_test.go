@@ -1088,7 +1088,7 @@ func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 
@@ -1203,7 +1203,7 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 // 	}
 //
 // 	user1.Level = 2
-// 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+// 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 // 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 // 	}
 // }
@@ -1354,7 +1354,7 @@ func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
 // 	}
 //
 // 	user1.Level = 2
-// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 // 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 // 	}
 // }

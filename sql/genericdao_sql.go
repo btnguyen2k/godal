@@ -904,7 +904,7 @@ func (dao *GenericDaoSql) GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, stor
 		return 0, err
 	} else if result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{})); err != nil {
 		if dao.IsErrorDuplicatedEntry(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return 0, err
 	} else {
@@ -937,7 +937,7 @@ func (dao *GenericDaoSql) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, stor
 	result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter)
 	if err != nil {
 		if dao.IsErrorDuplicatedEntry(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return 0, err
 	}
@@ -981,7 +981,7 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 	// firstly: try to update row
 	if result, err := dao.SqlUpdate(ctx, tx, storageId, colsAndVals.(map[string]interface{}), filter); err != nil {
 		if dao.IsErrorDuplicatedEntry(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return 0, err
 	} else if numRows, err := result.RowsAffected(); err != nil || numRows > 0 {
@@ -991,7 +991,7 @@ func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storag
 		result, err := dao.SqlInsert(ctx, tx, storageId, colsAndVals.(map[string]interface{}))
 		if err != nil {
 			if dao.IsErrorDuplicatedEntry(err) {
-				return 0, godal.GdaoErrorDuplicatedEntry
+				return 0, godal.ErrGdaoDuplicatedEntry
 			}
 			return 0, err
 		}

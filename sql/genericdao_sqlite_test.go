@@ -162,7 +162,7 @@ func TestGenericDaoSqlite_Tx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSql_Tx(t, name, dao)
+	dotestGenericDaoSqlTx(t, name, dao)
 }
 
 func TestGenericDaoSqlite_FilterNull(t *testing.T) {
@@ -173,7 +173,7 @@ func TestGenericDaoSqlite_FilterNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
 }
 
 func TestGenericDaoSqlite_FilterNotNull(t *testing.T) {
@@ -184,5 +184,5 @@ func TestGenericDaoSqlite_FilterNotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
 }

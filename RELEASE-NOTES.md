@@ -5,7 +5,8 @@
 - (BREAKING CHANGE) `IRowMapper` has 2 new functions `ToDbColName(storageId, fieldName string) string` and `ToBoFieldName(storageId, colName string) string`.
 - (BREAKING CHANGE) Introduce `SortingOpt` to abstract sorting of query's result. `IGenericDao` changes accordingly.
 - (BREAKING CHANGE) Introduce `FilterOpt` to abstract filtering of query's result. `IGenericDao` changes accordingly.
-- Other fixes and enhancements
+- (BREAKING CHANGE) Rename `GdaoErrorDuplicatedEntry` to `ErrGdaoDuplicatedEntry`.
+- Other fixes and enhancements.
 
 ## 2021-03-21 - v0.4.0
 

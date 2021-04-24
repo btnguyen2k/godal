@@ -592,7 +592,7 @@ func isErrorDuplicatedKey(err error) bool {
 	if err == nil {
 		return false
 	}
-	return err == godal.GdaoErrorDuplicatedEntry || // already duplicated key error
+	return err == godal.ErrGdaoDuplicatedEntry || // already duplicated key error
 		regexp.MustCompile(`\WE11000\W`).FindString(err.Error()) != "" || // MongoDB's duplicated key error
 		regexp.MustCompile(`\WConflictingOperationInProgress\W`).FindString(err.Error()) != "" // CosmosDB's MongoDB API duplicated key error
 }
@@ -608,7 +608,7 @@ func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName
 		if err != nil {
 			return false, err
 		}
-		return false, godal.GdaoErrorDuplicatedEntry
+		return false, godal.ErrGdaoDuplicatedEntry
 	}
 
 	// insert new document
@@ -661,13 +661,13 @@ func (dao *GenericDaoMongo) GdaoCreateWithContext(ctx context.Context, collectio
 			return nil
 		})
 		if isErrorDuplicatedKey(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return numRows, err
 	}
 	if result, err := dao.insertIfNotExist(ctx, collectionName, bo); err != nil {
 		if isErrorDuplicatedKey(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return 0, err
 	} else if result {
@@ -694,7 +694,7 @@ func (dao *GenericDaoMongo) GdaoUpdateWithContext(ctx context.Context, collectio
 	if _, err := result.DecodeBytes(); err == mongo.ErrNoDocuments {
 		return 0, nil
 	} else if isErrorDuplicatedKey(err) {
-		return 0, godal.GdaoErrorDuplicatedEntry
+		return 0, godal.ErrGdaoDuplicatedEntry
 	} else {
 		return 1, err
 	}
@@ -719,7 +719,7 @@ func (dao *GenericDaoMongo) GdaoSaveWithContext(ctx context.Context, collectionN
 		return 1, nil
 	}
 	if isErrorDuplicatedKey(err) {
-		return 0, godal.GdaoErrorDuplicatedEntry
+		return 0, godal.ErrGdaoDuplicatedEntry
 	}
 	return 1, err
 }

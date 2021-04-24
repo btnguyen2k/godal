@@ -561,7 +561,7 @@ func TestGenericDaoMongo_GdaoCreate(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
@@ -603,7 +603,7 @@ func TestGenericDaoMongo_GdaoCreate_TxOn(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoMongo{Id: "1"}))
@@ -695,7 +695,7 @@ func TestGenericDaoMongo_GdaoUpdateDuplicated(t *testing.T) {
 	}
 
 	user2.Username = "user1"
-	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user2)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		fmt.Println("Error:", err)
 		fmt.Printf("Error: %#v\n", err)
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
@@ -822,7 +822,7 @@ func TestGenericDaoMongo_GdaoSaveDuplicated(t *testing.T) {
 	}
 
 	user2.Username = "user1"
-	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 }

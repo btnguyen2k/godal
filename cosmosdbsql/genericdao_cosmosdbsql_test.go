@@ -655,14 +655,14 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 
 	// duplicated id
 	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 
 	// duplicated username
 	user.Id = "2"
 	user.Username = "btnguyen2k"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 
@@ -738,8 +738,8 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 	}
 
 	user1.Username = user2.Username
-	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: expected 0/GdaoErrorDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
+	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: expected 0/ErrGdaoDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
 	}
 }
 
@@ -794,8 +794,8 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 	}
 
 	user1.Username = user2.Username
-	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != godal.GdaoErrorDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: expected 0/GdaoErrorDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
+	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: expected 0/ErrGdaoDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
 	}
 }
 

@@ -153,7 +153,7 @@ func TestGenericDaoMysql_Tx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSql_Tx(t, name, dao)
+	dotestGenericDaoSqlTx(t, name, dao)
 }
 
 func TestGenericDaoMysql_FilterNull(t *testing.T) {
@@ -164,7 +164,7 @@ func TestGenericDaoMysql_FilterNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
 }
 
 func TestGenericDaoMysql_FilterNotNull(t *testing.T) {
@@ -175,5 +175,5 @@ func TestGenericDaoMysql_FilterNotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
 }

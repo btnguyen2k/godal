@@ -488,21 +488,20 @@ func (dao *GenericDaoCosmosdb) GdaoDelete(collection string, bo godal.IGenericBo
 
 // GdaoDeleteWithTx is database/sql variant of GdaoDelete.
 func (dao *GenericDaoCosmosdb) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, collection string, bo godal.IGenericBo) (int, error) {
-	filter := dao.GdaoCreateFilter(collection, bo)
-	if f, err := dao.BuildFilter(collection, filter); err != nil {
+	f, err := dao.BuildFilter(collection, dao.GdaoCreateFilter(collection, bo))
+	if err != nil {
 		return 0, err
-	} else {
-		builder := &cosmosdbDeleteBuilder{
-			pkValue:       dao.CosmosGetPk(collection, bo),
-			DeleteBuilder: godalsql.NewDeleteBuilder().WithFlavor(dao.GetSqlFlavor()).WithTable(collection).WithFilter(f),
-		}
-		if result, err := dao.SqlDeleteEx(builder, ctx, tx, collection, f); err != nil {
-			return 0, err
-		} else {
-			numRows, err := result.RowsAffected()
-			return int(numRows), err
-		}
 	}
+	builder := &cosmosdbDeleteBuilder{
+		pkValue:       dao.CosmosGetPk(collection, bo),
+		DeleteBuilder: godalsql.NewDeleteBuilder().WithFlavor(dao.GetSqlFlavor()).WithTable(collection).WithFilter(f),
+	}
+	result, err := dao.SqlDeleteEx(builder, ctx, tx, collection, f)
+	if err != nil {
+		return 0, err
+	}
+	numRows, err := result.RowsAffected()
+	return int(numRows), err
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
@@ -514,19 +513,19 @@ func (dao *GenericDaoCosmosdb) GdaoDeleteMany(collection string, filter godal.Fi
 //
 // Note: this function firstly fetches all matched documents and then delete them one by one.
 func (dao *GenericDaoCosmosdb) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt) (int, error) {
-	if boList, err := dao.GdaoFetchManyWithTx(ctx, tx, collection, filter, nil, 0, 0); err != nil {
+	boList, err := dao.GdaoFetchManyWithTx(ctx, tx, collection, filter, nil, 0, 0)
+	if err != nil {
 		return 0, err
-	} else {
-		numRows := 0
-		for _, bo := range boList {
-			if v, err := dao.GdaoDeleteWithTx(ctx, tx, collection, bo); err != nil {
-				return numRows, err
-			} else {
-				numRows += v
-			}
-		}
-		return numRows, nil
 	}
+	numRows := 0
+	for _, bo := range boList {
+		v, err := dao.GdaoDeleteWithTx(ctx, tx, collection, bo)
+		if err != nil {
+			return numRows, err
+		}
+		numRows += v
+	}
+	return numRows, nil
 }
 
 // cosmosdbSelectBuilder is CosmosDB variant of SelectBuilder.
@@ -630,15 +629,15 @@ func (dao *GenericDaoCosmosdb) GdaoCreateWithTx(ctx context.Context, tx *sql.Tx,
 			pkValue:       dao.CosmosGetPk(collection, bo),
 			InsertBuilder: godalsql.NewInsertBuilder().WithFlavor(dao.GetSqlFlavor()).WithTable(collection).WithValues(colsAndVals.(map[string]interface{})),
 		}
-		if result, err := dao.SqlInsertEx(builder, ctx, tx, collection, colsAndVals.(map[string]interface{})); err != nil {
+		result, err := dao.SqlInsertEx(builder, ctx, tx, collection, colsAndVals.(map[string]interface{}))
+		if err != nil {
 			if dao.IsErrorDuplicatedEntry(err) {
-				return 0, godal.GdaoErrorDuplicatedEntry
+				return 0, godal.ErrGdaoDuplicatedEntry
 			}
 			return 0, err
-		} else {
-			numRows, err := result.RowsAffected()
-			return int(numRows), err
 		}
+		numRows, err := result.RowsAffected()
+		return int(numRows), err
 	}
 }
 
@@ -659,15 +658,15 @@ func (dao *GenericDaoCosmosdb) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, c
 			pkValue:       dao.CosmosGetPk(collection, bo),
 			InsertBuilder: godalsql.NewInsertBuilder().WithFlavor(dao.GetSqlFlavor()).WithTable(collection).WithValues(colsAndVals.(map[string]interface{})),
 		}
-		if result, err := dao.SqlInsertEx(builder, ctx, tx, collection, colsAndVals.(map[string]interface{})); err != nil {
+		result, err := dao.SqlInsertEx(builder, ctx, tx, collection, colsAndVals.(map[string]interface{}))
+		if err != nil {
 			if dao.IsErrorDuplicatedEntry(err) {
-				return 0, godal.GdaoErrorDuplicatedEntry
+				return 0, godal.ErrGdaoDuplicatedEntry
 			}
 			return 0, err
-		} else {
-			numRows, err := result.RowsAffected()
-			return int(numRows), err
 		}
+		numRows, err := result.RowsAffected()
+		return int(numRows), err
 	}
 }
 
@@ -711,7 +710,7 @@ func (dao *GenericDaoCosmosdb) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx,
 	result, err := dao.SqlUpdateEx(builder, ctx, tx, collection, colsAndVals.(map[string]interface{}), f)
 	if err != nil {
 		if dao.IsErrorDuplicatedEntry(err) {
-			return 0, godal.GdaoErrorDuplicatedEntry
+			return 0, godal.ErrGdaoDuplicatedEntry
 		}
 		return 0, err
 	}

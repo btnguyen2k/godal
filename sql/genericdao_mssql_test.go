@@ -153,7 +153,7 @@ func TestGenericDaoMssql_Tx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSql_Tx(t, name, dao)
+	dotestGenericDaoSqlTx(t, name, dao)
 }
 
 func TestGenericDaoMssql_FilterNull(t *testing.T) {
@@ -164,7 +164,7 @@ func TestGenericDaoMssql_FilterNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
 }
 
 func TestGenericDaoMssql_FilterNotNull(t *testing.T) {
@@ -175,5 +175,5 @@ func TestGenericDaoMssql_FilterNotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
 }
