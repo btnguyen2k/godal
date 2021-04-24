@@ -604,3 +604,18 @@ func TestGenericBo_GboImportViaJson_Struct(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v but received %#v", name, src.FieldB, bo.GboGetAttrUnsafe("b", nil))
 	}
 }
+
+func TestGenericBo_GboImportViaMap(t *testing.T) {
+	name := "TestGenericBo_GboImportViaMap"
+
+	bo := NewGenericBo()
+	src := make(map[string]interface{})
+	json.Unmarshal(genericBoJsonDataMap, &src)
+	err := bo.GboImportViaMap(src)
+	if err != nil {
+		t.Fatalf("%s failed: %e", name, err)
+	}
+	if !reflect.DeepEqual(src, bo.(*GenericBo).data) {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, src, bo.(*GenericBo).data)
+	}
+}

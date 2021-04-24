@@ -15,6 +15,14 @@ func TestNewAbstractGenericDao(t *testing.T) {
 type mockRowMapper struct {
 }
 
+func (m *mockRowMapper) ToDbColName(storageId, fieldName string) string {
+	panic("implement me")
+}
+
+func (m *mockRowMapper) ToBoFieldName(storageId, colName string) string {
+	panic("implement me")
+}
+
 func (m *mockRowMapper) ToRow(storageId string, bo IGenericBo) (interface{}, error) {
 	panic("implement me")
 }
