@@ -258,7 +258,7 @@ type IGenericDaoSql interface {
 	SqlBuildDeleteEx(builder ISqlBuilder, table string, filter IFilter) (sql string, placeholderValues []interface{})
 
 	// SqlDeleteEx is the extended version of SqlDelete that uses an external DeleteBuilder to construct the DELETE statement.
-	SqlDeleteEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error)
+	SqlDeleteEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, filter IFilter) (sql.Result, error)
 
 	// SqlInsert constructs a INSERT statement and executes it within a context/transaction.
 	SqlInsert(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error)
@@ -267,7 +267,7 @@ type IGenericDaoSql interface {
 	SqlBuildInsertEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}) (sql string, placeholderValues []interface{})
 
 	// SqlInsertEx is the extended version of SqlInsert that uses an external InsertBuilder to construct the INSERT statement.
-	SqlInsertEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error)
+	SqlInsertEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error)
 
 	// SqlSelect constructs a SELECT query and executes it within a context/transaction.
 	SqlSelect(ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error)
@@ -276,7 +276,7 @@ type IGenericDaoSql interface {
 	SqlBuildSelectEx(builder ISqlBuilder, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (sql string, placeholderValues []interface{})
 
 	// SqlSelectEx is the extended version of SqlSelect that uses an external SelectBuilder to construct the SELECT statement.
-	SqlSelectEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error)
+	SqlSelectEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error)
 
 	// SqlUpdate constructs an UPDATE query and executes it within a context/transaction.
 	SqlUpdate(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error)
@@ -285,7 +285,7 @@ type IGenericDaoSql interface {
 	SqlBuildUpdateEx(builder ISqlBuilder, table string, colsAndVals map[string]interface{}, filter IFilter) (sql string, placeholderValues []interface{})
 
 	// SqlUpdateEx is the extended version of SqlUpdate that uses an external UpdateBuilder to construct the UPDATE statement.
-	SqlUpdateEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error)
+	SqlUpdateEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error)
 
 	// FetchOne fetches a row from `sql.Rows` and transforms it to godal.IGenericBo.
 	//   - FetchOne will NOT call dbRows.Close(), caller must take care of cleaning resource.
@@ -625,7 +625,7 @@ func (dao *GenericDaoSql) SqlQuery(ctx context.Context, tx *sql.Tx, sql string, 
 
 // SqlDelete constructs a DELETE statement and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlDelete(ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
-	return dao.SqlDeleteEx(nil, ctx, tx, table, filter)
+	return dao.SqlDeleteEx(ctx, nil, tx, table, filter)
 }
 
 // SqlBuildDeleteEx is a utility function to construct the DELETE statement along with values for placeholders.
@@ -644,14 +644,14 @@ func (dao *GenericDaoSql) SqlBuildDeleteEx(builder ISqlBuilder, table string, fi
 // SqlDeleteEx is the extended version of SqlDelete that uses an external DeleteBuilder to construct the DELETE statement.
 //
 // Available since v0.3.0
-func (dao *GenericDaoSql) SqlDeleteEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
+func (dao *GenericDaoSql) SqlDeleteEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, filter IFilter) (sql.Result, error) {
 	sqlStm, values := dao.SqlBuildDeleteEx(builder, table, filter)
 	return dao.SqlExecute(ctx, tx, sqlStm, values...)
 }
 
 // SqlInsert constructs a INSERT statement and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlInsert(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
-	return dao.SqlInsertEx(nil, ctx, tx, table, colsAndVals)
+	return dao.SqlInsertEx(ctx, nil, tx, table, colsAndVals)
 }
 
 // SqlBuildInsertEx is a utility function to construct the INSERT statement along with values for placeholders.
@@ -670,14 +670,14 @@ func (dao *GenericDaoSql) SqlBuildInsertEx(builder ISqlBuilder, table string, co
 // SqlInsertEx is the extended version of SqlInsert that uses an external InsertBuilder to construct the INSERT statement.
 //
 // Available since v0.3.0
-func (dao *GenericDaoSql) SqlInsertEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
+func (dao *GenericDaoSql) SqlInsertEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, colsAndVals map[string]interface{}) (sql.Result, error) {
 	sqlStm, values := dao.SqlBuildInsertEx(builder, table, colsAndVals)
 	return dao.SqlExecute(ctx, tx, sqlStm, values...)
 }
 
 // SqlSelect constructs a SELECT query and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlSelect(ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
-	return dao.SqlSelectEx(nil, ctx, tx, table, columns, filter, sorting, fromOffset, numItems)
+	return dao.SqlSelectEx(ctx, nil, tx, table, columns, filter, sorting, fromOffset, numItems)
 }
 
 // SqlBuildSelectEx is a utility function to construct the SELECT statement along with values for placeholders.
@@ -700,14 +700,14 @@ func (dao *GenericDaoSql) SqlBuildSelectEx(builder ISqlBuilder, table string, co
 // SqlSelectEx is the extended version of SqlSelect that uses an external SelectBuilder to construct the SELECT statement.
 //
 // Available since v0.3.0
-func (dao *GenericDaoSql) SqlSelectEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
+func (dao *GenericDaoSql) SqlSelectEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, columns []string, filter IFilter, sorting ISorting, fromOffset, numItems int) (*sql.Rows, error) {
 	query, values := dao.SqlBuildSelectEx(builder, table, columns, filter, sorting, fromOffset, numItems)
 	return dao.SqlQuery(ctx, tx, query, values...)
 }
 
 // SqlUpdate constructs an UPDATE query and executes it within a context/transaction.
 func (dao *GenericDaoSql) SqlUpdate(ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
-	return dao.SqlUpdateEx(nil, ctx, tx, table, colsAndVals, filter)
+	return dao.SqlUpdateEx(ctx, nil, tx, table, colsAndVals, filter)
 }
 
 // SqlBuildUpdateEx is a utility function to construct the UPDATE statement along with values for placeholders.
@@ -726,7 +726,7 @@ func (dao *GenericDaoSql) SqlBuildUpdateEx(builder ISqlBuilder, table string, co
 // SqlUpdateEx is the extended version of SqlUpdate that uses an external UpdateBuilder to construct the UPDATE statement.
 //
 // Available since v0.3.0
-func (dao *GenericDaoSql) SqlUpdateEx(builder ISqlBuilder, ctx context.Context, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
+func (dao *GenericDaoSql) SqlUpdateEx(ctx context.Context, builder ISqlBuilder, tx *sql.Tx, table string, colsAndVals map[string]interface{}, filter IFilter) (sql.Result, error) {
 	query, values := dao.SqlBuildUpdateEx(builder, table, colsAndVals, filter)
 	return dao.SqlExecute(ctx, tx, query, values...)
 }

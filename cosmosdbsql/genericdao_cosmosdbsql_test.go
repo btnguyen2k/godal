@@ -837,7 +837,7 @@ func _checkFilterNull(t *testing.T, name string, expected, target *UserBoSql) {
 	}
 }
 
-func dotestGenericDaoSqlGdao_FilterNull(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoFilterNull(t *testing.T, name string, dao *UserDaoSql) {
 	rand.Seed(time.Now().UnixNano())
 	var userList = make([]*UserBoSql, 0)
 	for i := 0; i < 100; i++ {
@@ -911,7 +911,7 @@ func dotestGenericDaoSqlGdao_FilterNull(t *testing.T, name string, dao *UserDaoS
 	}
 }
 
-func dotestGenericDaoSqlGdao_FilterNotNull(t *testing.T, name string, dao *UserDaoSql) {
+func dotestGenericDaoSqlGdaoFilterNotNull(t *testing.T, name string, dao *UserDaoSql) {
 	rand.Seed(time.Now().UnixNano())
 	var userList = make([]*UserBoSql, 0)
 	for i := 0; i < 100; i++ {
@@ -1093,7 +1093,7 @@ func TestGenericDaoCosmosdb_FilterNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
 }
 
 func TestGenericDaoCosmosdb_FilterNotNull(t *testing.T) {
@@ -1103,5 +1103,5 @@ func TestGenericDaoCosmosdb_FilterNotNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdao_FilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
 }

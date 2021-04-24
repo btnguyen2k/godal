@@ -669,9 +669,8 @@ func TestGenericRowMapperSql_ToDbColName_Intact(t *testing.T) {
 				"Field3": func(storageId, fieldName string) string {
 					if fieldName == "Field3" {
 						return colc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"FielD4": cold,
 			},
@@ -707,9 +706,8 @@ func TestGenericRowMapperSql_ToDbColName_LowerCase(t *testing.T) {
 				"field3": func(storageId, fieldName string) string {
 					if fieldName == "field3" {
 						return colc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"field4": cold,
 			},
@@ -745,9 +743,8 @@ func TestGenericRowMapperSql_ToDbColName_UpperCase(t *testing.T) {
 				"FIELD3": func(storageId, fieldName string) string {
 					if fieldName == "FIELD3" {
 						return colc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"FIELD4": cold,
 			},
@@ -783,9 +780,8 @@ func TestGenericRowMapperSql_ToBoFieldName_Intact(t *testing.T) {
 				"Col3": func(storageId, fieldName string) string {
 					if fieldName == "Col3" {
 						return fieldc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"CoL4": fieldd,
 			},
@@ -821,9 +817,8 @@ func TestGenericRowMapperSql_ToBoFieldName_LowerCase(t *testing.T) {
 				"col3": func(storageId, fieldName string) string {
 					if fieldName == "col3" {
 						return fieldc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"col4": fieldd,
 			},
@@ -859,9 +854,8 @@ func TestGenericRowMapperSql_ToBoFieldName_UpperCase(t *testing.T) {
 				"COL3": func(storageId, fieldName string) string {
 					if fieldName == "COL3" {
 						return fieldc
-					} else {
-						return fieldName
 					}
+					return fieldName
 				},
 				"COL4": fieldd,
 			},

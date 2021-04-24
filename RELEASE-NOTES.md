@@ -6,6 +6,11 @@
 - (BREAKING CHANGE) Introduce `SortingOpt` to abstract sorting of query's result. `IGenericDao` changes accordingly.
 - (BREAKING CHANGE) Introduce `FilterOpt` to abstract filtering of query's result. `IGenericDao` changes accordingly.
 - (BREAKING CHANGE) Rename `GdaoErrorDuplicatedEntry` to `ErrGdaoDuplicatedEntry`.
+- Other BREAKING CHANGES:
+  - `IGenericDaoSql/GenericDaoSql.SqlUpdateEx`: make `context.Context` the first parameter.
+  - `IGenericDaoSql/GenericDaoSql.SqlSelectEx`: make `context.Context` the first parameter.
+  - `IGenericDaoSql/GenericDaoSql.SqlInsertEx`: make `context.Context` the first parameter.
+  - `IGenericDaoSql/GenericDaoSql.SqlDeleteEx`: make `context.Context` the first parameter.
 - Other fixes and enhancements.
 
 ## 2021-03-21 - v0.4.0
