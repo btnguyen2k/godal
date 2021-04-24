@@ -160,12 +160,23 @@ type MyUserDaoDynamodb struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *MyUserDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
+func (dao *MyUserDaoDynamodb) GdaoCreateFilter(tableName string, bo godal.IGenericBo) godal.FilterOpt {
 	if tableName == dao.tableName {
 		colList := dao.GetRowMapper().ColumnsList(tableName)
-		result := make(map[string]interface{})
+		if len(colList) == 1 {
+			return &godal.FilterOptFieldOpValue{
+				FieldName: colList[0],
+				Operator:  godal.FilterOpEqual,
+				Value:     bo.GboGetAttrUnsafe(colList[0], nil),
+			}
+		}
+		result := &godal.FilterOptAnd{}
 		for _, col := range colList {
-			result[col] = bo.GboGetAttrUnsafe(col, nil)
+			result.Add(&godal.FilterOptFieldOpValue{
+				FieldName: col,
+				Operator:  godal.FilterOpEqual,
+				Value:     bo.GboGetAttrUnsafe(col, nil),
+			})
 		}
 		return result
 	}
@@ -477,54 +488,54 @@ func TestToConditionBuilder(t *testing.T) {
 	}
 }
 
-func TestToMap(t *testing.T) {
-	name := "TestToMap"
-
-	input := make(map[string]interface{})
-	if m, err := toMap(input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputString := `{"id":"1", "username":"btnguyen2k"}`
-	if m, err := toMap(inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
-	if m, err := toMap(inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputMap := map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}
-	if m, err := toMap(inputMap); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&inputMap); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	if m, err := toMap(nil); m != nil || err != nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if _, err := toMap([]byte("invalid map")); err == nil {
-		t.Fatalf("%s failed: %s", name, err)
-	}
-	if _, err := toMap([]interface{}{"invalid", "input"}); err == nil {
-		t.Fatalf("%s failed: %s", name, err)
-	}
-	if _, err := toMap(time.Time{}); err == nil {
-		t.Fatalf("%s failed:  %s", name, err)
-	}
-}
+// func TestToMap(t *testing.T) {
+// 	name := "TestToMap"
+//
+// 	input := make(map[string]interface{})
+// 	if m, err := toMap(input); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&input); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	inputString := `{"id":"1", "username":"btnguyen2k"}`
+// 	if m, err := toMap(inputString); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&inputString); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
+// 	if m, err := toMap(inputBytes); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&inputBytes); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	inputMap := map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}
+// 	if m, err := toMap(inputMap); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&inputMap); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	if m, err := toMap(nil); m != nil || err != nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if _, err := toMap([]byte("invalid map")); err == nil {
+// 		t.Fatalf("%s failed: %s", name, err)
+// 	}
+// 	if _, err := toMap([]interface{}{"invalid", "input"}); err == nil {
+// 		t.Fatalf("%s failed: %s", name, err)
+// 	}
+// 	if _, err := toMap(time.Time{}); err == nil {
+// 		t.Fatalf("%s failed:  %s", name, err)
+// 	}
+// }
 
 func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoDynamodb_GdaoDelete"
@@ -1284,7 +1295,7 @@ func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
-	filter := map[string]interface{}{"id": "1"}
+	filter := godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: "1"}
 	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
