@@ -3,11 +3,11 @@ Package cosmosdbsql provides a generic Azure Cosmos DB implementation of godal.I
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 
 Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Configure either {collection-name:path-to-fetch-partition_key-value-from-genericbo} (via GenericDaoCosmosdb.CosmosSetPkGboMapPath)
 	  or {collection-name:path-to-fetch-partition_key-value-from-dbrow} (via GenericDaoCosmosdb.CosmosSetPkRowMapPath).
 	- Optionally, configure {collection-name:path-to-fetch-id-value-from-genericbo} via GenericDaoCosmosdb.CosmosSetIdGboMapPath.
@@ -28,9 +28,9 @@ Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
+	func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(table string, bo godal.IGenericBo) godal.FilterOpt {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{tableColumnId: id}
+		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoCosmosdb is helper function to create myGenericDaoCosmosdb instances.
@@ -50,7 +50,7 @@ Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
 Guideline: Implement custom Azure Cosmos DB business dao and bo
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 	- Optionally, create a helper function to create dao instances.
 
@@ -301,11 +301,11 @@ var (
 // GenericDaoCosmosdb is Azure Cosmos DB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 //   - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-//   - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-//   - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-//   - (y) GdaoFetchMany(storageId string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
+//   - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
+//   - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
+//   - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
 //   - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
@@ -489,7 +489,7 @@ func (dao *GenericDaoCosmosdb) GdaoDelete(collection string, bo godal.IGenericBo
 // GdaoDeleteWithTx is database/sql variant of GdaoDelete.
 func (dao *GenericDaoCosmosdb) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, collection string, bo godal.IGenericBo) (int, error) {
 	filter := dao.GdaoCreateFilter(collection, bo)
-	if f, err := dao.BuildFilter(filter); err != nil {
+	if f, err := dao.BuildFilter(collection, filter); err != nil {
 		return 0, err
 	} else {
 		builder := &cosmosdbDeleteBuilder{
@@ -506,14 +506,14 @@ func (dao *GenericDaoCosmosdb) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx,
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-func (dao *GenericDaoCosmosdb) GdaoDeleteMany(collection string, filter interface{}) (int, error) {
+func (dao *GenericDaoCosmosdb) GdaoDeleteMany(collection string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithTx(nil, nil, collection, filter)
 }
 
 // GdaoDeleteManyWithTx is database/sql variant of GdaoDeleteMany.
 //
 // Note: this function firstly fetches all matched documents and then delete them one by one.
-func (dao *GenericDaoCosmosdb) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}) (int, error) {
+func (dao *GenericDaoCosmosdb) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt) (int, error) {
 	if boList, err := dao.GdaoFetchManyWithTx(ctx, tx, collection, filter, nil, 0, 0); err != nil {
 		return 0, err
 	} else {
@@ -542,13 +542,13 @@ func (b *cosmosdbSelectBuilder) Build(opts ...interface{}) (string, []interface{
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-func (dao *GenericDaoCosmosdb) GdaoFetchOne(collection string, filter interface{}) (godal.IGenericBo, error) {
+func (dao *GenericDaoCosmosdb) GdaoFetchOne(collection string, filter godal.FilterOpt) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithTx(nil, nil, collection, filter)
 }
 
 // GdaoFetchOneWithTx is database/sql variant of GdaoFetchOne.
-func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}) (godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt) (godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(collection, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -568,13 +568,13 @@ func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.T
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-func (dao *GenericDaoCosmosdb) GdaoFetchMany(collection string, filter interface{}, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoCosmosdb) GdaoFetchMany(collection string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithTx(nil, nil, collection, filter, sorting, fromOffset, numRows)
 }
 
 // GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
-func (dao *GenericDaoCosmosdb) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoCosmosdb) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(collection, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func (dao *GenericDaoCosmosdb) GdaoUpdate(collection string, bo godal.IGenericBo
 
 // GdaoUpdateWithTx is database/sql variant of GdaoUpdate.
 func (dao *GenericDaoCosmosdb) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, collection string, bo godal.IGenericBo) (int, error) {
-	f, err := dao.BuildFilter(dao.GdaoCreateFilter(collection, bo))
+	f, err := dao.BuildFilter(collection, dao.GdaoCreateFilter(collection, bo))
 	if err != nil {
 		return 0, err
 	}
