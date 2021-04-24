@@ -3,11 +3,11 @@ Package mongo provides a generic MongoDB implementation of godal.IGenericDao.
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 
 Guideline: Use GenericDaoMongo (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Optionally, create a helper function to create dao instances.
 
 	import (
@@ -22,9 +22,9 @@ Guideline: Use GenericDaoMongo (and godal.IGenericBo) directly
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+	func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{fieldId: id}
+		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoMongo is convenient method to create myGenericDaoMongo instances.
@@ -39,7 +39,7 @@ Guideline: Use GenericDaoMongo (and godal.IGenericBo) directly
 
 Guideline: Implement custom MongoDB business dao and bo
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
 	- Optionally, create a helper function to create dao instances.
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 
@@ -113,7 +113,7 @@ package mongo
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -273,11 +273,11 @@ func NewGenericDaoMongo(mongoConnect *prom.MongoConnect, agdao *godal.AbstractGe
 // GenericDaoMongo is MongoDB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 // 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-// 	 - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
+// 	 - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
 // 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
@@ -326,25 +326,125 @@ func (dao *GenericDaoMongo) GetMongoCollection(collectionName string, opts ...*o
 	return dao.mongoConnect.GetCollection(collectionName, opts...)
 }
 
+func translateOperator(op godal.FilterOperator) (string, error) {
+	switch op {
+	case godal.FilterOpEqual:
+		return "$eq", nil
+	case godal.FilterOpNotEqual:
+		return "$ne", nil
+	case godal.FilterOpGreater:
+		return "$gt", nil
+	case godal.FilterOpGreaterOrEqual:
+		return "$gte", nil
+	case godal.FilterOpLess:
+		return "$lt", nil
+	case godal.FilterOpLessOrEqual:
+		return "$lte", nil
+	}
+	return "", fmt.Errorf("cannot translate operator \"%#v\"", op)
+}
+
+// BuildFilter transforms a godal.FilterOpt to MongoDB-compatible filter map.
+//
+// See MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
+//
+// Available since v0.5.0
+func (dao *GenericDaoMongo) BuildFilter(collectionName string, filter godal.FilterOpt) (bson.M, error) {
+	if filter == nil {
+		return nil, nil
+	}
+	rm := dao.GetRowMapper()
+	if rm == nil {
+		return nil, errors.New("row-mapper is required to build filter")
+	}
+
+	switch filter.(type) {
+	case godal.FilterOptFieldOpValue:
+		f := filter.(godal.FilterOptFieldOpValue)
+		return dao.BuildFilter(collectionName, &f)
+	case *godal.FilterOptFieldOpValue:
+		f := filter.(*godal.FilterOptFieldOpValue)
+		opStr, err := translateOperator(f.Operator)
+		result := bson.M{rm.ToDbColName(collectionName, f.FieldName): bson.M{opStr: f.Value}}
+		return result, err
+	case godal.FilterOptFieldIsNull:
+		f := filter.(godal.FilterOptFieldIsNull)
+		return dao.BuildFilter(collectionName, &f)
+	case *godal.FilterOptFieldIsNull:
+		f := filter.(*godal.FilterOptFieldIsNull)
+		result := bson.M{rm.ToDbColName(collectionName, f.FieldName): bson.M{"$eq": nil}}
+		return result, nil
+	case godal.FilterOptFieldIsNotNull:
+		f := filter.(godal.FilterOptFieldIsNotNull)
+		return dao.BuildFilter(collectionName, &f)
+	case *godal.FilterOptFieldIsNotNull:
+		f := filter.(*godal.FilterOptFieldIsNotNull)
+		result := bson.M{rm.ToDbColName(collectionName, f.FieldName): bson.M{"$ne": nil}}
+		return result, nil
+	case godal.FilterOptAnd:
+		f := filter.(godal.FilterOptAnd)
+		return dao.BuildFilter(collectionName, &f)
+	case *godal.FilterOptAnd:
+		f := filter.(*godal.FilterOptAnd)
+		inner := bson.A{}
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildFilter(collectionName, innerF)
+			if err != nil {
+				return nil, err
+			}
+			inner = append(inner, innerResult)
+		}
+		return bson.M{"$and": inner}, nil
+	case godal.FilterOptOr:
+		f := filter.(godal.FilterOptOr)
+		return dao.BuildFilter(collectionName, &f)
+	case *godal.FilterOptOr:
+		f := filter.(*godal.FilterOptOr)
+		inner := bson.A{}
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildFilter(collectionName, innerF)
+			if err != nil {
+				return nil, err
+			}
+			inner = append(inner, innerResult)
+		}
+		return bson.M{"$or": inner}, nil
+	}
+	return nil, fmt.Errorf("cannot build filter from %T", filter)
+}
+
 // MongoDeleteMany performs a MongoDB's delete-many command on the specified collection.
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) MongoDeleteMany(ctx context.Context, collectionName string, filter map[string]interface{}) (*mongo.DeleteResult, error) {
-	return dao.GetMongoCollection(collectionName).DeleteMany(ctx, filter)
+func (dao *GenericDaoMongo) MongoDeleteMany(ctx context.Context, collectionName string, filter godal.FilterOpt) (*mongo.DeleteResult, error) {
+	f, err := dao.BuildFilter(collectionName, filter)
+	if err != nil {
+		return nil, err
+	}
+	return dao.GetMongoCollection(collectionName).DeleteMany(ctx, f)
 }
 
 // MongoFetchOne performs a MongoDB's find-one command on the specified collection.
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) MongoFetchOne(ctx context.Context, collectionName string, filter map[string]interface{}) *mongo.SingleResult {
-	return dao.GetMongoCollection(collectionName).FindOne(ctx, filter)
+func (dao *GenericDaoMongo) MongoFetchOne(ctx context.Context, collectionName string, filter godal.FilterOpt) *mongo.SingleResult {
+	f, err := dao.BuildFilter(collectionName, filter)
+	if err != nil {
+		return nil
+	}
+	return dao.GetMongoCollection(collectionName).FindOne(ctx, f)
 }
 
 // MongoFetchMany performs a MongoDB's find command on the specified collection.
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
 //   - sorting: see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
-func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName string, filter map[string]interface{}, sorting *godal.SortingOpt, startOffset, numItems int) (*mongo.Cursor, error) {
+func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) (*mongo.Cursor, error) {
+	f, err := dao.BuildFilter(collectionName, filter)
+	if err != nil {
+		return nil, err
+	}
+
 	opt := &options.FindOptions{}
 	if sorting != nil && len(sorting.Fields) > 0 {
 		sortingInfo := bson.D{}
@@ -363,7 +463,8 @@ func (dao *GenericDaoMongo) MongoFetchMany(ctx context.Context, collectionName s
 	if startOffset > 0 {
 		opt.SetSkip(int64(startOffset))
 	}
-	return dao.GetMongoCollection(collectionName).Find(ctx, filter, opt)
+
+	return dao.GetMongoCollection(collectionName).Find(ctx, f, opt)
 }
 
 // MongoInsertOne performs a MongoDB's insert-one command on the specified collection.
@@ -375,54 +476,30 @@ func (dao *GenericDaoMongo) MongoInsertOne(ctx context.Context, collectionName s
 // MongoUpdateOne performs a MongoDB's find-one-and-replace command with 'upsert=false' on the specified collection.
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) MongoUpdateOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
+func (dao *GenericDaoMongo) MongoUpdateOne(ctx context.Context, collectionName string, filter godal.FilterOpt, doc interface{}) *mongo.SingleResult {
+	f, err := dao.BuildFilter(collectionName, filter)
+	if err != nil {
+		return nil
+	}
 	upsert := false
 	opt := options.FindOneAndReplaceOptions{Upsert: &upsert}
-	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, filter, doc, &opt)
+	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, f, doc, &opt)
 }
 
 // MongoSaveOne performs a MongoDB's find-one-and-replace command with 'upsert=true' on the specified collection.
 //   - ctx: can be used to pass a transaction down to the operation.
 //   - filter: see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) MongoSaveOne(ctx context.Context, collectionName string, filter map[string]interface{}, doc interface{}) *mongo.SingleResult {
+func (dao *GenericDaoMongo) MongoSaveOne(ctx context.Context, collectionName string, filter godal.FilterOpt, doc interface{}) *mongo.SingleResult {
+	f, err := dao.BuildFilter(collectionName, filter)
+	if err != nil {
+		return nil
+	}
 	upsert := true
 	opt := options.FindOneAndReplaceOptions{Upsert: &upsert}
-	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, filter, doc, &opt)
+	return dao.GetMongoCollection(collectionName).FindOneAndReplace(ctx, f, doc, &opt)
 }
 
 /*----------------------------------------------------------------------*/
-
-func toMap(input interface{}) (map[string]interface{}, error) {
-	if input == nil {
-		return nil, nil
-	}
-	v := reflect.ValueOf(input)
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	switch v.Kind() {
-	case reflect.String:
-		// expect input to be a map in JSON
-		result := make(map[string]interface{})
-		err := json.Unmarshal([]byte(v.Interface().(string)), &result)
-		return result, err
-	case reflect.Array, reflect.Slice:
-		// expect input to be a map in JSON
-		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
-		if err != nil {
-			return nil, err
-		}
-		result := make(map[string]interface{})
-		err = json.Unmarshal(t.([]byte), &result)
-		return result, err
-	case reflect.Map:
-		t := make(map[string]interface{})
-		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(t))
-		return result.(map[string]interface{}), err
-
-	}
-	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
-}
 
 // GdaoDelete implements godal.IGenericDao.GdaoDelete.
 //
@@ -440,21 +517,15 @@ func (dao *GenericDaoMongo) GdaoDeleteWithContext(ctx context.Context, collectio
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
-//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) GdaoDeleteMany(collectionName string, filter interface{}) (int, error) {
+func (dao *GenericDaoMongo) GdaoDeleteMany(collectionName string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithContext(nil, collectionName, filter)
 }
 
 // GdaoDeleteManyWithContext is is MongoDB variant of GdaoDeleteMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, collectionName string, filter interface{}) (int, error) {
-	f, err := toMap(filter)
-	if err != nil {
-		return 0, err
-	}
-	dbResult, err := dao.MongoDeleteMany(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
+func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, collectionName string, filter godal.FilterOpt) (int, error) {
+	dbResult, err := dao.MongoDeleteMany(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -462,22 +533,19 @@ func (dao *GenericDaoMongo) GdaoDeleteManyWithContext(ctx context.Context, colle
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
-//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-func (dao *GenericDaoMongo) GdaoFetchOne(collectionName string, filter interface{}) (godal.IGenericBo, error) {
+func (dao *GenericDaoMongo) GdaoFetchOne(collectionName string, filter godal.FilterOpt) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithContext(nil, collectionName, filter)
 }
 
 // GdaoFetchOneWithContext is is MongoDB variant of GdaoFetchOne.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collectionName string, filter interface{}) (godal.IGenericBo, error) {
-	f, err := toMap(filter)
-	if err != nil {
-		return nil, err
+func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collectionName string, filter godal.FilterOpt) (godal.IGenericBo, error) {
+	row := dao.MongoFetchOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter)
+	if row == nil {
+		return nil, errors.New("nil result from MongoFetchOne")
 	}
-	dbResult := dao.MongoFetchOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, f)
-	jsData, err := dao.mongoConnect.DecodeSingleResultRaw(dbResult)
+	jsData, err := dao.mongoConnect.DecodeSingleResultRaw(row)
 	if err != nil || jsData == nil {
 		return nil, err
 	}
@@ -485,25 +553,17 @@ func (dao *GenericDaoMongo) GdaoFetchOneWithContext(ctx context.Context, collect
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-//   - filter should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
 //   - nil filter means "match all".
-//   - see MongoDB query selector (https://docs.mongodb.com/manual/reference/operator/query/#query-selectors).
-//   - sorting should be a map[string]int, or it can be a string/[]byte representing map[string]int in JSON, then it is unmarshalled to map[string]int.
-//   - see MongoDB ascending/descending sort (https://docs.mongodb.com/manual/reference/method/cursor.sort/index.html#sort-asc-desc).
-func (dao *GenericDaoMongo) GdaoFetchMany(collectionName string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoMongo) GdaoFetchMany(collectionName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, collectionName, filter, sorting, startOffset, numItems)
 }
 
 // GdaoFetchManyWithContext is is MongoDB variant of GdaoFetchMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collectionName string, filter interface{}, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
-	f, err := toMap(filter)
-	if err != nil {
-		return nil, err
-	}
+func (dao *GenericDaoMongo) GdaoFetchManyWithContext(ctx context.Context, collectionName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	ctx = dao.mongoConnect.NewContextIfNil(ctx)
-	cursor, err := dao.MongoFetchMany(ctx, collectionName, f, sorting, startOffset, numItems)
+	cursor, err := dao.MongoFetchMany(ctx, collectionName, filter, sorting, startOffset, numItems)
 	if cursor != nil {
 		defer func() { _ = cursor.Close(ctx) }()
 	}
@@ -539,11 +599,11 @@ func isErrorDuplicatedKey(err error) bool {
 
 func (dao *GenericDaoMongo) insertIfNotExist(ctx context.Context, collectionName string, bo godal.IGenericBo) (bool, error) {
 	// first fetch existing document from storage
-	filter, err := toMap(dao.GdaoCreateFilter(collectionName, bo))
-	if err != nil {
-		return false, err
-	}
+	filter := dao.GdaoCreateFilter(collectionName, bo)
 	row := dao.MongoFetchOne(ctx, collectionName, filter)
+	if row == nil {
+		return false, errors.New("nil result from MongoFetchOne")
+	}
 	if jsData, err := dao.mongoConnect.DecodeSingleResultRaw(row); err != nil || jsData != nil {
 		if err != nil {
 			return false, err
@@ -629,10 +689,7 @@ func (dao *GenericDaoMongo) GdaoUpdateWithContext(ctx context.Context, collectio
 	if err != nil {
 		return 0, err
 	}
-	filter, err := toMap(dao.GdaoCreateFilter(collectionName, bo))
-	if err != nil {
-		return 0, err
-	}
+	filter := dao.GdaoCreateFilter(collectionName, bo)
 	result := dao.MongoUpdateOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter, doc)
 	if _, err := result.DecodeBytes(); err == mongo.ErrNoDocuments {
 		return 0, nil
@@ -656,10 +713,7 @@ func (dao *GenericDaoMongo) GdaoSaveWithContext(ctx context.Context, collectionN
 	if err != nil {
 		return 0, err
 	}
-	filter, err := toMap(dao.GdaoCreateFilter(collectionName, bo))
-	if err != nil {
-		return 0, err
-	}
+	filter := dao.GdaoCreateFilter(collectionName, bo)
 	result := dao.MongoSaveOne(dao.mongoConnect.NewContextIfNil(ctx), collectionName, filter, doc)
 	if err = result.Err(); err == nil || err == mongo.ErrNoDocuments {
 		return 1, nil

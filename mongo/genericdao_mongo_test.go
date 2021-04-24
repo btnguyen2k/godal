@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
-	"go.mongodb.org/mongo-driver/bson"
-
 	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/prom"
 )
 
 func _createMongoConnect(t *testing.T, testName string) *prom.MongoConnect {
@@ -78,9 +76,9 @@ type UserDaoMongo struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *UserDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) interface{} {
+func (dao *UserDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) godal.FilterOpt {
 	if collectionName == dao.collectionName {
-		return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
+		return godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
 	}
 	return nil
 }
@@ -328,43 +326,43 @@ func TestGenericDaoMongo_SetGetTxModeOnWrite(t *testing.T) {
 	}
 }
 
-func TestToMap(t *testing.T) {
-	name := "TestToMap"
-
-	input := make(map[string]interface{})
-	if m, err := toMap(input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&input); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputString := `{"id":"1", "username":"btnguyen2k"}`
-	if m, err := toMap(inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&inputString); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
-	if m, err := toMap(inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(&inputBytes); err != nil || m == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-
-	if m, err := toMap(nil); m != nil || err != nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap([]interface{}{"invalid", "input"}); m != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-	if m, err := toMap(time.Time{}); m != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, m, err)
-	}
-}
+// func TestToMap(t *testing.T) {
+// 	name := "TestToMap"
+//
+// 	input := make(map[string]interface{})
+// 	if m, err := toMap(input); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&input); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	inputString := `{"id":"1", "username":"btnguyen2k"}`
+// 	if m, err := toMap(inputString); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&inputString); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
+// 	if m, err := toMap(inputBytes); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(&inputBytes); err != nil || m == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+//
+// 	if m, err := toMap(nil); m != nil || err != nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap([]interface{}{"invalid", "input"}); m != nil || err == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// 	if m, err := toMap(time.Time{}); m != nil || err == nil {
+// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
+// 	}
+// }
 
 func TestGenericDaoMongo_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoMongo_GdaoDelete"
@@ -415,7 +413,11 @@ func TestGenericDaoMongo_GdaoDeleteMany(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
-	filter := bson.M{fieldId: bson.M{"$gte": "5"}}
+	filter := &godal.FilterOptOr{Filters: []godal.FilterOpt{
+		&godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "8"},
+		&godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpLess, Value: "3"},
+	}}
+
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 0 {
@@ -494,7 +496,11 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareMongoCollection", err)
 	}
 
-	filter := bson.M{fieldId: bson.M{"$gte": "5"}}
+	filter := &godal.FilterOptAnd{Filters: []godal.FilterOpt{
+		&godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpLessOrEqual, Value: "8"},
+		&godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreater, Value: "3"},
+	}}
+
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 1, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 0 {
@@ -517,7 +523,7 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 		}
 	}
 
-	// sorting := bson.M{fieldId: -1}
+	fetchIdList := []string{"7", "6", "5"}
 	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: fieldId, Descending: true})
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, sorting, 1, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
@@ -526,8 +532,8 @@ func TestGenericDaoMongo_GdaoFetchMany(t *testing.T) {
 	} else {
 		for i, row := range dbRows {
 			u := dao.toUser(row)
-			if u.Id != strconv.Itoa(5+3-i) {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, strconv.Itoa(5+3-i), u.Id)
+			if u.Id != fetchIdList[i] {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], u.Id)
 			}
 		}
 	}
@@ -773,7 +779,7 @@ func TestGenericDaoMongo_GdaoSaveShouldReplace(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
-	filter := bson.M{"_id": "1"}
+	filter := godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: "1"}
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
