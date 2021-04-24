@@ -71,21 +71,21 @@ func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
 
 /*----------------------------------------------------------------------*/
 
-// OptionOpLiteral controls literal forms of operators.
-type OptionOpLiteral struct {
-	OpAnd      string // 'and' operator, default is "AND"
-	OpOr       string // 'or' operator, default is "OR"
-	OpEqual    string // 'equal' operator, default is "="
-	OpNotEqual string // 'not equal' operator, default is "!="
-}
+// // OptionOpLiteral controls literal forms of operators.
+// type OptionOpLiteral struct {
+// 	OpAnd      string // 'and' operator, default is "AND"
+// 	OpOr       string // 'or' operator, default is "OR"
+// 	OpEqual    string // 'equal' operator, default is "="
+// 	OpNotEqual string // 'not equal' operator, default is "!="
+// }
 
-// DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
-var DefaultOptionLiteralOperator = &OptionOpLiteral{
-	OpAnd:      "AND",
-	OpOr:       "OR",
-	OpEqual:    "=",
-	OpNotEqual: "!=",
-}
+// // DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
+// var DefaultOptionLiteralOperator = &OptionOpLiteral{
+// 	OpAnd:      "AND",
+// 	OpOr:       "OR",
+// 	OpEqual:    "=",
+// 	OpNotEqual: "!=",
+// }
 
 /*----------------------------------------------------------------------*/
 
@@ -318,7 +318,7 @@ func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts
 
 /*----------------------------------------------------------------------*/
 
-// FilterIsNil represents single filter: <field> IS NULL.
+// FilterIsNull represents single filter: <field> IS NULL.
 //
 // Available since v0.4.0
 type FilterIsNull struct {
@@ -346,7 +346,7 @@ func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...
 	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
 }
 
-// FilterIsNotNil represents single filter: <field> IS NOT NULL.
+// FilterIsNotNull represents single filter: <field> IS NOT NULL.
 //
 // Available since v0.4.0
 type FilterIsNotNull struct {

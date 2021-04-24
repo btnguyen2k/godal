@@ -3,11 +3,11 @@ Package cosmosdbsql provides a generic Azure Cosmos DB implementation of godal.I
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 
 Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Configure either {collection-name:path-to-fetch-partition_key-value-from-genericbo} (via GenericDaoCosmosdb.CosmosSetPkGboMapPath)
 	  or {collection-name:path-to-fetch-partition_key-value-from-dbrow} (via GenericDaoCosmosdb.CosmosSetPkRowMapPath).
 	- Optionally, configure {collection-name:path-to-fetch-id-value-from-genericbo} via GenericDaoCosmosdb.CosmosSetIdGboMapPath.
@@ -28,9 +28,9 @@ Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
+	func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(table string, bo godal.IGenericBo) godal.FilterOpt {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{tableColumnId: id}
+		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoCosmosdb is helper function to create myGenericDaoCosmosdb instances.
@@ -50,7 +50,7 @@ Guideline: Use GenericDaoCosmosdb (and godal.IGenericBo) directly
 
 Guideline: Implement custom Azure Cosmos DB business dao and bo
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 	- Optionally, create a helper function to create dao instances.
 
@@ -158,15 +158,18 @@ import (
 // GenericRowMapperCosmosdb is a generic implementation of godal.IRowMapper for Azure Cosmos DB.
 //
 // Implementation rules:
-//   - ToRow      : transform godal.IGenericBo "as-is" to map[string]interface{}.
-//   - ToBo       : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-//   - ColumnsList: return []string{"*"} (CosmosDB is schema-free, hence column-list is not used).
+//   - ToRow        : transform godal.IGenericBo "as-is" to map[string]interface{}.
+//   - ToBo         : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+//   - ColumnsList  : return []string{"*"} (CosmosDB is schema-free, hence column-list is not used).
+//   - ToDbColName  : return the input field name "as-is".
+//   - ToBoFieldName: return the input column name "as-is".
 //
 // Available: since v0.3.0
 type GenericRowMapperCosmosdb struct {
 }
 
 // ToRow implements godal.IRowMapper.ToRow.
+//
 // This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 func (mapper *GenericRowMapperCosmosdb) ToRow(_ string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
@@ -177,12 +180,20 @@ func (mapper *GenericRowMapperCosmosdb) ToRow(_ string, bo godal.IGenericBo) (in
 }
 
 // ToBo implements godal.IRowMapper.ToBo.
+//
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
-func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (godal.IGenericBo, error) {
+func (mapper *GenericRowMapperCosmosdb) ToBo(tableName string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
 		return nil, nil
 	}
 	switch row.(type) {
+	case *map[string]interface{}:
+		// unwrap if pointer
+		m := row.(*map[string]interface{})
+		if m == nil {
+			return nil, nil
+		}
+		return mapper.ToBo(tableName, *m)
 	case map[string]interface{}:
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
@@ -193,11 +204,12 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson([]byte(row.(string)))
 	case *string:
-		if row.(*string) == nil {
+		// unwrap if pointer
+		s := row.(*string)
+		if s == nil {
 			return nil, nil
 		}
-		bo := godal.NewGenericBo()
-		return bo, bo.GboFromJson([]byte(*row.(*string)))
+		return mapper.ToBo(tableName, *s)
 	case []byte:
 		if row.([]byte) == nil {
 			return nil, nil
@@ -205,14 +217,17 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson(row.([]byte))
 	case *[]byte:
-		if row.(*[]byte) == nil {
+		// unwrap if pointer
+		ba := row.(*[]byte)
+		if ba == nil {
 			return nil, nil
 		}
-		return mapper.ToBo(table, *row.(*[]byte))
+		return mapper.ToBo(tableName, *ba)
 	}
 
 	v := reflect.ValueOf(row)
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+		// unwrap if pointer
 	}
 	switch v.Kind() {
 	case reflect.Map:
@@ -237,7 +252,7 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 			return bo, bo.GboFromJson(arr.([]byte))
 		}
 	case reflect.Interface:
-		return mapper.ToBo(table, v.Interface())
+		return mapper.ToBo(tableName, v.Interface())
 	case reflect.Invalid:
 		return nil, nil
 	}
@@ -245,9 +260,24 @@ func (mapper *GenericRowMapperCosmosdb) ToBo(table string, row interface{}) (god
 }
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
+//
 // This function returns []string{"*"} since CosmosDB is schema-free (hence column-list is not used).
 func (mapper *GenericRowMapperCosmosdb) ColumnsList(_ string) []string {
 	return []string{"*"}
+}
+
+// ToDbColName implements godal.IRowMapper.ToDbColName.
+//
+// This function returns the input field name "as-is".
+func (mapper *GenericRowMapperCosmosdb) ToDbColName(_, fieldName string) string {
+	return fieldName
+}
+
+// ToBoFieldName implements godal.IRowMapper.ToBoFieldName.
+//
+// This function returns the input column name "as-is".
+func (mapper *GenericRowMapperCosmosdb) ToBoFieldName(_, colName string) string {
+	return colName
 }
 
 var (
@@ -260,11 +290,7 @@ var (
 // NewGenericDaoCosmosdb constructs a new Azure Cosmos DB implementation of 'godal.IGenericDao'.
 func NewGenericDaoCosmosdb(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoCosmosdb {
 	sqlDao := godalsql.NewGenericDaoSql(sqlConnect, agdao)
-	// dao := &GenericDaoCosmosdb{GenericDaoSql: sqlDao}
 	dao := &GenericDaoCosmosdb{IGenericDaoSql: sqlDao}
-	// if dao.GetRowMapper() == nil {
-	// 	dao.SetRowMapper(GenericRowMapperCosmosdbInstance)
-	// }
 	return dao
 }
 
@@ -275,18 +301,17 @@ var (
 // GenericDaoCosmosdb is Azure Cosmos DB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 //   - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-//   - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-//   - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-//   - (y) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error)
+//   - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
+//   - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
+//   - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
 //   - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
 //
 // Available: since v0.3.0
 type GenericDaoCosmosdb struct {
-	// *godalsql.GenericDaoSql
 	godalsql.IGenericDaoSql
 	idGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-id-value-from-genericbo}
 	pkGboPathMap map[string]string // mapping {collection-name:semita-path-to-fetch-partition_key-value-from-genericbo}
@@ -295,10 +320,10 @@ type GenericDaoCosmosdb struct {
 
 // CosmosGetIdGboMapPath gets the mapping {collection-name:path-to-fetch-id-value-from-genericbo}.
 //
-// It is optional but highly recommended to specify such a mapping for performance result. If not specified,
-// the (generic) bo is firstly transform to database row (via the row-mapper). Then, the value of database row's "id"
+// It is optional but highly recommended to specify such a mapping for performant reason. If not specified,
+// the (generic) bo is firstly transformed to database row (via the row-mapper). Then, the value of database row's "id"
 // field is returned. Since it's a two-step process, specifying the mapping the mapping
-// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yield better performance.
+// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yields better performance.
 //
 // Collection-name has value "*" means "match any collection".
 func (dao *GenericDaoCosmosdb) CosmosGetIdGboMapPath() map[string]string {
@@ -311,10 +336,10 @@ func (dao *GenericDaoCosmosdb) CosmosGetIdGboMapPath() map[string]string {
 
 // CosmosSetIdGboMapPath sets the mapping {collection-name:path-to-fetch-id-value-from-genericbo}.
 //
-// It is optional but highly recommended to specify such a mapping for performance result. If not specified,
-// the (generic) bo is firstly transform to database row (via the row-mapper). Then, the value of database row's "id"
+// It is optional but highly recommended to specify such a mapping for performant reason. If not specified,
+// the (generic) bo is firstly transformed to database row (via the row-mapper). Then, the value of database row's "id"
 // field is returned. Since it's a two-step process, specifying the mapping the mapping
-// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yield better performance.
+// {collection-name:semita-path-to-fetch-id-value-from-genericbo} often yields better performance.
 //
 // Collection-name has value "*" means "match any collection".
 func (dao *GenericDaoCosmosdb) CosmosSetIdGboMapPath(idGboPathMap map[string]string) *GenericDaoCosmosdb {
@@ -409,7 +434,7 @@ func (dao *GenericDaoCosmosdb) CosmosSetPkRowMapPath(pkRowPathMap map[string]str
 
 // CosmosGetPk extracts and returns partition key value from a BO.
 //
-// This function firstly use the mapping {collection-name:path-to-fetch-partition_key-value-from-genericbo} to look up
+// This function firstly uses the mapping {collection-name:path-to-fetch-partition_key-value-from-genericbo} to look up
 // pk value from the generic bo. If the lookup is not successful, the mapping {collection-name:path-to-fetch-partition_key-value-from-dbrow}
 // is then used for loopup.
 //
@@ -443,7 +468,7 @@ func (dao *GenericDaoCosmosdb) IsErrorDuplicatedEntry(err error) bool {
 
 /*----------------------------------------------------------------------*/
 
-// cosmosdbDeleteBuilder is CosmosDB variant of DeleteBuilder.
+// cosmosdbDeleteBuilder is CosmosDB variant of sql.DeleteBuilder.
 type cosmosdbDeleteBuilder struct {
 	*godalsql.DeleteBuilder
 	pkValue interface{}
@@ -464,7 +489,7 @@ func (dao *GenericDaoCosmosdb) GdaoDelete(collection string, bo godal.IGenericBo
 // GdaoDeleteWithTx is database/sql variant of GdaoDelete.
 func (dao *GenericDaoCosmosdb) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, collection string, bo godal.IGenericBo) (int, error) {
 	filter := dao.GdaoCreateFilter(collection, bo)
-	if f, err := dao.BuildFilter(filter); err != nil {
+	if f, err := dao.BuildFilter(collection, filter); err != nil {
 		return 0, err
 	} else {
 		builder := &cosmosdbDeleteBuilder{
@@ -481,14 +506,14 @@ func (dao *GenericDaoCosmosdb) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx,
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-func (dao *GenericDaoCosmosdb) GdaoDeleteMany(collection string, filter interface{}) (int, error) {
+func (dao *GenericDaoCosmosdb) GdaoDeleteMany(collection string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithTx(nil, nil, collection, filter)
 }
 
 // GdaoDeleteManyWithTx is database/sql variant of GdaoDeleteMany.
 //
 // Note: this function firstly fetches all matched documents and then delete them one by one.
-func (dao *GenericDaoCosmosdb) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}) (int, error) {
+func (dao *GenericDaoCosmosdb) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt) (int, error) {
 	if boList, err := dao.GdaoFetchManyWithTx(ctx, tx, collection, filter, nil, 0, 0); err != nil {
 		return 0, err
 	} else {
@@ -517,13 +542,13 @@ func (b *cosmosdbSelectBuilder) Build(opts ...interface{}) (string, []interface{
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-func (dao *GenericDaoCosmosdb) GdaoFetchOne(collection string, filter interface{}) (godal.IGenericBo, error) {
+func (dao *GenericDaoCosmosdb) GdaoFetchOne(collection string, filter godal.FilterOpt) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithTx(nil, nil, collection, filter)
 }
 
 // GdaoFetchOneWithTx is database/sql variant of GdaoFetchOne.
-func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}) (godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt) (godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(collection, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -543,18 +568,20 @@ func (dao *GenericDaoCosmosdb) GdaoFetchOneWithTx(ctx context.Context, tx *sql.T
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-func (dao *GenericDaoCosmosdb) GdaoFetchMany(collection string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	return dao.GdaoFetchManyWithTx(nil, nil, collection, filter, ordering, fromOffset, numRows)
+func (dao *GenericDaoCosmosdb) GdaoFetchMany(collection string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	return dao.GdaoFetchManyWithTx(nil, nil, collection, filter, sorting, fromOffset, numRows)
 }
 
 // GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
-func (dao *GenericDaoCosmosdb) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoCosmosdb) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, collection string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(collection, filter)
 	if err != nil {
 		return nil, err
 	}
-
-	o, _ := dao.BuildOrdering(ordering)
+	o, err := dao.BuildSorting(collection, sorting)
+	if err != nil {
+		return nil, err
+	}
 	columns := dao.GetRowMapper().ColumnsList(collection)
 	builder := &cosmosdbSelectBuilder{
 		SelectBuilder: godalsql.NewSelectBuilder().WithFlavor(dao.GetSqlFlavor()).WithColumns(columns...).
@@ -664,7 +691,7 @@ func (dao *GenericDaoCosmosdb) GdaoUpdate(collection string, bo godal.IGenericBo
 
 // GdaoUpdateWithTx is database/sql variant of GdaoUpdate.
 func (dao *GenericDaoCosmosdb) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, collection string, bo godal.IGenericBo) (int, error) {
-	f, err := dao.BuildFilter(dao.GdaoCreateFilter(collection, bo))
+	f, err := dao.BuildFilter(collection, dao.GdaoCreateFilter(collection, bo))
 	if err != nil {
 		return 0, err
 	}

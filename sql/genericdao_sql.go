@@ -3,11 +3,11 @@ Package sql provides a generic 'database/sql' implementation of godal.IGenericDa
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 
 Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Optionally, create a helper function to create dao instances.
 
 	// Remember to import database driver. The following example uses MySQL hence driver "github.com/go-sql-driver/mysql".
@@ -25,9 +25,9 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+	func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
-		return map[string]interface{}{tableColumnId: id}
+		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoMysql is helper function to create myGenericDaoMysql instances.
@@ -47,7 +47,7 @@ Guideline: Use GenericDaoSql (and godal.IGenericBo) directly
 
 Guideline: Implement custom 'database/sql' business dao and bo
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
 	- Optionally, create a helper function to create dao instances.
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 
@@ -129,6 +129,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -142,13 +143,13 @@ import (
 // NewGenericDaoSql constructs a new GenericDaoSql with 'txModeOnWrite=true'.
 func NewGenericDaoSql(sqlConnect *prom.SqlConnect, agdao *godal.AbstractGenericDao) *GenericDaoSql {
 	dao := &GenericDaoSql{
-		AbstractGenericDao:          agdao,
-		sqlConnect:                  sqlConnect,
-		sqlFlavor:                   prom.FlavorDefault,
-		txModeOnWrite:               true,
-		txIsolationLevel:            sql.LevelDefault,
-		optionOpLiteral:             DefaultOptionLiteralOperator,
-		funcNewPlaceholderGenerator: NewPlaceholderGeneratorQuestion,
+		AbstractGenericDao:           agdao,
+		sqlConnect:                   sqlConnect,
+		sqlFlavor:                    prom.FlavorDefault,
+		txModeOnWrite:                true,
+		txIsolationLevel:             sql.LevelDefault,
+		funcNewPlaceholderGenerator:  NewPlaceholderGeneratorQuestion,
+		funcFilterOperatorTranslator: DefaultFilterOperatorTranslator,
 	}
 	if dao.GetRowMapper() == nil {
 		dao.SetRowMapper(&GenericRowMapperSql{NameTransformation: NameTransfIntact})
@@ -162,24 +163,24 @@ var (
 
 // IGenericDaoSql is 'database/sql' reference implementation of godal.IGenericDao.
 //
-// IGenericDaoSql and GenericDaoSql should be in sync.
+// Note: IGenericDaoSql and GenericDaoSql should be in sync.
 //
 // Available since v0.3.0
 type IGenericDaoSql interface {
-	// inherit all functions from godal.IGenericDao
+	// IGenericDao instance to inherit existing functions.
 	godal.IGenericDao
 
 	// GdaoDeleteWithTx is database/sql variant of GdaoDelete.
 	GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
 
 	// GdaoDeleteManyWithTx is database/sql variant of GdaoDeleteMany.
-	GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (int, error)
+	GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt) (int, error)
 
 	// GdaoFetchOneWithTx is database/sql variant of GdaoFetchOne.
-	GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (godal.IGenericBo, error)
+	GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
 
 	// GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
-	GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error)
+	GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error)
 
 	// GdaoCreateWithTx is database/sql variant of GdaoCreate.
 	GdaoCreateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
@@ -190,7 +191,6 @@ type IGenericDaoSql interface {
 	// GdaoSaveWithTx is database/sql variant of godal.IGenericDao.GdaoSave.
 	GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error)
 
-	/*----------------------------------------------------------------------*/
 	// SetRowMapper attaches an IRowMapper to the DAO for latter use.
 	SetRowMapper(rowMapper godal.IRowMapper) IGenericDaoSql
 
@@ -225,32 +225,21 @@ type IGenericDaoSql interface {
 	// StartTx starts a new transaction.
 	StartTx(ctx context.Context) (*sql.Tx, error)
 
-	// GetOptionOpLiteral returns operation literal settings.
-	GetOptionOpLiteral() *OptionOpLiteral
-
-	// SetOptionOpLiteral sets operation literal settings.
-	SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql
-
 	// GetFuncNewPlaceholderGenerator returns the function creates 'PlaceholderGenerator'.
 	GetFuncNewPlaceholderGenerator() NewPlaceholderGenerator
 
 	// SetFuncNewPlaceholderGenerator sets the function used to create 'PlaceholderGenerator'.
 	SetFuncNewPlaceholderGenerator(funcNewPlaceholderGenerator NewPlaceholderGenerator) IGenericDaoSql
 
-	// BuildFilter builds IFilter instance based on the following rules:
-	//   - If 'filter' is nil: return nil.
-	//   - If 'filter' is IFilter: return 'filter'.
-	//   - If 'filter' is a map: build a FilterAnd combining all map entries, using operation "=", and return it.
-	//   - Otherwise, return error.
-	BuildFilter(filter interface{}) (IFilter, error)
+	// BuildFilter transforms a godal.FilterOpt to IFilter.
+	//
+	// Available since v0.5.0
+	BuildFilter(storageId string, filter godal.FilterOpt) (IFilter, error)
 
-	// BuildOrdering builds elements for 'ORDER BY' clause, based on the following rules:
-	//   - If 'ordering' is nil: return nil.
-	//   - If 'ordering' is ISorting: return 'ordering'.
-	//   - If 'ordering' is a map: build a GenericSorting combining all map entries, where map key is field name and map value is ordering specification (1 for ASC, -1 for DESC).
-	//   - If 'ordering' is a slice/array: build a GenericSorting combining all list entries, assuming each entry is a string in the format '<field_name[<:order>]>' ('order>=0' means 'ascending' and 'order<0' means 'descending').
-	//   - Otherwise, return error.
-	BuildOrdering(ordering interface{}) (ISorting, error)
+	// BuildSorting builds elements for 'ORDER BY' clause, based on the following rules:
+	//
+	// Available since v0.5.0
+	BuildSorting(storageId string, ordering *godal.SortingOpt) (ISorting, error)
 
 	// SqlExecute executes a non-SELECT SQL statement within a context/transaction.
 	//   - If tx is not nil, the transaction context is used to execute the query.
@@ -317,27 +306,62 @@ type IGenericDaoSql interface {
 	WrapTransaction(ctx context.Context, txFunc func(ctx context.Context, tx *sql.Tx) error) error
 }
 
+// FilterOperatorTranslator takes a godal.FilterOperator and translates to database-compatible operator string.
+//
+// Available since v0.5.0
+type FilterOperatorTranslator func(op godal.FilterOperator) (string, error)
+
+// DefaultFilterOperatorTranslator is a ready-to-use implementation of FilterOperatorTranslator
+//
+// Translation rule:
+//   - "equal"                   : =
+//   - "not equal"               : <>
+//   - "greater than"            : >
+//   - "greater than or equal to": >=
+//   - "less than"               : <
+//   - "less than or equal to"   : <=
+//   - other                     : error
+//
+// Available since v0.5.0
+func DefaultFilterOperatorTranslator(op godal.FilterOperator) (string, error) {
+	switch op {
+	case godal.FilterOpEqual:
+		return "=", nil
+	case godal.FilterOpNotEqual:
+		return "<>", nil
+	case godal.FilterOpGreater:
+		return ">", nil
+	case godal.FilterOpGreaterOrEqual:
+		return ">=", nil
+	case godal.FilterOpLess:
+		return "<", nil
+	case godal.FilterOpLessOrEqual:
+		return "<=", nil
+	}
+	return "", fmt.Errorf("cannot translate operator %#v to db-compatible operator string", op)
+}
+
 // GenericDaoSql is 'database/sql' implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 //   - (Y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-//   - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-//   - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-//   - (y) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numItems int) ([]godal.IGenericBo, error)
+//   - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
+//   - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
+//   - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numItems int) ([]godal.IGenericBo, error)
 //   - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 //   - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
 //
-// IGenericDaoSql and GenericDaoSql should be in sync.
+// Note: IGenericDaoSql and GenericDaoSql should be in sync.
 type GenericDaoSql struct {
 	*godal.AbstractGenericDao
-	sqlConnect                  *prom.SqlConnect
-	sqlFlavor                   prom.DbFlavor
-	txModeOnWrite               bool
-	txIsolationLevel            sql.IsolationLevel
-	optionOpLiteral             *OptionOpLiteral
-	funcNewPlaceholderGenerator NewPlaceholderGenerator
+	sqlConnect                   *prom.SqlConnect
+	sqlFlavor                    prom.DbFlavor
+	txModeOnWrite                bool
+	txIsolationLevel             sql.IsolationLevel
+	funcFilterOperatorTranslator FilterOperatorTranslator
+	funcNewPlaceholderGenerator  NewPlaceholderGenerator
 }
 
 // SetRowMapper attaches an IRowMapper to the DAO for latter use.
@@ -431,17 +455,6 @@ func (dao *GenericDaoSql) StartTx(ctx context.Context) (*sql.Tx, error) {
 	return dao.sqlConnect.GetDB().BeginTx(dao.sqlConnect.NewContextIfNil(ctx), &sql.TxOptions{Isolation: dao.txIsolationLevel})
 }
 
-// GetOptionOpLiteral returns operation literal settings.
-func (dao *GenericDaoSql) GetOptionOpLiteral() *OptionOpLiteral {
-	return dao.optionOpLiteral
-}
-
-// SetOptionOpLiteral sets operation literal settings.
-func (dao *GenericDaoSql) SetOptionOpLiteral(optionOpLiteral *OptionOpLiteral) IGenericDaoSql {
-	dao.optionOpLiteral = optionOpLiteral
-	return dao
-}
-
 // GetFuncNewPlaceholderGenerator returns the function creates 'PlaceholderGenerator'.
 func (dao *GenericDaoSql) GetFuncNewPlaceholderGenerator() NewPlaceholderGenerator {
 	return dao.funcNewPlaceholderGenerator
@@ -453,72 +466,122 @@ func (dao *GenericDaoSql) SetFuncNewPlaceholderGenerator(funcNewPlaceholderGener
 	return dao
 }
 
-// BuildFilter builds IFilter instance based on the following rules:
+// BuildFilter transforms a godal.FilterOpt to IFilter.
 //
-//   - If 'filter' is nil: return nil.
-//   - If 'filter' is IFilter: return 'filter'.
-//   - If 'filter' is a map: build a FilterAnd combining all map entries, using operation "=", and return it.
-//   - Otherwise, return error.
-func (dao *GenericDaoSql) BuildFilter(filter interface{}) (IFilter, error) {
+// Available since v0.5.0
+func (dao *GenericDaoSql) BuildFilter(storageId string, filter godal.FilterOpt) (IFilter, error) {
 	if filter == nil {
 		return nil, nil
 	}
-	v := reflect.ValueOf(filter)
-	if v.Type().AssignableTo(ifilterType) {
-		return filter.(IFilter), nil
+	rm := dao.GetRowMapper()
+	if rm == nil {
+		return nil, errors.New("row-mapper is required to build filter")
 	}
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+	funcFoTranslator := dao.funcFilterOperatorTranslator
+	if funcFoTranslator == nil {
+		return nil, errors.New("filter-operator-translator is required to build filter")
 	}
-	if v.Kind() == reflect.Map {
-		result := &FilterAnd{FilterAndOr: FilterAndOr{Filters: make([]IFilter, 0)}}
-		ops := dao.optionOpLiteral
-		if ops == nil {
-			ops = DefaultOptionLiteralOperator
+
+	switch filter.(type) {
+	case godal.FilterOptFieldOpValue:
+		f := filter.(godal.FilterOptFieldOpValue)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptFieldOpValue:
+		f := filter.(*godal.FilterOptFieldOpValue)
+		opStr, err := funcFoTranslator(f.Operator)
+		result := &FilterFieldValue{
+			Field:    rm.ToDbColName(storageId, f.FieldName),
+			Operator: opStr,
+			Value:    f.Value,
 		}
-		for iter := v.MapRange(); iter.Next(); {
-			key, _ := reddo.ToString(iter.Key().Interface())
-			result.Add(&FilterFieldValue{Field: key, Operator: ops.OpEqual, Value: iter.Value().Interface()})
+		return result, err
+	case godal.FilterOptFieldOpField:
+		f := filter.(godal.FilterOptFieldOpField)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptFieldOpField:
+		f := filter.(*godal.FilterOptFieldOpField)
+		opStr, err := funcFoTranslator(f.Operator)
+		result := &FilterExpression{
+			Left:     rm.ToDbColName(storageId, f.FieldNameLeft),
+			Operator: opStr,
+			Right:    rm.ToDbColName(storageId, f.FieldNameRight),
+		}
+		return result, err
+	case godal.FilterOptFieldIsNull:
+		f := filter.(godal.FilterOptFieldIsNull)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptFieldIsNull:
+		f := filter.(*godal.FilterOptFieldIsNull)
+		result := &FilterIsNull{FilterFieldValue: FilterFieldValue{Field: rm.ToDbColName(storageId, f.FieldName)}}
+		return result, nil
+	case godal.FilterOptFieldIsNotNull:
+		f := filter.(godal.FilterOptFieldIsNotNull)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptFieldIsNotNull:
+		f := filter.(*godal.FilterOptFieldIsNotNull)
+		result := &FilterIsNotNull{FilterFieldValue: FilterFieldValue{Field: rm.ToDbColName(storageId, f.FieldName)}}
+		return result, nil
+	case godal.FilterOptAnd:
+		f := filter.(godal.FilterOptAnd)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptAnd:
+		f := filter.(*godal.FilterOptAnd)
+		result := &FilterAnd{}
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildFilter(storageId, innerF)
+			if err != nil {
+				return nil, err
+			}
+			result.Add(innerResult)
+		}
+		return result, nil
+	case godal.FilterOptOr:
+		f := filter.(godal.FilterOptOr)
+		return dao.BuildFilter(storageId, &f)
+	case *godal.FilterOptOr:
+		f := filter.(*godal.FilterOptOr)
+		result := &FilterOr{}
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildFilter(storageId, innerF)
+			if err != nil {
+				return nil, err
+			}
+			result.Add(innerResult)
 		}
 		return result, nil
 	}
-	return nil, fmt.Errorf("cannot build filter from %v", filter)
+
+	return nil, fmt.Errorf("cannot build filter from %T", filter)
 }
 
-// BuildOrdering builds elements for 'ORDER BY' clause, based on the following rules:
+// BuildSorting builds elements for 'ORDER BY' clause.
 //
-//   - If 'ordering' is nil: return nil.
-//   - If 'ordering' is ISorting: return 'ordering'.
-//   - If 'ordering' is a map: build a GenericSorting combining all map entries, where map key is field name and map value is ordering specification (1 for ASC, -1 for DESC).
-//   - If 'ordering' is a slice/array: build a GenericSorting combining all list entries, assuming each entry is a string in the format '<field_name[<:order>]>' ('order>=0' means 'ascending' and 'order<0' means 'descending').
-//   - Otherwise, return error.
-//
-// Available since v0.0.2
-func (dao *GenericDaoSql) BuildOrdering(ordering interface{}) (ISorting, error) {
-	if ordering == nil {
+// Available since v0.5.0
+func (dao *GenericDaoSql) BuildSorting(storageId string, sorting *godal.SortingOpt) (ISorting, error) {
+	if sorting == nil || len(sorting.Fields) == 0 {
 		return nil, nil
 	}
-	v := reflect.ValueOf(ordering)
-	if v.Type().AssignableTo(isortingType) {
-		return ordering.(ISorting), nil
+	rm := dao.GetRowMapper()
+	if rm == nil {
+		return nil, errors.New("row-mapper is needed to build sorting clause")
 	}
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-	}
-	if v.Kind() == reflect.Map {
-		result := &GenericSorting{Flavor: dao.sqlFlavor}
-		for iter := v.MapRange(); iter.Next(); {
-			key, _ := reddo.ToString(iter.Key().Interface())
-			value, _ := reddo.ToString(iter.Value().Interface())
-			result.Add(key + ":" + value)
+	result := &GenericSorting{Flavor: dao.sqlFlavor}
+	for _, field := range sorting.Fields {
+		colName := rm.ToDbColName(storageId, field.FieldName)
+		if colName == "" {
+			return nil, fmt.Errorf("cannot map field \"%s\" to db column name", field.FieldName)
 		}
-		return result, nil
+		if field.Descending {
+			colName += ":-1"
+		}
+		result.Add(colName)
 	}
-	return nil, fmt.Errorf("cannot build ordering from %v", ordering)
+	return result, nil
 }
 
 /*----------------------------------------------------------------------*/
 
 // SqlExecute executes a non-SELECT SQL statement within a context/transaction.
-//
 //   - If ctx is nil, SqlExecute creates a new context to use.
 //   - If tx is not nil, SqlExecute uses transaction context to execute the query.
 //   - If tx is nil, SqlExecute calls DB.ExecContext to execute the query.
@@ -540,7 +603,6 @@ func (dao *GenericDaoSql) SqlExecute(ctx context.Context, tx *sql.Tx, sql string
 }
 
 // SqlQuery executes a SELECT SQL statement within a context/transaction.
-//
 //   - If ctx is nil, SqlQuery creates a new context to use.
 //   - If tx is not nil, SqlQuery uses transaction context to execute the query.
 //   - If tx is nil, SqlQuery calls DB.QueryContext to execute the query.
@@ -672,7 +734,6 @@ func (dao *GenericDaoSql) SqlUpdateEx(builder ISqlBuilder, ctx context.Context, 
 /*----------------------------------------------------------------------*/
 
 // FetchOne fetches a row from `sql.Rows` and transforms it to godal.IGenericBo.
-//
 //   - FetchOne will NOT call dbRows.Close(), caller must take care of cleaning resource.
 //   - Caller should not call dbRows.Next(), FetchOne will do that.
 func (dao *GenericDaoSql) FetchOne(storageId string, dbRows *sql.Rows) (godal.IGenericBo, error) {
@@ -693,7 +754,6 @@ func (dao *GenericDaoSql) FetchOne(storageId string, dbRows *sql.Rows) (godal.IG
 }
 
 // FetchAll fetches all rows from `sql.Rows` and transforms to []godal.IGenericBo.
-//
 //   - FetchOne will NOT call dbRows.Close(), caller must take are of cleaning resource.
 //   - Caller should not call dbRows.Next(), FetchOne will do that.
 func (dao *GenericDaoSql) FetchAll(storageId string, dbRows *sql.Rows) ([]godal.IGenericBo, error) {
@@ -736,15 +796,15 @@ func (dao *GenericDaoSql) GdaoDeleteWithTx(ctx context.Context, tx *sql.Tx, stor
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-func (dao *GenericDaoSql) GdaoDeleteMany(storageId string, filter interface{}) (int, error) {
+func (dao *GenericDaoSql) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithTx(nil, nil, storageId, filter)
 }
 
 // GdaoDeleteManyWithTx is database/sql variant of GdaoDeleteMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (int, error) {
-	if f, err := dao.BuildFilter(filter); err != nil {
+func (dao *GenericDaoSql) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt) (int, error) {
+	if f, err := dao.BuildFilter(storageId, filter); err != nil {
 		return 0, err
 	} else if result, err := dao.SqlDelete(ctx, tx, storageId, f); err != nil {
 		return 0, err
@@ -755,15 +815,15 @@ func (dao *GenericDaoSql) GdaoDeleteManyWithTx(ctx context.Context, tx *sql.Tx, 
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-func (dao *GenericDaoSql) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error) {
+func (dao *GenericDaoSql) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithTx(nil, nil, storageId, filter)
 }
 
 // GdaoFetchOneWithTx is database/sql variant of GdaoFetchOne.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}) (godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt) (godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(storageId, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -779,19 +839,22 @@ func (dao *GenericDaoSql) GdaoFetchOneWithTx(ctx context.Context, tx *sql.Tx, st
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	return dao.GdaoFetchManyWithTx(nil, nil, storageId, filter, ordering, fromOffset, numRows)
+func (dao *GenericDaoSql) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	return dao.GdaoFetchManyWithTx(nil, nil, storageId, filter, sorting, fromOffset, numRows)
 }
 
 // GdaoFetchManyWithTx is database/sql variant of GdaoFetchMany.
 //
 // Available: since v0.1.0
-func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter interface{}, ordering interface{}, fromOffset, numRows int) ([]godal.IGenericBo, error) {
-	f, err := dao.BuildFilter(filter)
+func (dao *GenericDaoSql) GdaoFetchManyWithTx(ctx context.Context, tx *sql.Tx, storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, fromOffset, numRows int) ([]godal.IGenericBo, error) {
+	f, err := dao.BuildFilter(storageId, filter)
 	if err != nil {
 		return nil, err
 	}
-	o, _ := dao.BuildOrdering(ordering)
+	o, err := dao.BuildSorting(storageId, sorting)
+	if err != nil {
+		return nil, err
+	}
 	dbRows, err := dao.SqlSelect(ctx, tx, storageId, dao.GetRowMapper().ColumnsList(storageId), f, o, fromOffset, numRows)
 	if dbRows != nil {
 		defer func() { _ = dbRows.Close() }()
@@ -859,7 +922,7 @@ func (dao *GenericDaoSql) GdaoUpdate(storageId string, bo godal.IGenericBo) (int
 //
 // Available: since v0.1.0
 func (dao *GenericDaoSql) GdaoUpdateWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
-	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
+	filter, err := dao.BuildFilter(storageId, dao.GdaoCreateFilter(storageId, bo))
 	if err != nil {
 		return 0, err
 	}
@@ -902,7 +965,7 @@ func (dao *GenericDaoSql) GdaoSave(storageId string, bo godal.IGenericBo) (int, 
 //
 // Available: since v0.1.0
 func (dao *GenericDaoSql) GdaoSaveWithTx(ctx context.Context, tx *sql.Tx, storageId string, bo godal.IGenericBo) (int, error) {
-	filter, err := dao.BuildFilter(dao.GdaoCreateFilter(storageId, bo))
+	filter, err := dao.BuildFilter(storageId, dao.GdaoCreateFilter(storageId, bo))
 	if err != nil {
 		return 0, err
 	}

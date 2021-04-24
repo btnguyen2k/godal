@@ -158,6 +158,24 @@ func TestGenericRowMapperSql_ToBo(t *testing.T) {
 	}
 }
 
+func TestGenericRowMapperSql_ToBo_Invalid(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBo_Invalid"
+	rm := &GenericRowMapperSql{}
+	gbo, err := rm.ToBo("", time.Time{})
+	if err == nil || gbo != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
+	}
+}
+
+func TestGenericRowMapperSql_ToBo_Nil(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBo_Nil"
+	rm := &GenericRowMapperSql{}
+	gbo, err := rm.ToBo("", nil)
+	if err != nil || gbo != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
+	}
+}
+
 func TestGenericRowMapperSql_ToRow(t *testing.T) {
 	name := "TestGenericRowMapperSql_ToRow"
 	cola := "cola"
@@ -186,6 +204,15 @@ func TestGenericRowMapperSql_ToRow(t *testing.T) {
 	}
 	if row, err := rm.ToRow("*", nil); row != nil || err != nil {
 		t.Fatalf("%s failed: %#v/%s", name, row, err)
+	}
+}
+
+func TestGenericRowMapperSql_ToRow_Nil(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToRow_Nil"
+	rm := &GenericRowMapperSql{}
+	row, err := rm.ToRow("", nil)
+	if err != nil || row != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
 	}
 }
 
@@ -624,5 +651,233 @@ func TestGenericRowMapperSql_ToGbo_UpperCase(t *testing.T) {
 		if v, e := gbo.GboGetAttr("d", reddo.TypeBool); e != nil || v.(bool) != true {
 			t.Fatalf("%s failed: expected attr[%s] to be %#v but received %#v", name, "d", true, v)
 		}
+	}
+}
+
+func TestGenericRowMapperSql_ToDbColName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToDbColName_Intact"
+	cola := "cola"
+	colb := "colB"
+	colc := "Colc"
+	cold := "COLD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfIntact,
+		GboFieldToColNameTranslator: map[string]map[string]interface{}{
+			"*": {
+				"field1": cola,
+				"FIELD2": &colb,
+				"Field3": func(storageId, fieldName string) string {
+					if fieldName == "Field3" {
+						return colc
+					} else {
+						return fieldName
+					}
+				},
+				"FielD4": cold,
+			},
+		},
+	}
+
+	if colName, expected := rm.ToDbColName("table", "field1"), cola; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("-", "FIELD2"), colb; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "Field3"), colc; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "FielD4"), cold; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+}
+
+func TestGenericRowMapperSql_ToDbColName_LowerCase(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToDbColName_LowerCase"
+	cola := "cola"
+	colb := "colB"
+	colc := "Colc"
+	cold := "COLD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfLowerCase,
+		GboFieldToColNameTranslator: map[string]map[string]interface{}{
+			"*": {
+				"field1": cola,
+				"field2": &colb,
+				"field3": func(storageId, fieldName string) string {
+					if fieldName == "field3" {
+						return colc
+					} else {
+						return fieldName
+					}
+				},
+				"field4": cold,
+			},
+		},
+	}
+
+	if colName, expected := rm.ToDbColName("table", "field1"), cola; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("-", "FIELD2"), colb; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "Field3"), colc; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "FielD4"), cold; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+}
+
+func TestGenericRowMapperSql_ToDbColName_UpperCase(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToDbColName_UpperCase"
+	cola := "cola"
+	colb := "colB"
+	colc := "Colc"
+	cold := "COLD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfUpperCase,
+		GboFieldToColNameTranslator: map[string]map[string]interface{}{
+			"*": {
+				"FIELD1": cola,
+				"FIELD2": &colb,
+				"FIELD3": func(storageId, fieldName string) string {
+					if fieldName == "FIELD3" {
+						return colc
+					} else {
+						return fieldName
+					}
+				},
+				"FIELD4": cold,
+			},
+		},
+	}
+
+	if colName, expected := rm.ToDbColName("table", "field1"), cola; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("-", "FIELD2"), colb; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "Field3"), colc; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "FielD4"), cold; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+}
+
+func TestGenericRowMapperSql_ToBoFieldName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBoFieldName_Intact"
+	fielda := "fielda"
+	fieldb := "fieldB"
+	fieldc := "Fieldc"
+	fieldd := "FIELDD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfIntact,
+		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
+			"*": {
+				"col1": fielda,
+				"COL2": &fieldb,
+				"Col3": func(storageId, fieldName string) string {
+					if fieldName == "Col3" {
+						return fieldc
+					} else {
+						return fieldName
+					}
+				},
+				"CoL4": fieldd,
+			},
+		},
+	}
+
+	if fieldName, expected := rm.ToBoFieldName("table", "col1"), fielda; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("-", "COL2"), fieldb; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "Col3"), fieldc; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "CoL4"), fieldd; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+}
+
+func TestGenericRowMapperSql_ToBoFieldName_LowerCase(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBoFieldName_LowerCase"
+	fielda := "fielda"
+	fieldb := "fieldB"
+	fieldc := "Fieldc"
+	fieldd := "FIELDD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfLowerCase,
+		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
+			"*": {
+				"col1": fielda,
+				"col2": &fieldb,
+				"col3": func(storageId, fieldName string) string {
+					if fieldName == "col3" {
+						return fieldc
+					} else {
+						return fieldName
+					}
+				},
+				"col4": fieldd,
+			},
+		},
+	}
+
+	if fieldName, expected := rm.ToBoFieldName("table", "col1"), fielda; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("-", "COL2"), fieldb; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "Col3"), fieldc; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "CoL4"), fieldd; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+}
+
+func TestGenericRowMapperSql_ToBoFieldName_UpperCase(t *testing.T) {
+	name := "TestGenericRowMapperSql_ToBoFieldName_UpperCase"
+	fielda := "fielda"
+	fieldb := "fieldB"
+	fieldc := "Fieldc"
+	fieldd := "FIELDD"
+	rm := &GenericRowMapperSql{
+		NameTransformation: NameTransfUpperCase,
+		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
+			"*": {
+				"COL1": fielda,
+				"COL2": &fieldb,
+				"COL3": func(storageId, fieldName string) string {
+					if fieldName == "COL3" {
+						return fieldc
+					} else {
+						return fieldName
+					}
+				},
+				"COL4": fieldd,
+			},
+		},
+	}
+
+	if fieldName, expected := rm.ToBoFieldName("table", "col1"), fielda; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("-", "COL2"), fieldb; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "Col3"), fieldc; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "CoL4"), fieldd; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
 	}
 }

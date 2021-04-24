@@ -9,15 +9,15 @@ Generic [MongoDB](https://www.mongodb.com) DAO implementation.
 
 **General**
 
-- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.`
+- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
 **Use `GenericDaoMongo` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
+- Define a dao struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
 **Implement custom MongoDB business dao and bo**
 
-- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`).
+- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
 - Define functions to transform `godal.IGenericBo` to business bo and vice versa.
 
 > Optionally, create a helper function to create dao instances.

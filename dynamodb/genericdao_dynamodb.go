@@ -3,12 +3,12 @@ Package dynamodb provides a generic AWS DynamoDB implementation of godal.IGeneri
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
-	- Row-mapper's 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- Row-mapper's function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
 
 Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}.
+	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Use a row-mapper whose 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
 	- Optionally, create a helper function to create dao instances.
 
@@ -29,8 +29,9 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
-		return map[string]interface{}{fieldId: bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)}
+	func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) godal.FilterOpt {
+		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
+		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoDynamodb is convenient method to create myGenericDaoDynamodb instances.
@@ -42,11 +43,11 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	}
 
 	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
-	its function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
+	its function 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
 
 Guideline: Implement custom AWS DynamoDB business dao and bo
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}).
+	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
 	- Optionally, create a helper function to create dao instances.
 	- Define functions to transform godal.IGenericBo to business bo and vice versa.
 
@@ -143,9 +144,11 @@ import (
 // GenericRowMapperDynamodb is a generic implementation of godal.IRowMapper for AWS DynamoDB.
 //
 // Implementation rules:
-// 	 - ToRow      : transform godal.IGenericBo "as-is" to map[string]interface{}.
-// 	 - ToBo       : expects input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
-// 	 - ColumnsList: lookup column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant).
+// 	 - ToRow        : transform godal.IGenericBo "as-is" to map[string]interface{}.
+// 	 - ToBo         : expect input is a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms input to godal.IGenericBo via JSON unmarshalling.
+// 	 - ColumnsList  : look up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
+//   - ToDbColName  : return the input field name "as-is".
+//   - ToBoFieldName: return the input column name "as-is".
 //
 // Available: since v0.2.0
 type GenericRowMapperDynamodb struct {
@@ -154,6 +157,7 @@ type GenericRowMapperDynamodb struct {
 }
 
 // ToRow implements godal.IRowMapper.ToRow.
+//
 // This function transforms godal.IGenericBo to map[string]interface{}. Field names are kept intact.
 func (mapper *GenericRowMapperDynamodb) ToRow(_ string, bo godal.IGenericBo) (interface{}, error) {
 	if bo == nil {
@@ -164,12 +168,20 @@ func (mapper *GenericRowMapperDynamodb) ToRow(_ string, bo godal.IGenericBo) (in
 }
 
 // ToBo implements godal.IRowMapper.ToBo.
+//
 // This function expects input to be a map[string]interface{}, or JSON data (string or array/slice of bytes), transforms it to godal.IGenericBo via JSON unmarshalling. Field names are kept intact.
 func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (godal.IGenericBo, error) {
 	if row == nil {
 		return nil, nil
 	}
 	switch row.(type) {
+	case *map[string]interface{}:
+		// unwrap if pointer
+		m := row.(*map[string]interface{})
+		if m == nil {
+			return nil, nil
+		}
+		return mapper.ToBo(table, *m)
 	case map[string]interface{}:
 		bo := godal.NewGenericBo()
 		for k, v := range row.(map[string]interface{}) {
@@ -180,11 +192,12 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson([]byte(row.(string)))
 	case *string:
-		if row.(*string) == nil {
+		// unwrap if pointer
+		s := row.(*string)
+		if s == nil {
 			return nil, nil
 		}
-		bo := godal.NewGenericBo()
-		return bo, bo.GboFromJson([]byte(*row.(*string)))
+		return mapper.ToBo(table, *s)
 	case []byte:
 		if row.([]byte) == nil {
 			return nil, nil
@@ -192,14 +205,17 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 		bo := godal.NewGenericBo()
 		return bo, bo.GboFromJson(row.([]byte))
 	case *[]byte:
-		if row.(*[]byte) == nil {
+		// unwrap if pointer
+		ba := row.(*[]byte)
+		if ba == nil {
 			return nil, nil
 		}
-		return mapper.ToBo(table, *row.(*[]byte))
+		return mapper.ToBo(table, *ba)
 	}
 
 	v := reflect.ValueOf(row)
 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+		// unwrap if pointer
 	}
 	switch v.Kind() {
 	case reflect.Map:
@@ -236,12 +252,26 @@ func (mapper *GenericRowMapperDynamodb) ToBo(table string, row interface{}) (god
 
 // ColumnsList implements godal.IRowMapper.ColumnsList.
 //
-// This function lookups column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant).
+// This function looks up column-list from a 'columns-list map' (AWS DynamoDB is schema-free but key-attributes are significant) and returns it.
 func (mapper *GenericRowMapperDynamodb) ColumnsList(table string) []string {
 	if result, ok := mapper.ColumnsListMap[table]; ok {
 		return result
 	}
 	return nil
+}
+
+// ToDbColName implements godal.IRowMapper.ToDbColName.
+//
+// This function returns the input field name "as-is".
+func (mapper *GenericRowMapperDynamodb) ToDbColName(_, fieldName string) string {
+	return fieldName
+}
+
+// ToBoFieldName implements godal.IRowMapper.ToBoFieldName.
+//
+// This function returns the input column name "as-is".
+func (mapper *GenericRowMapperDynamodb) ToBoFieldName(_, colName string) string {
+	return colName
 }
 
 var (
@@ -263,11 +293,11 @@ func NewGenericDaoDynamodb(dynamodbConnect *prom.AwsDynamodbConnect, agdao *goda
 // GenericDaoDynamodb is AWS DynamoDB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-// 	 - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+// 	 - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 // 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoDeleteMany(storageId string, filter interface{}) (int, error)
-// 	 - (y) GdaoFetchOne(storageId string, filter interface{}) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
+// 	 - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
 // 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
 // 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
@@ -302,7 +332,6 @@ func (dao *GenericDaoDynamodb) extractKeysAttributes(table string, item prom.Aws
 }
 
 // toConditionBuilder builds a ConditionBuilder from input.
-//
 //   - if input is expression.ConditionBuilder or *expression.ConditionBuilder: return it as *expression.ConditionBuilder.
 // 	 - if input is string, slice/array of bytes: assume input is a map in JSON, convert it to map to build ConditionBuilder.
 // 	 - if input is a map: build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
@@ -359,40 +388,81 @@ func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error)
 	return nil, fmt.Errorf("cannot convert %v to *expression.ConditionBuilder", input)
 }
 
-func toMap(input interface{}) (map[string]interface{}, error) {
-	if input == nil {
+// toFilterMap translates a godal.FilterOpt to DynamoDB-compatible filter map.
+func toFilterMap(filter godal.FilterOpt) (map[string]interface{}, error) {
+	if filter == nil {
 		return nil, nil
 	}
-	switch input.(type) {
-	case map[string]interface{}:
-		return input.(map[string]interface{}), nil
-	case *map[string]interface{}:
-		return *input.(*map[string]interface{}), nil
-	}
-	v := reflect.ValueOf(input)
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-	}
-	switch v.Kind() {
-	case reflect.String:
-		// expect input to be a map in JSON
-		result := make(map[string]interface{})
-		err := json.Unmarshal([]byte(v.Interface().(string)), &result)
-		return result, err
-	case reflect.Array, reflect.Slice:
-		// expect input to be a map in JSON
-		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
-		if err != nil {
-			return nil, err
+	switch filter.(type) {
+	case godal.FilterOptFieldOpValue:
+		f := filter.(godal.FilterOptFieldOpValue)
+		return toFilterMap(&f)
+	case *godal.FilterOptFieldOpValue:
+		f := filter.(*godal.FilterOptFieldOpValue)
+		if f.Operator != godal.FilterOpEqual {
+			return nil, fmt.Errorf("invalid operator \"%#v\", only accept FilterOptFieldOpValue with operator FilterOpEqual", f.Operator)
 		}
+		return map[string]interface{}{f.FieldName: f.Value}, nil
+	case godal.FilterOptFieldIsNull:
+		f := filter.(godal.FilterOptFieldIsNull)
+		return toFilterMap(&f)
+	case *godal.FilterOptFieldIsNull:
+		f := filter.(*godal.FilterOptFieldIsNull)
+		return map[string]interface{}{f.FieldName: nil}, nil
+	case godal.FilterOptAnd:
+		f := filter.(godal.FilterOptAnd)
+		return toFilterMap(&f)
+	case *godal.FilterOptAnd:
+		f := filter.(*godal.FilterOptAnd)
 		result := make(map[string]interface{})
-		return result, json.Unmarshal(t.([]byte), &result)
-	case reflect.Map:
-		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
-		return result.(map[string]interface{}), err
-
+		for _, inner := range f.Filters {
+			innerF, err := toFilterMap(inner)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range innerF {
+				result[k] = v
+			}
+		}
+		return result, nil
 	}
-	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
+	return nil, fmt.Errorf("cannot build filter map from %T", filter)
 }
+
+// func toMap(input interface{}) (map[string]interface{}, error) {
+// 	if input == nil {
+// 		return nil, nil
+// 	}
+// 	switch input.(type) {
+// 	case map[string]interface{}:
+// 		return input.(map[string]interface{}), nil
+// 	case *map[string]interface{}:
+// 		return *input.(*map[string]interface{}), nil
+// 	}
+// 	v := reflect.ValueOf(input)
+// 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
+// 	}
+// 	switch v.Kind() {
+// 	case reflect.String:
+// 		// expect input to be a map in JSON
+// 		result := make(map[string]interface{})
+// 		err := json.Unmarshal([]byte(v.Interface().(string)), &result)
+// 		return result, err
+// 	case reflect.Array, reflect.Slice:
+// 		// expect input to be a map in JSON
+// 		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		result := make(map[string]interface{})
+// 		return result, json.Unmarshal(t.([]byte), &result)
+// 	case reflect.Map:
+// 		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
+// 		return result.(map[string]interface{}), err
+//
+// 	}
+// 	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
+// }
 
 /*----------------------------------------------------------------------*/
 
@@ -403,7 +473,7 @@ func (dao *GenericDaoDynamodb) GdaoDelete(table string, bo godal.IGenericBo) (in
 
 // GdaoDeleteWithContext is AWS DynamoDB variant of GdaoDelete.
 func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table string, bo godal.IGenericBo) (int, error) {
-	keyFilter, err := toMap(dao.GdaoCreateFilter(table, bo))
+	keyFilter, err := toFilterMap(dao.GdaoCreateFilter(table, bo))
 	if err != nil {
 		return 0, err
 	}
@@ -420,21 +490,17 @@ func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table stri
 }
 
 // GdaoDeleteMany implements godal.IGenericDao.GdaoDeleteMany.
-//
 //   - table name format: <table_name>[:<index_name>]:
 //       - table_name: name of the table to delete rows from.
 //       - index_name: (optional) name of the table's index (local or global) to search for rows.
-//   - filter can be a expression.ConditionBuilder (or pointer to it) or a map[string]interface{} (it can be a string/[]byte representing map[string]interface{} in JSON).
-//     If filter is a map[string]interface{}, it is used to build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
-//     nil filter means "match all".
 //
 // This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
-func (dao *GenericDaoDynamodb) GdaoDeleteMany(table string, filter interface{}) (int, error) {
+func (dao *GenericDaoDynamodb) GdaoDeleteMany(table string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithContext(nil, table, filter)
 }
 
 // GdaoDeleteManyWithContext is is AWS DynamoDB variant of GdaoDeleteMany.
-func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table string, filter interface{}) (int, error) {
+func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table string, filter godal.FilterOpt) (int, error) {
 	f, err := toConditionBuilder(filter)
 	if err != nil {
 		return 0, err
@@ -468,15 +534,14 @@ func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table 
 }
 
 // GdaoFetchOne implements godal.IGenericDao.GdaoFetchOne.
-//
-// 'keyFilter' should be a map[string]interface{}, or it can be a string/[]byte representing map[string]interface{} in JSON, then it is unmarshalled to map[string]interface{}.
-func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, keyFilter interface{}) (godal.IGenericBo, error) {
+//   - keyFilter: filter that matches exactly one item by key.
+func (dao *GenericDaoDynamodb) GdaoFetchOne(table string, keyFilter godal.FilterOpt) (godal.IGenericBo, error) {
 	return dao.GdaoFetchOneWithContext(nil, table, keyFilter)
 }
 
 // GdaoFetchOneWithContext is is AWS DynamoDB variant of GdaoFetchOne.
-func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table string, keyFilter interface{}) (godal.IGenericBo, error) {
-	if f, err := toMap(keyFilter); err != nil {
+func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table string, keyFilter godal.FilterOpt) (godal.IGenericBo, error) {
+	if f, err := toFilterMap(keyFilter); err != nil {
 		return nil, err
 	} else if item, err := dao.dynamodbConnect.GetItem(ctx, table, f); err != nil {
 		return nil, err
@@ -486,24 +551,20 @@ func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table st
 }
 
 // GdaoFetchMany implements godal.IGenericDao.GdaoFetchMany.
-//
 //   - table name format: <table_name>[:<index_name>[:<refetch-from-table:true/false>]]:
 //       - table_name: name of the table to fetch data from.
 //       - index_name: (optional) name of the table's index (local or global) to fetch data from.
 //       - refetch-from-table: (optional) true/false - default: false; when fetching data from index, if 'false' only projected fields are returned,.
 //         if 'true' another read is made to fetch the whole item from table (additional read capacity is consumed!)
-//   - filter can be a expression.ConditionBuilder (or pointer to it) or a map[string]interface{} (it can be a string/[]byte representing map[string]interface{} in JSON).
-//     If filter is a map[string]interface{}, it is used to build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
-//     nil filter means "match all".
 //   - sorting will not be used as DynamoDB does not currently support custom sorting of queried items.
 //
 // This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
-func (dao *GenericDaoDynamodb) GdaoFetchMany(table string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoDynamodb) GdaoFetchMany(table string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, table, filter, sorting, startOffset, numItems)
 }
 
 // GdaoFetchManyWithContext is is AWS DynamoDB variant of GdaoFetchMany.
-func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table string, filter interface{}, sorting interface{}, startOffset, numItems int) ([]godal.IGenericBo, error) {
+func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table string, filter godal.FilterOpt, _ *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	f, err := toConditionBuilder(filter)
 	if err != nil {
 		return nil, err
@@ -593,14 +654,15 @@ func (dao *GenericDaoDynamodb) GdaoUpdate(table string, bo godal.IGenericBo) (in
 func (dao *GenericDaoDynamodb) GdaoUpdateWithContext(ctx aws.Context, table string, bo godal.IGenericBo) (int, error) {
 	var keyFilter, itemMap map[string]interface{}
 	var err error
-	if keyFilter, err = toMap(dao.GdaoCreateFilter(table, bo)); err != nil {
+	if keyFilter, err = toFilterMap(dao.GdaoCreateFilter(table, bo)); err != nil {
 		return 0, err
 	}
 	var item interface{}
+	var ok bool
 	if item, err = dao.GetRowMapper().ToRow(table, bo); err != nil {
 		return 0, err
-	} else if itemMap, err = toMap(item); err != nil {
-		return 0, err
+	} else if itemMap, ok = item.(map[string]interface{}); !ok {
+		return 0, fmt.Errorf("expected map[string]interface{} but received %T", item)
 	}
 
 	pkAttrs := dao.GetRowMapper().ColumnsList(table)

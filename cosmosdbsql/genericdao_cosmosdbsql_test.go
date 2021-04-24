@@ -18,7 +18,6 @@ import (
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
-	godalsql "github.com/btnguyen2k/godal/sql"
 )
 
 func TestGenericRowMapperCosmosdb_ColumnsList(t *testing.T) {
@@ -142,8 +141,17 @@ func TestGenericRowMapperCosmosdb_ToBo(t *testing.T) {
 func TestGenericRowMapperCosmosdb_ToBo_Invalid(t *testing.T) {
 	name := "TestGenericRowMapperCosmosdb_ToBo_Invalid"
 	rm := &GenericRowMapperCosmosdb{}
-	row, err := rm.ToBo("", time.Time{})
-	if err == nil || row != nil {
+	gbo, err := rm.ToBo("", time.Time{})
+	if err == nil || gbo != nil {
+		t.Fatalf("%s failed: error: %#v", name, err)
+	}
+}
+
+func TestGenericRowMapperCosmosdb_ToBo_Nil(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToBo_Nil"
+	rm := &GenericRowMapperCosmosdb{}
+	gbo, err := rm.ToBo("", nil)
+	if err != nil || gbo != nil {
 		t.Fatalf("%s failed: error: %#v", name, err)
 	}
 }
@@ -215,6 +223,50 @@ func TestGenericRowMapperCosmosdb_ToGbo_Intact(t *testing.T) {
 	}
 }
 
+func TestGenericRowMapperCosmosdb_ToDbColName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToDbColName_Intact"
+	cola := "field1"
+	colb := "FIELD2"
+	colc := "Field3"
+	cold := "FielD4"
+	rm := &GenericRowMapperCosmosdb{}
+
+	if colName, expected := rm.ToDbColName("table", "field1"), cola; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("-", "FIELD2"), colb; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "Field3"), colc; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+	if colName, expected := rm.ToDbColName("*", "FielD4"), cold; colName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, colName)
+	}
+}
+
+func TestGenericRowMapperCosmosdb_ToBoFieldName_Intact(t *testing.T) {
+	name := "TestGenericRowMapperCosmosdb_ToBoFieldName_Intact"
+	fielda := "col1"
+	fieldb := "COL2"
+	fieldc := "Col3"
+	fieldd := "CoL4"
+	rm := &GenericRowMapperCosmosdb{}
+
+	if fieldName, expected := rm.ToBoFieldName("table", "col1"), fielda; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("-", "COL2"), fieldb; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "Col3"), fieldc; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+	if fieldName, expected := rm.ToBoFieldName("*", "CoL4"), fieldd; fieldName != expected {
+		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, fieldName)
+	}
+}
+
 /*--------------------------------------------------------------------------------*/
 
 func prepareTableCosmosdb(sqlc *prom.SqlConnect, table string) error {
@@ -233,7 +285,7 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 	driver = strings.Trim(driver, "\"")
 	url = strings.Trim(url, "\"")
 	if driver == "" || url == "" {
-		t.Skipf("%s skilled", testName)
+		t.Skipf("%s skipped", testName)
 	}
 
 	url += ";Db=godal"
@@ -298,9 +350,9 @@ type UserDaoSql struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *UserDaoSql) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) interface{} {
+func (dao *UserDaoSql) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) godal.FilterOpt {
 	if collectionName == dao.collectionName {
-		return map[string]interface{}{fieldGboId: bo.GboGetAttrUnsafe(fieldGboId, reddo.TypeString)}
+		return godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpEqual, Value: bo.GboGetAttrUnsafe(fieldGboId, reddo.TypeString)}
 	}
 	return false
 }
@@ -475,14 +527,11 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 }
 
 func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSql) {
-	filter := &godalsql.FilterOr{
-		FilterAndOr: godalsql.FilterAndOr{
-			Filters: []godalsql.IFilter{
-				&godalsql.FilterFieldValue{Field: colSqlId, Operator: ">=", Value: "8"},
-				&godalsql.FilterFieldValue{Field: colSqlId, Operator: "<", Value: "3"},
-			},
-		},
-	}
+	filter := &godal.FilterOptOr{Filters: []godal.FilterOpt{
+		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreaterOrEqual, Value: "8"},
+		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpLess, Value: "3"},
+	}}
+
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if numRows != 0 {
@@ -547,14 +596,10 @@ func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql)
 }
 
 func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql) {
-	filter := &godalsql.FilterAnd{
-		FilterAndOr: godalsql.FilterAndOr{
-			Filters: []godalsql.IFilter{
-				&godalsql.FilterFieldValue{Field: colSqlId, Operator: "<=", Value: "8"},
-				&godalsql.FilterFieldValue{Field: colSqlId, Operator: ">", Value: "3"},
-			},
-		},
-	}
+	filter := &godal.FilterOptAnd{Filters: []godal.FilterOpt{
+		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpLessOrEqual, Value: "8"},
+		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreater, Value: "3"},
+	}}
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 0 {
@@ -578,7 +623,7 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 	}
 
 	fetchIdList := []string{"7", "6", "5"}
-	sorting := map[string]int{colSqlUsername: -1}
+	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: fieldGboUsername, Descending: true})
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, sorting, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
@@ -828,14 +873,14 @@ func dotestGenericDaoSqlGdao_FilterNull(t *testing.T, name string, dao *UserDaoS
 		userList = append(userList, user)
 	}
 
-	var filterInt godalsql.IFilter = &godalsql.FilterIsNull{godalsql.FilterFieldValue{Field: colSqlValPInt}}
-	var filterFloat godalsql.IFilter = &godalsql.FilterIsNull{godalsql.FilterFieldValue{Field: colSqlValPFloat}}
-	var filterString godalsql.IFilter = &godalsql.FilterIsNull{godalsql.FilterFieldValue{Field: colSqlValPString}}
-	var filterTime godalsql.IFilter = &godalsql.FilterIsNull{godalsql.FilterFieldValue{Field: colSqlValPTime}}
-	filerList := []godalsql.IFilter{filterInt, filterFloat, filterString, filterTime}
+	var filterInt godal.FilterOpt = &godal.FilterOptFieldIsNull{FieldName: fieldGboValPInt}
+	var filterFloat godal.FilterOpt = &godal.FilterOptFieldIsNull{FieldName: fieldGboValPFloat}
+	var filterString godal.FilterOpt = &godal.FilterOptFieldIsNull{FieldName: fieldGboValPString}
+	var filterTime godal.FilterOpt = &godal.FilterOptFieldIsNull{FieldName: fieldGboValPTime}
+	filerList := []godal.FilterOpt{filterInt, filterFloat, filterString, filterTime}
 	for _, filter := range filerList {
-		filter = (&godalsql.FilterAnd{}).Add(filter).
-			Add(&godalsql.FilterFieldValue{Field: colSqlId, Operator: ">", Value: strconv.Itoa(rand.Intn(64))})
+		filter = (&godal.FilterOptAnd{}).Add(filter).
+			Add(&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreater, Value: strconv.Itoa(rand.Intn(64))})
 		gboList, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 0, 0)
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoFetchMany", err)
@@ -902,14 +947,14 @@ func dotestGenericDaoSqlGdao_FilterNotNull(t *testing.T, name string, dao *UserD
 		userList = append(userList, user)
 	}
 
-	var filterInt godalsql.IFilter = &godalsql.FilterIsNotNull{godalsql.FilterFieldValue{Field: colSqlValPInt}}
-	var filterFloat godalsql.IFilter = &godalsql.FilterIsNotNull{godalsql.FilterFieldValue{Field: colSqlValPFloat}}
-	var filterString godalsql.IFilter = &godalsql.FilterIsNotNull{godalsql.FilterFieldValue{Field: colSqlValPString}}
-	var filterTime godalsql.IFilter = &godalsql.FilterIsNotNull{godalsql.FilterFieldValue{Field: colSqlValPTime}}
-	filerList := []godalsql.IFilter{filterInt, filterFloat, filterString, filterTime}
+	var filterInt godal.FilterOpt = &godal.FilterOptFieldIsNotNull{FieldName: fieldGboValPInt}
+	var filterFloat godal.FilterOpt = &godal.FilterOptFieldIsNotNull{FieldName: fieldGboValPFloat}
+	var filterString godal.FilterOpt = &godal.FilterOptFieldIsNotNull{FieldName: fieldGboValPString}
+	var filterTime godal.FilterOpt = &godal.FilterOptFieldIsNotNull{FieldName: fieldGboValPTime}
+	filerList := []godal.FilterOpt{filterInt, filterFloat, filterString, filterTime}
 	for _, filter := range filerList {
-		filter = (&godalsql.FilterAnd{}).Add(filter).
-			Add(&godalsql.FilterFieldValue{Field: colSqlId, Operator: ">", Value: strconv.Itoa(rand.Intn(64))})
+		filter = (&godal.FilterOptAnd{}).Add(filter).
+			Add(&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreater, Value: strconv.Itoa(rand.Intn(64))})
 		gboList, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 0, 0)
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoFetchMany/"+reflect.TypeOf(filter).String(), err)

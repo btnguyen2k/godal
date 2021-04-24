@@ -9,11 +9,11 @@ Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO
 
 **General**
 
-- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
+- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
 **Use `GenericDaoCosmosdb` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that extends `GenericDaoCosmosdb` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`.
+- Define a dao struct that extends `GenericDaoCosmosdb` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 - Configure either `{collection-name:path-to-fetch-partition_key-value-from-genericbo}` via `GenericDaoCosmosdb.CosmosSetPkGboMapPath`
   or `{collection-name:path-to-fetch-partition_key-value-from-dbrow}` via `GenericDaoCosmosdb.CosmosSetPkRowMapPath`.
 - Optionally, configure `{collection-name:path-to-fetch-id-value-from-genericbo}` via `GenericDaoCosmosdb.CosmosSetIdGboMapPath`.
@@ -21,7 +21,7 @@ Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO
 
 **Implement custom `database/sql` business dao and bo**
 
-- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) interface{}`).
+- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
 - Define functions to transform `godal.IGenericBo` to business bo and vice versa.
 - Optionally, create a helper function to create dao instances.
 
