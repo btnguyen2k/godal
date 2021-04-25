@@ -102,11 +102,13 @@ type MyGenericDaoSql struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
+func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGenericBo) godal.FilterOpt {
 	if tableName == tableUserGeneric {
 		// should match all primary keys
-		return map[string]interface{}{
-			colUserIdGeneric: bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
+		return &godal.FilterOptFieldOpValue{
+			FieldName: fieldUserIdGeneric,
+			Operator:  godal.FilterOpEqual,
+			Value:     bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
 		}
 	}
 

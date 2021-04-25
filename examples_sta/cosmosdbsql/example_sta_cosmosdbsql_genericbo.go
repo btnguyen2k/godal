@@ -20,7 +20,7 @@ import (
 )
 
 // convenient function to create prom.SqlConnect instance (for CosmosDB)
-func createPgsqlConnect() *prom.SqlConnect {
+func createCosmosdbConnect() *prom.SqlConnect {
 	// driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
 	driver := "gocosmos"
 	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
@@ -66,6 +66,7 @@ func createMyGenericDaoSql(sqlc *prom.SqlConnect, rowMapper godal.IRowMapper) go
 	dao := &MyGenericDaoSql{}
 	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
 	inner.CosmosSetIdGboMapPath(map[string]string{"*": fieldUserIdGeneric})
+	inner.CosmosSetPkGboMapPath(map[string]string{"*": fieldUserIdGeneric})
 	dao.IGenericDaoSql = inner
 	dao.SetRowMapper(rowMapper)
 	dao.SetSqlFlavor(sqlc.GetDbFlavor())
@@ -97,11 +98,13 @@ type MyGenericDaoSql struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGenericBo) interface{} {
+func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGenericBo) godal.FilterOpt {
 	if tableName == tableUserGeneric {
 		// should match all primary keys
-		return map[string]interface{}{
-			colUserIdGeneric: bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
+		return &godal.FilterOptFieldOpValue{
+			FieldName: fieldUserIdGeneric,
+			Operator:  godal.FilterOpEqual,
+			Value:     bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
 		}
 	}
 
@@ -113,41 +116,43 @@ func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGeneric
 
 func main() {
 	// create new prom.SqlConnect
-	sqlc := createPgsqlConnect()
+	sqlc := createCosmosdbConnect()
 
-	rowMapper := &sql.GenericRowMapperSql{
-		// it is a good idea to normalize table column names and BO field names
-		// in this case, we use "lower case transformation" rule to normalize table column and BO field names
-		NameTransformation: sql.NameTransfLowerCase,
-		GboFieldToColNameTranslator: map[string]map[string]interface{}{
-			// {generic bo field -> database table column} mapping for tableUser
-			tableUserGeneric: {
-				fieldUserIdGeneric:       colUserIdGeneric,
-				fieldUserUsernameGeneric: colUserUsernameGeneric,
-				fieldUserNameGeneric:     colUserNameGeneric,
-				fieldUserVersionGeneric:  colUserVersionGeneric,
-				fieldUserActivedGeneric:  colUserActivedGeneric,
-			},
-			// mapping for other tables
-		},
-		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
-			// {database table column -> generic bo field} mapping for tableUser
-			tableUserGeneric: {
-				colUserIdGeneric:       fieldUserIdGeneric,
-				colUserUsernameGeneric: fieldUserUsernameGeneric,
-				colUserNameGeneric:     fieldUserNameGeneric,
-				colUserVersionGeneric:  fieldUserVersionGeneric,
-				colUserActivedGeneric:  fieldUserActivedGeneric,
-			},
-			// mapping for other tables
-		},
-		ColumnsListMap: map[string][]string{
-			// all database table columns of tableUser
-			tableUserGeneric: {colUserIdGeneric, colUserUsernameGeneric, colUserNameGeneric, colUserVersionGeneric, colUserActivedGeneric},
+	rowMapper := cosmosdbsql.GenericRowMapperCosmosdbInstance
 
-			// ...other tables
-		},
-	}
+	// rowMapper := &sql.GenericRowMapperSql{
+	// 	// it is a good idea to normalize table column names and BO field names
+	// 	// in this case, we use "lower case transformation" rule to normalize table column and BO field names
+	// 	NameTransformation: sql.NameTransfLowerCase,
+	// 	GboFieldToColNameTranslator: map[string]map[string]interface{}{
+	// 		// {generic bo field -> database table column} mapping for tableUser
+	// 		tableUserGeneric: {
+	// 			fieldUserIdGeneric:       colUserIdGeneric,
+	// 			fieldUserUsernameGeneric: colUserUsernameGeneric,
+	// 			fieldUserNameGeneric:     colUserNameGeneric,
+	// 			fieldUserVersionGeneric:  colUserVersionGeneric,
+	// 			fieldUserActivedGeneric:  colUserActivedGeneric,
+	// 		},
+	// 		// mapping for other tables
+	// 	},
+	// 	ColNameToGboFieldTranslator: map[string]map[string]interface{}{
+	// 		// {database table column -> generic bo field} mapping for tableUser
+	// 		tableUserGeneric: {
+	// 			colUserIdGeneric:       fieldUserIdGeneric,
+	// 			colUserUsernameGeneric: fieldUserUsernameGeneric,
+	// 			colUserNameGeneric:     fieldUserNameGeneric,
+	// 			colUserVersionGeneric:  fieldUserVersionGeneric,
+	// 			colUserActivedGeneric:  fieldUserActivedGeneric,
+	// 		},
+	// 		// mapping for other tables
+	// 	},
+	// 	ColumnsListMap: map[string][]string{
+	// 		// all database table columns of tableUser
+	// 		tableUserGeneric: {colUserIdGeneric, colUserUsernameGeneric, colUserNameGeneric, colUserVersionGeneric, colUserActivedGeneric},
+	//
+	// 		// ...other tables
+	// 	},
+	// }
 
 	// create new MyGenericDaoSql
 	myDao := createMyGenericDaoSql(sqlc, rowMapper)

@@ -81,10 +81,8 @@ type UserDaoMongo struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *UserDaoMongo) GdaoCreateFilter(_ string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{
-		fieldUserId: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString),
-	}
+func (dao *UserDaoMongo) GdaoCreateFilter(_ string, bo godal.IGenericBo) godal.FilterOpt {
+	return &godal.FilterOptFieldOpValue{FieldName: fieldUserId, Operator: godal.FilterOpEqual, Value: bo.GboGetAttrUnsafe(fieldUserId, reddo.TypeString)}
 }
 
 // toGbo converts a UserBo to godal.IGenericBo

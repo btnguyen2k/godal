@@ -62,11 +62,13 @@ type MyGenericDaoMongo struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter
-func (dao *MyGenericDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) interface{} {
+func (dao *MyGenericDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) godal.FilterOpt {
 	if collectionName == collectionUserGeneric {
 		// should match row id or unique index
-		return map[string]interface{}{
-			fieldUserIdGeneric: bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
+		return &godal.FilterOptFieldOpValue{
+			FieldName: fieldUserIdGeneric,
+			Operator:  godal.FilterOpEqual,
+			Value:     bo.GboGetAttrUnsafe(fieldUserIdGeneric, reddo.TypeString),
 		}
 	}
 
