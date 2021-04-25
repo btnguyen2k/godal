@@ -8,6 +8,11 @@ type SortingField struct {
 	Descending bool
 }
 
+// ToSortingOpt is a helper function to convert this SortingField to SortingOpt.
+func (sf *SortingField) ToSortingOpt() *SortingOpt {
+	return (&SortingOpt{}).Add(sf)
+}
+
 // SortingOpt captures the ordering spec when fetching rows from storage.
 //
 // Available since v0.5.0
@@ -15,10 +20,14 @@ type SortingOpt struct {
 	Fields []*SortingField
 }
 
-// Add appends a field sorting spec to the sorting list.
-func (so *SortingOpt) Add(field *SortingField) *SortingOpt {
-	if field != nil {
-		so.Fields = append(so.Fields, field)
+// Add appends fields to the sorting list.
+func (so *SortingOpt) Add(fields ...*SortingField) *SortingOpt {
+	if len(fields) > 0 {
+		for _, field := range fields {
+			if field != nil {
+				so.Fields = append(so.Fields, field)
+			}
+		}
 	}
 	return so
 }
@@ -46,6 +55,23 @@ const (
 	// FilterOpLessOrEqual is "less than or equal operator
 	FilterOpLessOrEqual
 )
+
+// MakeFilter is helper function to build FilterOpt from an input map.
+//   - input map is mapping of {field-name:field-value}.
+//   - each filter element is built as <field-name> FilterOpEqual <value>.
+//   - all filter elements are combined via FilterOptAnd.
+//
+// Available since v0.5.0
+func MakeFilter(input map[string]interface{}) FilterOpt {
+	result := &FilterOptAnd{}
+	for k, v := range input {
+		result.Add(&FilterOptFieldOpValue{FieldName: k, Operator: FilterOpEqual, Value: v})
+	}
+	if len(result.Filters) == 1 {
+		return result.Filters[0]
+	}
+	return result
+}
 
 // FilterOpt is the abstract interface for specifying filter.
 //
