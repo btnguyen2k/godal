@@ -181,8 +181,10 @@ func demoSqliteFetchRowById(table string, ids ...string) {
 	for _, id := range ids {
 		bo, err := dao.Get(id)
 		if err != nil {
-			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-		} else if bo != nil {
+			panic(err)
+			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+		}
+		if bo != nil {
 			printApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
@@ -259,7 +261,9 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 		bo, err := dao.Get(id)
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
-		} else if bo == nil {
+			continue
+		}
+		if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = &BoApp{
 				Id:            id,

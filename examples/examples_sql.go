@@ -41,9 +41,9 @@ type DaoAppSql struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *DaoAppSql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+func (dao *DaoAppSql) GdaoCreateFilter(_ string, bo godal.IGenericBo) godal.FilterOpt {
 	id, _ := bo.GboGetAttr("id", reddo.TypeString)
-	return map[string]interface{}{"id": id}
+	return &godal.FilterOptFieldOpValue{FieldName: "id", Operator: godal.FilterOpEqual, Value: id}
 }
 
 // EnableTxMode implements IDaoApp.EnableTxMode
@@ -73,8 +73,7 @@ func (dao *DaoAppSql) Create(bo *BoApp) (bool, error) {
 
 // Get implements IDaoApp.Get
 func (dao *DaoAppSql) Get(id string) (*BoApp, error) {
-	filter := map[string]interface{}{"id": id}
-	// alternative: filter := sql.FilterFieldValue{"id", "=", id}
+	filter := &godal.FilterOptFieldOpValue{FieldName: "id", Operator: godal.FilterOpEqual, Value: id}
 	gbo, err := dao.GdaoFetchOne(dao.tableName, filter)
 	if err != nil || gbo == nil {
 		return nil, err
@@ -84,7 +83,7 @@ func (dao *DaoAppSql) Get(id string) (*BoApp, error) {
 
 // GetAll implements IDaoApp.GetAll
 func (dao *DaoAppSql) GetAll() ([]*BoApp, error) {
-	sorting := map[string]int{"val_time": 1} // sort by "val_time" attribute, ascending
+	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: "val_time"})
 	rows, err := dao.GdaoFetchMany(dao.tableName, nil, sorting, 0, 0)
 	if err != nil {
 		return nil, err
