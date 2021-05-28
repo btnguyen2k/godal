@@ -444,47 +444,81 @@ func TestGenericDaoDynamodb_SetGetAwsDynamodbConnect(t *testing.T) {
 	}
 }
 
-func TestToConditionBuilder(t *testing.T) {
-	name := "TestToConditionBuilder"
+func TestToFilterMap(t *testing.T) {
+	name := "TestToFilterMap"
 
-	exp := expression.Name("id").Equal(expression.Value("1"))
-	if cond, err := toConditionBuilder(exp); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
-	}
-	if cond, err := toConditionBuilder(&exp); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
-	}
+	var input godal.FilterOpt
+	var output, expected map[string]interface{}
+	var err error
 
-	filterString := `{"id":"1", "username":"btnguyen2k"}`
-	if cond, err := toConditionBuilder(filterString); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
-	}
-	if cond, err := toConditionBuilder(&filterString); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+	input = nil
+	expected = nil
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
 	}
 
-	filterBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
-	if cond, err := toConditionBuilder(filterBytes); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
-	}
-	if cond, err := toConditionBuilder(&filterBytes); err != nil || cond == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+	invalidOpts := []godal.FilterOperator{godal.FilterOpNotEqual, godal.FilterOpGreater, godal.FilterOpGreaterOrEqual, godal.FilterOpLess, godal.FilterOpLessOrEqual}
+	for _, opt := range invalidOpts {
+		input = &godal.FilterOptFieldOpValue{FieldName: "field", Operator: opt, Value: "value"}
+		if _, err = toFilterMap(input); err == nil {
+			t.Fatalf("%s failed: expected error for operator %#v", name, opt)
+		}
 	}
 
-	if cond, err := toConditionBuilder(nil); cond != nil || err != nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+	input = godal.FilterOptFieldOpValue{FieldName: "field", Operator: godal.FilterOpEqual, Value: "value"}
+	expected = map[string]interface{}{"field": "value"}
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
 	}
-	if cond, err := toConditionBuilder("invalid json string"); cond != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+	input = &godal.FilterOptFieldOpValue{FieldName: "field", Operator: godal.FilterOpEqual, Value: 1.2}
+	expected = map[string]interface{}{"field": 1.2}
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
 	}
-	if cond, err := toConditionBuilder([]byte("invalid json string")); cond != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+
+	input = godal.FilterOptFieldIsNull{FieldName: "field1"}
+	expected = map[string]interface{}{"field1": nil}
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
 	}
-	if cond, err := toConditionBuilder([]string{"invalid", "input"}); cond != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+	input = &godal.FilterOptFieldIsNull{FieldName: "field2"}
+	expected = map[string]interface{}{"field2": nil}
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
 	}
-	if cond, err := toConditionBuilder(time.Time{}); cond != nil || err == nil {
-		t.Fatalf("%s failed: %#v / %s", name, cond, err)
+
+	temp := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpEqual, Value: "nil"}).
+		Add(&godal.FilterOptFieldIsNull{FieldName: "field2"})
+	input = *temp
+	expected = map[string]interface{}{"field1": "nil", "field2": nil}
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+	input = temp
+	if output, err = toFilterMap(input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+
+	input = godal.FilterOptFieldIsNotNull{FieldName: "field"}
+	if _, err = toFilterMap(input); err == nil {
+		t.Fatalf("%s failed: expected error for input %#v", name, input)
+	}
+	input = &godal.FilterOptFieldIsNotNull{FieldName: "field"}
+	if _, err = toFilterMap(input); err == nil {
+		t.Fatalf("%s failed: expected error for input %#v", name, input)
+	}
+
+	temp2 := (&godal.FilterOptOr{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpEqual, Value: "nil"}).
+		Add(&godal.FilterOptFieldIsNull{FieldName: "field2"})
+	input = *temp2
+	if _, err = toFilterMap(input); err == nil {
+		t.Fatalf("%s failed: expected error for input %#v", name, input)
+	}
+	input = temp2
+	if _, err = toFilterMap(input); err == nil {
+		t.Fatalf("%s failed: expected error for input %#v", name, input)
 	}
 }
 
@@ -536,6 +570,96 @@ func TestToConditionBuilder(t *testing.T) {
 // 		t.Fatalf("%s failed:  %s", name, err)
 // 	}
 // }
+
+func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
+	name := "TestGenericDaoDynamodb_BuildConditionBuilder"
+
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	dao := _initDao(t, name, testDynamodbTableName)
+	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
+	}
+
+	var input godal.FilterOpt
+	var output, expected *expression.ConditionBuilder
+
+	input = nil
+	expected = nil
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+
+	_n := expression.Name("field")
+	_v := expression.Value("value")
+	optsList := []godal.FilterOperator{godal.FilterOpEqual, godal.FilterOpNotEqual, godal.FilterOpGreater, godal.FilterOpGreaterOrEqual, godal.FilterOpLess, godal.FilterOpLessOrEqual}
+	expectedList := []expression.ConditionBuilder{_n.Equal(_v), _n.NotEqual(_v), _n.GreaterThan(_v), _n.GreaterThanEqual(_v), _n.LessThan(_v), _n.LessThanEqual(_v)}
+	for i, opt := range optsList {
+		expected = &expectedList[i]
+		input = godal.FilterOptFieldOpValue{FieldName: "field", Operator: opt, Value: "value"}
+		if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+		}
+		input = &godal.FilterOptFieldOpValue{FieldName: "field", Operator: opt, Value: "value"}
+		if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+		}
+	}
+
+	_expected := expression.Name("field").AttributeNotExists()
+	expected = &_expected
+	input = godal.FilterOptFieldIsNull{FieldName: "field"}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+	input = &godal.FilterOptFieldIsNull{FieldName: "field"}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+
+	_expected = expression.Name("field").AttributeExists()
+	expected = &_expected
+	input = godal.FilterOptFieldIsNotNull{FieldName: "field"}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+	input = &godal.FilterOptFieldIsNotNull{FieldName: "field"}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+
+	_expected = expression.Name("field1").GreaterThan(expression.Value(1)).
+		And(expression.Name("field2").LessThanEqual(expression.Value("3")))
+	input = godal.FilterOptAnd{Filters: []godal.FilterOpt{
+		godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpGreater, Value: 1},
+		godal.FilterOptFieldOpValue{FieldName: "field2", Operator: godal.FilterOpLessOrEqual, Value: "3"}}}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+	input = &godal.FilterOptAnd{Filters: []godal.FilterOpt{
+		godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpGreater, Value: 1},
+		godal.FilterOptFieldOpValue{FieldName: "field2", Operator: godal.FilterOpLessOrEqual, Value: "3"}}}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+
+	_expected = expression.Name("field3").GreaterThan(expression.Value("5")).
+		Or(expression.Name("field4").LessThanEqual(expression.Value(7)))
+	input = godal.FilterOptOr{Filters: []godal.FilterOpt{
+		godal.FilterOptFieldOpValue{FieldName: "field3", Operator: godal.FilterOpGreater, Value: "5"},
+		godal.FilterOptFieldOpValue{FieldName: "field4", Operator: godal.FilterOpLessOrEqual, Value: 7}}}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+	input = &godal.FilterOptOr{Filters: []godal.FilterOpt{
+		godal.FilterOptFieldOpValue{FieldName: "field3", Operator: godal.FilterOpGreater, Value: "5"},
+		godal.FilterOptFieldOpValue{FieldName: "field4", Operator: godal.FilterOpLessOrEqual, Value: 7}}}
+	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	}
+}
 
 func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 	name := "TestGenericDaoDynamodb_GdaoDelete"
@@ -596,7 +720,7 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
+	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 0 {
@@ -641,8 +765,9 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	filter := expression.Name(fieldSubject).Equal(expression.Value("Subject1")).
-		And(expression.Name(fieldLevel).GreaterThanEqual(expression.Value(5)))
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
 	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 0 {
@@ -705,7 +830,7 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan(t *testing.T) {
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
-	filter := expression.Name(fieldUsername).GreaterThanEqual(expression.Value("user5"))
+	filter := &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName+":"+gsiName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 5 {
@@ -744,8 +869,9 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query(t *testing.T) {
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
-	filter := expression.Name(fieldSubject).Equal(expression.Value("Subject1")).
-		And(expression.Name(fieldLevel).GreaterThanEqual(expression.Value(5)))
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
 	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName+":"+gsiName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 2 {
@@ -829,7 +955,7 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		}
 	}
 
-	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
+	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
@@ -842,7 +968,7 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		}
 	}
 
-	filter = expression.Name(fieldUsername).GreaterThanEqual(expression.Value("user5"))
+	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
@@ -886,8 +1012,9 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 		}
 	}
 
-	filter := expression.Name(fieldSubject).Equal(expression.Value("Subject1")).
-		And(expression.Name(fieldLevel).GreaterThanEqual(expression.Value(5)))
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
 	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName, filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 2 {
@@ -932,7 +1059,7 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
 
-	filter := expression.Name(fieldId).GreaterThanEqual(expression.Value("5"))
+	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
@@ -945,7 +1072,7 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 		}
 	}
 
-	filter = expression.Name(fieldUsername).GreaterThanEqual(expression.Value("user5"))
+	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
@@ -990,8 +1117,9 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
-	filter := expression.Name(fieldSubject).Equal(expression.Value("Subject1")).
-		And(expression.Name(fieldLevel).GreaterThanEqual(expression.Value(5)))
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
 
 	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
