@@ -126,7 +126,7 @@ To create prom.AwsDynamodbConnect, see package github.com/btnguyen2k/prom
 package dynamodb
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -136,9 +136,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
-
 	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/prom"
 )
 
 // GenericRowMapperDynamodb is a generic implementation of godal.IRowMapper for AWS DynamoDB.
@@ -331,63 +330,6 @@ func (dao *GenericDaoDynamodb) extractKeysAttributes(table string, item prom.Aws
 	return keysAttrs
 }
 
-// toConditionBuilder builds a ConditionBuilder from input.
-//   - if input is expression.ConditionBuilder or *expression.ConditionBuilder: return it as *expression.ConditionBuilder.
-// 	 - if input is string, slice/array of bytes: assume input is a map in JSON, convert it to map to build ConditionBuilder.
-// 	 - if input is a map: build an "and" condition connecting sub-conditions where each sub-condition is an "equal" condition built from map entry.
-func toConditionBuilder(input interface{}) (*expression.ConditionBuilder, error) {
-	if input == nil {
-		return nil, nil
-	}
-	switch input.(type) {
-	case expression.ConditionBuilder:
-		result := input.(expression.ConditionBuilder)
-		return &result, nil
-	case *expression.ConditionBuilder:
-		return input.(*expression.ConditionBuilder), nil
-	}
-	v := reflect.ValueOf(input)
-	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-	}
-	switch v.Kind() {
-	case reflect.String:
-		// expect input to be a map in JSON
-		result := make(map[string]interface{})
-		if err := json.Unmarshal([]byte(v.Interface().(string)), &result); err != nil {
-			return nil, err
-		}
-		return toConditionBuilder(result)
-	case reflect.Array, reflect.Slice:
-		// expect input to be a map in JSON
-		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
-		if err != nil {
-			return nil, err
-		}
-		result := make(map[string]interface{})
-		if err := json.Unmarshal(t.([]byte), &result); err != nil {
-			return nil, err
-		}
-		return toConditionBuilder(result)
-	case reflect.Map:
-		m, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
-		if err != nil {
-			return nil, err
-		}
-		var result *expression.ConditionBuilder = nil
-		for k, v := range m.(map[string]interface{}) {
-			if result == nil {
-				t := expression.Name(k).Equal(expression.Value(v))
-				result = &t
-			} else {
-				t := result.And(expression.Name(k).Equal(expression.Value(v)))
-				result = &t
-			}
-		}
-		return result, err
-	}
-	return nil, fmt.Errorf("cannot convert %v to *expression.ConditionBuilder", input)
-}
-
 // toFilterMap translates a godal.FilterOpt to DynamoDB-compatible filter map.
 func toFilterMap(filter godal.FilterOpt) (map[string]interface{}, error) {
 	if filter == nil {
@@ -429,41 +371,6 @@ func toFilterMap(filter godal.FilterOpt) (map[string]interface{}, error) {
 	return nil, fmt.Errorf("cannot build filter map from %T", filter)
 }
 
-// func toMap(input interface{}) (map[string]interface{}, error) {
-// 	if input == nil {
-// 		return nil, nil
-// 	}
-// 	switch input.(type) {
-// 	case map[string]interface{}:
-// 		return input.(map[string]interface{}), nil
-// 	case *map[string]interface{}:
-// 		return *input.(*map[string]interface{}), nil
-// 	}
-// 	v := reflect.ValueOf(input)
-// 	for ; v.Kind() == reflect.Ptr; v = v.Elem() {
-// 	}
-// 	switch v.Kind() {
-// 	case reflect.String:
-// 		// expect input to be a map in JSON
-// 		result := make(map[string]interface{})
-// 		err := json.Unmarshal([]byte(v.Interface().(string)), &result)
-// 		return result, err
-// 	case reflect.Array, reflect.Slice:
-// 		// expect input to be a map in JSON
-// 		t, err := reddo.ToSlice(v.Interface(), reflect.TypeOf(byte(0)))
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		result := make(map[string]interface{})
-// 		return result, json.Unmarshal(t.([]byte), &result)
-// 	case reflect.Map:
-// 		result, err := reddo.ToMap(v.Interface(), reflect.TypeOf(make(map[string]interface{})))
-// 		return result.(map[string]interface{}), err
-//
-// 	}
-// 	return nil, fmt.Errorf("cannot convert %v to map[string]interface{}", input)
-// }
-
 /*----------------------------------------------------------------------*/
 
 // GdaoDelete implements godal.IGenericDao.GdaoDelete.
@@ -499,9 +406,105 @@ func (dao *GenericDaoDynamodb) GdaoDeleteMany(table string, filter godal.FilterO
 	return dao.GdaoDeleteManyWithContext(nil, table, filter)
 }
 
+// BuildConditionBuilder transforms a godal.FilterOpt to expression.ConditionBuilder.
+//
+// Available since v0.5.1
+func (dao *GenericDaoDynamodb) BuildConditionBuilder(tableName string, filter godal.FilterOpt) (*expression.ConditionBuilder, error) {
+	if filter == nil {
+		return nil, nil
+	}
+	rm := dao.GetRowMapper()
+	if rm == nil {
+		return nil, errors.New("row-mapper is required to build ConditionBuilder")
+	}
+
+	switch filter.(type) {
+	case godal.FilterOptFieldOpValue:
+		f := filter.(godal.FilterOptFieldOpValue)
+		return dao.BuildConditionBuilder(tableName, &f)
+	case *godal.FilterOptFieldOpValue:
+		f := filter.(*godal.FilterOptFieldOpValue)
+		exp := expression.Name(rm.ToDbColName(tableName, f.FieldName))
+		switch f.Operator {
+		case godal.FilterOpEqual:
+			t := exp.Equal(expression.Value(f.Value))
+			return &t, nil
+		case godal.FilterOpNotEqual:
+			t := exp.NotEqual(expression.Value(f.Value))
+			return &t, nil
+		case godal.FilterOpGreater:
+			t := exp.GreaterThan(expression.Value(f.Value))
+			return &t, nil
+		case godal.FilterOpGreaterOrEqual:
+			t := exp.GreaterThanEqual(expression.Value(f.Value))
+			return &t, nil
+		case godal.FilterOpLess:
+			t := exp.LessThan(expression.Value(f.Value))
+			return &t, nil
+		case godal.FilterOpLessOrEqual:
+			t := exp.LessThanEqual(expression.Value(f.Value))
+			return &t, nil
+		}
+		return nil, fmt.Errorf("unknown filter operator: %#v", f.Operator)
+	case godal.FilterOptFieldIsNull:
+		f := filter.(godal.FilterOptFieldIsNull)
+		return dao.BuildConditionBuilder(tableName, &f)
+	case *godal.FilterOptFieldIsNull:
+		f := filter.(*godal.FilterOptFieldIsNull)
+		t := expression.Name(rm.ToDbColName(tableName, f.FieldName)).AttributeNotExists()
+		return &t, nil
+	case godal.FilterOptFieldIsNotNull:
+		f := filter.(godal.FilterOptFieldIsNotNull)
+		return dao.BuildConditionBuilder(tableName, &f)
+	case *godal.FilterOptFieldIsNotNull:
+		f := filter.(*godal.FilterOptFieldIsNotNull)
+		t := expression.Name(rm.ToDbColName(tableName, f.FieldName)).AttributeExists()
+		return &t, nil
+	case godal.FilterOptAnd:
+		f := filter.(godal.FilterOptAnd)
+		return dao.BuildConditionBuilder(tableName, &f)
+	case *godal.FilterOptAnd:
+		f := filter.(*godal.FilterOptAnd)
+		var result *expression.ConditionBuilder = nil
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildConditionBuilder(tableName, innerF)
+			if err != nil {
+				return nil, err
+			}
+			if result == nil {
+				result = innerResult
+			} else {
+				t := result.And(*innerResult)
+				result = &t
+			}
+		}
+		return result, nil
+	case godal.FilterOptOr:
+		f := filter.(godal.FilterOptOr)
+		return dao.BuildConditionBuilder(tableName, &f)
+	case *godal.FilterOptOr:
+		f := filter.(*godal.FilterOptOr)
+		var result *expression.ConditionBuilder = nil
+		for _, innerF := range f.Filters {
+			innerResult, err := dao.BuildConditionBuilder(tableName, innerF)
+			if err != nil {
+				return nil, err
+			}
+			if result == nil {
+				result = innerResult
+			} else {
+				t := result.Or(*innerResult)
+				result = &t
+			}
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("cannot build filter from %T", filter)
+}
+
 // GdaoDeleteManyWithContext is is AWS DynamoDB variant of GdaoDeleteMany.
 func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table string, filter godal.FilterOpt) (int, error) {
-	f, err := toConditionBuilder(filter)
+	f, err := dao.BuildConditionBuilder(table, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -565,7 +568,7 @@ func (dao *GenericDaoDynamodb) GdaoFetchMany(table string, filter godal.FilterOp
 
 // GdaoFetchManyWithContext is is AWS DynamoDB variant of GdaoFetchMany.
 func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table string, filter godal.FilterOpt, _ *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
-	f, err := toConditionBuilder(filter)
+	f, err := dao.BuildConditionBuilder(table, filter)
 	if err != nil {
 		return nil, err
 	}

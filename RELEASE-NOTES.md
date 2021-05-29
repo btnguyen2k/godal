@@ -1,5 +1,9 @@
 # godal release notes
 
+## 2021-05-28 - v0.5.1
+
+- (BREAKING CHANGE) `dynamodb` package: implement `FilterOpt` following `IGenericDao` interface.
+
 ## 2021-04-24 - v0.5.0
 
 - (BREAKING CHANGE) `IRowMapper` has 2 new functions `ToDbColName(storageId, fieldName string) string` and `ToBoFieldName(storageId, colName string) string`.
