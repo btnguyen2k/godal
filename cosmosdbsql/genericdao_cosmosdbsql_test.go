@@ -506,6 +506,7 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
 	}
 
+	// GdaoDelete should be successful and number of affected rows should be 0
 	filterUser := &UserBoSql{Id: "2"}
 	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(filterUser)); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
@@ -513,12 +514,14 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
 	}
 
+	// GdaoDelete should be successful and number of affected rows should be 1
 	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 1, numRows)
 	}
 
+	// GdaoFetchOne should be successful and the returned BO should be nil
 	if u, err := dao.GdaoFetchOne(dao.collectionName, dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(user))); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
 	} else if u != nil {
@@ -527,11 +530,13 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 }
 
 func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSql) {
+	// filter rows that has ID >= "8" OR ID < "3"
 	filter := &godal.FilterOptOr{Filters: []godal.FilterOpt{
 		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreaterOrEqual, Value: "8"},
 		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpLess, Value: "3"},
 	}}
 
+	// GdaoDeleteMany should be successful and number of affected rows should be 0
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if numRows != 0 {
@@ -554,6 +559,7 @@ func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSq
 		}
 	}
 
+	// GdaoDeleteMany should be successful and number of affected rows should be 5 (removed rows "0", "1", "2", "8", "9")
 	if numRows, err := dao.GdaoDeleteMany(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if numRows != 5 {
@@ -563,6 +569,8 @@ func dotestGenericDaoSqlGdaoDeleteMany(t *testing.T, name string, dao *UserDaoSq
 
 func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql) {
 	filter := dao.GdaoCreateFilter(dao.collectionName, dao.toGbo(&UserBoSql{Id: "1"}))
+
+	// GdaoFetchOne should be successful and the returned BO is nil
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
 	} else if gbo != nil {
@@ -575,37 +583,41 @@ func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql)
 		Name:     "Thanh Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   false,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 	}
 	_, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 	if err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
 	}
 
+	// GdaoFetchOne should be successful and the returned BO is equal to the original BO
 	if gbo, err := dao.GdaoFetchOne(dao.collectionName, filter); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoFetchOne", err)
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Id != user.Id || u.Username != user.Username || u.Name != user.Name || u.Active != user.Active ||
-			u.Version != user.Version || u.Created.Unix() != user.Created.Unix() {
-			t.Fatalf("%s failed: expected %#v but received %#v", name+"/GdaoFetchOne", user, u)
+		fetchedUser := dao.toUser(gbo)
+		if !reflect.DeepEqual(user, fetchedUser) {
+			t.Fatalf("%s failed: expected %#v but received %#v", name+"/GdaoFetchOne", user, fetchedUser)
 		}
 	}
 }
 
 func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql) {
+	// filter rows that has "3" < ID <= "8"
 	filter := &godal.FilterOptAnd{Filters: []godal.FilterOpt{
 		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpLessOrEqual, Value: "8"},
 		&godal.FilterOptFieldOpValue{FieldName: fieldGboId, Operator: godal.FilterOpGreater, Value: "3"},
 	}}
+
+	// GdaoFetchMany should be successful and number of affected rows is 0
 	if dbRows, err := dao.GdaoFetchMany(dao.collectionName, filter, nil, 1, 3); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if dbRows == nil || len(dbRows) != 0 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 0, dbRows)
 	}
 
+	userMap := make(map[string]*UserBoSql)
 	for i := 0; i < 10; i++ {
 		id := strconv.Itoa(i)
 		user := &UserBoSql{
@@ -614,12 +626,13 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 			Name:     "Thanh " + id,
 			Version:  int(time.Now().UnixNano()),
 			Active:   i%3 == 0,
-			Created:  time.Now(),
+			Created:  time.Now().Round(time.Second),
 		}
 		_, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %e", name+"/GdaoCreate", err)
 		}
+		userMap[id] = user
 	}
 
 	fetchIdList := []string{"7", "6", "5"}
@@ -630,9 +643,9 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
 	} else {
 		for i, row := range dbRows {
-			u := dao.toUser(row)
-			if u.Id != fetchIdList[i] {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], u.Id)
+			fetchedUser := dao.toUser(row)
+			if !reflect.DeepEqual(userMap[fetchIdList[i]], fetchedUser) {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], fetchedUser.Id)
 			}
 		}
 	}
@@ -645,7 +658,7 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 		Name:     "Thanh Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   false,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 	}
 	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
@@ -653,16 +666,18 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
 
+	clone := *user
+
 	// duplicated id
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+	clone.Username = "thanhn"
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(&clone)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 
 	// duplicated username
-	user.Id = "2"
-	user.Username = "btnguyen2k"
-	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+	clone.Id = "2"
+	clone.Username = "btnguyen2k"
+	if numRows, err := dao.GdaoCreate(dao.collectionName, dao.toGbo(&clone)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %e", name, numRows, err)
 	}
 
@@ -672,9 +687,9 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "btnguyen2k" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", u.Username)
+		fetchedUser := dao.toUser(gbo)
+		if !reflect.DeepEqual(user, fetchedUser) {
+			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", fetchedUser.Username)
 		}
 	}
 }
@@ -686,7 +701,7 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 		Name:     "Thanh Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   false,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 		Group:    "users",
 	}
 	user2 := &UserBoSql{
@@ -695,7 +710,7 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 		Name:     "Thanh B. Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   true,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 		Group:    "users",
 	}
 
@@ -731,12 +746,13 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "thanhn" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
+		fetchedUser := dao.toUser(gbo)
+		if !reflect.DeepEqual(user1, fetchedUser) {
+			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", user1, fetchedUser)
 		}
 	}
 
+	// duplicated unique index
 	user1.Username = user2.Username
 	if numRows, err := dao.GdaoUpdate(dao.collectionName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: expected 0/ErrGdaoDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
@@ -750,7 +766,7 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 		Name:     "Thanh Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   false,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 		Group:    "users",
 	}
 	user2 := &UserBoSql{
@@ -759,21 +775,22 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 		Name:     "Thanh B. Nguyen",
 		Version:  int(time.Now().Unix()),
 		Active:   true,
-		Created:  time.Now(),
+		Created:  time.Now().Round(time.Second),
 		Group:    "users",
 	}
 
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) saved but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user2)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) saved but received %#v", name+"/GdaoSave", 1, numRows)
 	}
 
+	// change username
 	user1.Username = "thanhn"
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != nil {
 		t.Fatalf("%s failed: %e", name+"/GdaoSave", err)
@@ -787,12 +804,13 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "thanhn" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
+		fetchedUser := dao.toUser(gbo)
+		if !reflect.DeepEqual(user1, user1) {
+			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", fetchedUser.Username)
 		}
 	}
 
+	// duplicated username
 	user1.Username = user2.Username
 	if numRows, err := dao.GdaoSave(dao.collectionName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: expected 0/ErrGdaoDuplicatedEntry but received %#v/%#v", name+"/GdaoUpdate", numRows, err)
