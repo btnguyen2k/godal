@@ -379,6 +379,11 @@ func (dao *UserDaoSql) toUser(gbo godal.IGenericBo) *UserBoSql {
 	if err := json.Unmarshal([]byte(js), &bo); err != nil {
 		return nil
 	}
+	bo.Created = bo.Created.In(dao.GetSqlConnect().GetLocation())
+	if bo.ValPTime != nil {
+		t := bo.ValPTime.In(dao.GetSqlConnect().GetLocation())
+		bo.ValPTime = &t
+	}
 	return &bo
 }
 
@@ -491,6 +496,45 @@ func TestGenericDaoCosmosdb_CosmosGetPk(t *testing.T) {
 
 /*--------------------------------------------------------------------------------*/
 
+func _compareUsers(t *testing.T, name string, expected, target *UserBoSql) {
+	if target == nil {
+		t.Fatalf("%s failed: target is nil", name)
+	}
+	if target.Id != expected.Id {
+		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
+	}
+	if target.Username != expected.Username {
+		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
+	}
+	if target.Name != expected.Name {
+		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
+	}
+	if target.Version != expected.Version {
+		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
+	}
+	if target.Active != expected.Active {
+		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
+	}
+	layout := time.RFC3339
+	loc, _ := time.LoadLocation(testTimeZone)
+	if target.Created.In(loc).Format(layout) != expected.Created.In(loc).Format(layout) {
+		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
+	}
+
+	if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
+		t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
+	}
+	if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
+		t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
+	}
+	if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
+		t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
+	}
+	if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.In(loc).Format(layout) != expected.ValPTime.In(loc).Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
+		t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
+	}
+}
+
 func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 	user := &UserBoSql{
 		Id:       "1",
@@ -597,9 +641,7 @@ func dotestGenericDaoSqlGdaoFetchOne(t *testing.T, name string, dao *UserDaoSql)
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
 		fetchedUser := dao.toUser(gbo)
-		if !reflect.DeepEqual(user, fetchedUser) {
-			t.Fatalf("%s failed: expected %#v but received %#v", name+"/GdaoFetchOne", user, fetchedUser)
-		}
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -644,9 +686,7 @@ func dotestGenericDaoSqlGdaoFetchMany(t *testing.T, name string, dao *UserDaoSql
 	} else {
 		for i, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			if !reflect.DeepEqual(userMap[fetchIdList[i]], fetchedUser) {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, fetchIdList[i], fetchedUser.Id)
-			}
+			_compareUsers(t, name, userMap[fetchIdList[i]], fetchedUser)
 		}
 	}
 }
@@ -688,9 +728,7 @@ func dotestGenericDaoSqlGdaoCreate(t *testing.T, name string, dao *UserDaoSql) {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
 		fetchedUser := dao.toUser(gbo)
-		if !reflect.DeepEqual(user, fetchedUser) {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", fetchedUser.Username)
-		}
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -747,9 +785,7 @@ func dotestGenericDaoSqlGdaoUpdate(t *testing.T, name string, dao *UserDaoSql) {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
 		fetchedUser := dao.toUser(gbo)
-		if !reflect.DeepEqual(user1, fetchedUser) {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", user1, fetchedUser)
-		}
+		_compareUsers(t, name, user1, fetchedUser)
 	}
 
 	// duplicated unique index
@@ -817,43 +853,43 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 	}
 }
 
-func _checkFilterNull(t *testing.T, name string, expected, target *UserBoSql) {
-	if target == nil {
-		t.Fatalf("%s failed: target is nil", name)
-	}
-	if target.Id != expected.Id {
-		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
-	}
-	if target.Username != expected.Username {
-		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
-	}
-	if target.Name != expected.Name {
-		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
-	}
-	if target.Version != expected.Version {
-		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
-	}
-	if target.Active != expected.Active {
-		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
-	}
-	layout := time.RFC3339
-	if target.Created.Format(layout) != expected.Created.Format(layout) {
-		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
-	}
-
-	if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
-		t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
-	}
-	if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
-		t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
-	}
-	if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
-		t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
-	}
-	if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.Format(layout) != expected.ValPTime.Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
-		t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
-	}
-}
+// func _checkFilterNull(t *testing.T, name string, expected, target *UserBoSql) {
+// 	if target == nil {
+// 		t.Fatalf("%s failed: target is nil", name)
+// 	}
+// 	if target.Id != expected.Id {
+// 		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
+// 	}
+// 	if target.Username != expected.Username {
+// 		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
+// 	}
+// 	if target.Name != expected.Name {
+// 		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
+// 	}
+// 	if target.Version != expected.Version {
+// 		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
+// 	}
+// 	if target.Active != expected.Active {
+// 		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
+// 	}
+// 	layout := time.RFC3339
+// 	if target.Created.Format(layout) != expected.Created.Format(layout) {
+// 		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
+// 	}
+//
+// 	if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
+// 		t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
+// 	}
+// 	if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
+// 		t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
+// 	}
+// 	if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
+// 		t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
+// 	}
+// 	if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.Format(layout) != expected.ValPTime.Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
+// 		t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
+// 	}
+// }
 
 func dotestGenericDaoSqlGdaoFilterNull(t *testing.T, name string, dao *UserDaoSql) {
 	rand.Seed(time.Now().UnixNano())
@@ -924,7 +960,8 @@ func dotestGenericDaoSqlGdaoFilterNull(t *testing.T, name string, dao *UserDaoSq
 				t.Fatalf("%s failed: field [PTime] should be nil, but %#v", name, *user.ValPTime)
 			}
 
-			_checkFilterNull(t, name, expected, user)
+			_compareUsers(t, name, expected, user)
+			// _checkFilterNull(t, name, expected, user)
 		}
 	}
 }
@@ -998,7 +1035,8 @@ func dotestGenericDaoSqlGdaoFilterNotNull(t *testing.T, name string, dao *UserDa
 				t.Fatalf("%s failed: field [PTime] should not be nil, but %#v", name, *user.ValPTime)
 			}
 
-			_checkFilterNull(t, name, expected, user)
+			_compareUsers(t, name, expected, user)
+			// _checkFilterNull(t, name, expected, user)
 		}
 	}
 }
