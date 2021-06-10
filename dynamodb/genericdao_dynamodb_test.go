@@ -522,54 +522,46 @@ func TestToFilterMap(t *testing.T) {
 	}
 }
 
-// func TestToMap(t *testing.T) {
-// 	name := "TestToMap"
-//
-// 	input := make(map[string]interface{})
-// 	if m, err := toMap(input); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-// 	if m, err := toMap(&input); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-//
-// 	inputString := `{"id":"1", "username":"btnguyen2k"}`
-// 	if m, err := toMap(inputString); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-// 	if m, err := toMap(&inputString); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-//
-// 	inputBytes := []byte(`{"id":"1", "username":"btnguyen2k"}`)
-// 	if m, err := toMap(inputBytes); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-// 	if m, err := toMap(&inputBytes); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-//
-// 	inputMap := map[string]string{"key1": "value1", "key2": "value2", "key3": "value3"}
-// 	if m, err := toMap(inputMap); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-// 	if m, err := toMap(&inputMap); err != nil || m == nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-//
-// 	if m, err := toMap(nil); m != nil || err != nil {
-// 		t.Fatalf("%s failed: %#v / %s", name, m, err)
-// 	}
-// 	if _, err := toMap([]byte("invalid map")); err == nil {
-// 		t.Fatalf("%s failed: %s", name, err)
-// 	}
-// 	if _, err := toMap([]interface{}{"invalid", "input"}); err == nil {
-// 		t.Fatalf("%s failed: %s", name, err)
-// 	}
-// 	if _, err := toMap(time.Time{}); err == nil {
-// 		t.Fatalf("%s failed:  %s", name, err)
-// 	}
-// }
+const testTimeZone = "Asia/Ho_Chi_Minh"
+
+func _compareUsers(t *testing.T, name string, expected, target *UserBoDynamodb) {
+	if target == nil {
+		t.Fatalf("%s failed: target is nil", name)
+	}
+	if target.Id != expected.Id {
+		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
+	}
+	if target.Username != expected.Username {
+		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
+	}
+	if target.Name != expected.Name {
+		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
+	}
+	if target.Version != expected.Version {
+		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
+	}
+	if target.Active != expected.Active {
+		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
+	}
+	layout := time.RFC3339
+	loc, _ := time.LoadLocation(testTimeZone)
+	if target.Created.In(loc).Format(layout) != expected.Created.In(loc).Format(layout) {
+		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
+	}
+
+	// if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
+	// 	t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
+	// }
+	// if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
+	// 	t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
+	// }
+	// if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
+	// 	t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
+	// }
+	// if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.In(loc).Format(layout) != expected.ValPTime.In(loc).Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
+	// 	t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
+	// }
+}
 
 func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
 	name := "TestGenericDaoDynamodb_BuildConditionBuilder"
@@ -688,6 +680,7 @@ func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 	}
 
+	// GdaoDelete should be successful and number of affected rows should be 0
 	filterUser := &UserBoDynamodb{Id: "2"}
 	if numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(filterUser)); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
@@ -695,12 +688,15 @@ func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
 	}
 
-	if numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(user)); err != nil {
+	// GdaoDelete should be successful and number of affected rows should be 1
+	filterUser = &UserBoDynamodb{Id: user.Id}
+	if numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(filterUser)); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 1, numRows)
 	}
 
+	// GdaoFetchOne should be successful and the returned BO should be nil
 	if u, err := dao.GdaoFetchOne(dao.tableName, dao.GdaoCreateFilter(dao.tableName, dao.toGbo(user))); err != nil {
 		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
 	} else if u != nil {
@@ -720,6 +716,7 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	// GdaoDeleteMany should be successful but no row deleted
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
@@ -745,6 +742,7 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Scan(t *testing.T) {
 		}
 	}
 
+	// GdaoDeleteMany should be successful and 5 rows deleted
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 5 {
@@ -765,6 +763,7 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	// GdaoDeleteMany should be successful but no row deleted
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
@@ -792,6 +791,8 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Query(t *testing.T) {
 		}
 	}
 
+	// GdaoDeleteMany should be successful and 2 rows deleted
+	// the "@" prefix instructs that GdaoDeleteMany should use "query" instead of "scan"
 	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if numRows != 2 {
@@ -829,6 +830,8 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan(t *testing.T) {
 		}
 	}
 
+	// GdaoDeleteMany should be successful and 5 rows deleted
+	// use format <table-name>:<gsi-name> to filter using GSI
 	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
 	if numRows, err := dao.GdaoDeleteMany(dao.tableName+":"+gsiName, filter); err != nil {
@@ -868,6 +871,9 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query(t *testing.T) {
 		}
 	}
 
+	// GdaoDeleteMany should be successful and 2 rows deleted
+	// use format <table-name>:<gsi-name> to filter using GSI
+	// the "@" prefix instructs that GdaoDeleteMany should use "query" instead of "scan"
 	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
@@ -891,6 +897,7 @@ func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	// GdaoFetchOne should be successful but no row is returned
 	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
 	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
 		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
@@ -918,11 +925,8 @@ func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Id != user.Id || u.Username != user.Username || u.Name != user.Name || u.Active != user.Active ||
-			u.Version != user.Version || u.Created.Unix() != user.Created.Unix() {
-			t.Fatalf("%s failed: expected %#v but received %#v", name+"/GdaoFetchOne", user, u)
-		}
+		fetchedUser := dao.toUser(gbo)
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -938,12 +942,13 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	usermap := make(map[string]*UserBoDynamodb)
 	for i := 0; i < 10; i++ {
 		user := &UserBoDynamodb{
 			Id:       strconv.Itoa(i),
 			Username: "user" + strconv.Itoa(9-i),
 			Name:     "Thanh",
-			Version:  int(time.Now().UnixNano()),
+			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
 			Subject:  "Subject" + strconv.Itoa(i%4),
@@ -953,6 +958,7 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
+		usermap[user.Id] = user
 	}
 
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
@@ -962,9 +968,8 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Id < "5" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
-			}
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
 		}
 	}
 
@@ -975,9 +980,8 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Username < "user5" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
-			}
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
@@ -995,12 +999,13 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	usermap := make(map[string]*UserBoDynamodb)
 	for i := 0; i < 10; i++ {
 		user := &UserBoDynamodb{
 			Id:       strconv.Itoa(i),
 			Username: "user" + strconv.Itoa(9-i),
 			Name:     "Thanh",
-			Version:  int(time.Now().UnixNano()),
+			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
 			Subject:  "Subject" + strconv.Itoa(i%4),
@@ -1010,20 +1015,21 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
+		usermap[user.Id] = user
 	}
 
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
+	// the "@" prefix instructs that GdaoFetchMany should use "query" instead of "scan"
 	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName, filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 2 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Level < 5 || user.Name != "Thanh" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
-			}
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
@@ -1040,12 +1046,13 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	usermap := make(map[string]*UserBoDynamodb)
 	for i := 0; i < 10; i++ {
 		user := &UserBoDynamodb{
 			Id:       strconv.Itoa(i),
 			Username: "user" + strconv.Itoa(9-i),
 			Name:     "Thanh",
-			Version:  int(time.Now().UnixNano()),
+			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
 			Subject:  "Subject" + strconv.Itoa(i%4),
@@ -1055,33 +1062,42 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
+		usermap[user.Id] = user
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
 
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
+	// format @<table-name>:<gsi-name>:<false> indicate that:
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Id < "5" || user.Name != "" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			fetchedUser := dao.toUser(row)
+			if fetchedUser.Id != usermap[fetchedUser.Id].Id {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, usermap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
 
 	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
+	// format @<table-name>:<gsi-name>:<true> indicate that:
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'true': re-fetch from main table as GSI does not contain all fields
 	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 3 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Username < "user5" || user.Name != "Thanh" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
-			}
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
@@ -1098,49 +1114,57 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
+	usermap := make(map[string]*UserBoDynamodb)
 	for i := 0; i < 10; i++ {
 		user := &UserBoDynamodb{
 			Id:       strconv.Itoa(i),
 			Username: "user" + strconv.Itoa(9-i),
 			Name:     "Thanh",
-			Version:  int(time.Now().UnixNano()),
+			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
 			Subject:  "Subject" + strconv.Itoa(i%4),
 			Level:    i,
 		}
-		// fmt.Println(user.Subject, user.Level)
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
+		usermap[user.Id] = user
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
-
+	// format @<table-name>:<gsi-name>:<true> indicate that:
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'true': re-fetch from main table as GSI does not contain all fields
 	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 2 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Level < 5 || user.Name != "Thanh" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
-			}
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
 		}
 	}
 
+	// format @<table-name>:<gsi-name>:<false> indicate that:
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
 	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
 	} else if dbRows == nil || len(dbRows) != 2 {
 		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			if user := dao.toUser(row); user.Level < 5 || user.Name != "" {
-				t.Fatalf("%s failed: invalid row %s", name, row.GboToJsonUnsafe())
+			fetchedUser := dao.toUser(row)
+			if fetchedUser.Id != usermap[fetchedUser.Id].Id {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, usermap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
@@ -1180,10 +1204,8 @@ func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "btnguyen2k" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", u.Username)
-		}
+		fetchedUser := dao.toUser(gbo)
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -1215,8 +1237,9 @@ func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
 	}
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+	clone := *user
+	clone.Username = "thanhn"
+	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(&clone)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
 	}
 
@@ -1226,10 +1249,8 @@ func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "btnguyen2k" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "btnguyen2k", u.Username)
-		}
+		fetchedUser := dao.toUser(gbo)
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -1255,6 +1276,7 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
+	// GdaoUpdate should be successful but no row affected
 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
 		t.Fatalf("%s failed: %s", name+"/GdaoUpdate", err)
 	} else if numRows != 0 {
@@ -1279,10 +1301,8 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "thanhn" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
-		}
+		fetchedUser := dao.toUser(gbo)
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -1377,10 +1397,8 @@ func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
 	} else if gbo == nil {
 		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
 	} else {
-		u := dao.toUser(gbo)
-		if u.Username != "thanhn" {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", "thanhn", u.Username)
-		}
+		fetchedUser := dao.toUser(gbo)
+		_compareUsers(t, name, user, fetchedUser)
 	}
 }
 
@@ -1436,53 +1454,3 @@ func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
 		}
 	}
 }
-
-// func TestGenericDaoDynamodb_GdaoSaveDuplicated(t *testing.T) {
-// 	name := "TestGenericDaoDynamodb_GdaoSaveDuplicated"
-//
-// 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-// 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-// 	}
-// 	dao := _initDao(t, name, testDynamodbTableName)
-// 	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-// 	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-// 	if err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-// 	}
-//
-// 	user1 := &UserBoDynamodb{
-// 		Id:       "1",
-// 		Username: "user1",
-// 		Name:     "Thanh Nguyen",
-// 		Version:  int(time.Now().Unix()),
-// 		Active:   false,
-// 		Created:  time.Now(),
-// 		Subject:  "English",
-// 		Level:    1,
-// 	}
-// 	user2 := &UserBoDynamodb{
-// 		Id:       "2",
-// 		Username: "user2",
-// 		Name:     "Thanh Nguyen",
-// 		Version:  int(time.Now().Unix()),
-// 		Active:   false,
-// 		Created:  time.Now(),
-// 		Subject:  "English",
-// 		Level:    2,
-// 	}
-// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
-// 	} else if numRows != 1 {
-// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
-// 	}
-// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user2)); err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
-// 	} else if numRows != 1 {
-// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
-// 	}
-//
-// 	user1.Level = 2
-// 	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
-// 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
-// 	}
-// }

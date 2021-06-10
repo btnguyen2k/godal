@@ -559,7 +559,8 @@ func dotestGenericDaoSqlGdaoDelete(t *testing.T, name string, dao *UserDaoSql) {
 	}
 
 	// GdaoDelete should be successful and number of affected rows should be 1
-	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(user)); err != nil {
+	filterUser = &UserBoSql{Id: user.Id}
+	if numRows, err := dao.GdaoDelete(dao.collectionName, dao.toGbo(filterUser)); err != nil {
 		t.Fatalf("%s failed: %e", name, err)
 	} else if numRows != 1 {
 		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 1, numRows)

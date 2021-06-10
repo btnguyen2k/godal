@@ -401,7 +401,7 @@ func (dao *GenericDaoDynamodb) GdaoDeleteWithContext(ctx aws.Context, table stri
 //       - table_name: name of the table to delete rows from.
 //       - index_name: (optional) name of the table's index (local or global) to search for rows.
 //
-// This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
+// This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character '@'.
 func (dao *GenericDaoDynamodb) GdaoDeleteMany(table string, filter godal.FilterOpt) (int, error) {
 	return dao.GdaoDeleteManyWithContext(nil, table, filter)
 }

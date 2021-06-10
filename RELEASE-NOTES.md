@@ -1,8 +1,9 @@
 # godal release notes
 
-## 2021-05-28 - v0.5.1
+## 2021-06-10 - v0.5.1
 
 - (BREAKING CHANGE) `dynamodb` package: implement `FilterOpt` following `IGenericDao` interface.
+- Other fixes and enhancements.
 
 ## 2021-04-24 - v0.5.0
 
