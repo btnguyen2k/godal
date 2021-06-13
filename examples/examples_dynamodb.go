@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
@@ -36,7 +37,7 @@ type DaoAppDynamodb struct {
 }
 
 // NewDaoAppDynamodb is a helper function to create DynamoDB-implementation of IDaoApp.
-func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) IDaoApp {
+func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppDynamodb{tableName: tableName}
 	dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(&gdaodynamod.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
@@ -44,7 +45,7 @@ func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) IDaoApp {
 }
 
 // toGenericBo transforms BoApp to godal.IGenericBo
-func (dao *DaoAppDynamodb) toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
+func (dao *DaoAppDynamodb) toGenericBo(bo *common.BoApp) (godal.IGenericBo, error) {
 	if bo == nil {
 		return nil, nil
 	}
@@ -58,11 +59,11 @@ func (dao *DaoAppDynamodb) toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
 }
 
 // toBoApp transforms godal.IGenericBo to BoApp
-func (dao *DaoAppDynamodb) toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
+func (dao *DaoAppDynamodb) toBoApp(gbo godal.IGenericBo) (*common.BoApp, error) {
 	if gbo == nil {
 		return nil, nil
 	}
-	bo := BoApp{}
+	bo := common.BoApp{}
 	err := gbo.GboTransferViaJson(&bo)
 	return &bo, err
 }
@@ -80,7 +81,7 @@ func (dao *DaoAppDynamodb) GdaoCreateFilter(storageId string, bo godal.IGenericB
 }
 
 // Delete implements IDaoApp.Delete
-func (dao *DaoAppDynamodb) Delete(bo *BoApp) (bool, error) {
+func (dao *DaoAppDynamodb) Delete(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -90,7 +91,7 @@ func (dao *DaoAppDynamodb) Delete(bo *BoApp) (bool, error) {
 }
 
 // Create implements IDaoApp.Create
-func (dao *DaoAppDynamodb) Create(bo *BoApp) (bool, error) {
+func (dao *DaoAppDynamodb) Create(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -100,7 +101,7 @@ func (dao *DaoAppDynamodb) Create(bo *BoApp) (bool, error) {
 }
 
 // Get implements IDaoApp.Get
-func (dao *DaoAppDynamodb) Get(id string) (*BoApp, error) {
+func (dao *DaoAppDynamodb) Get(id string) (*common.BoApp, error) {
 	filter := map[string]interface{}{"id": id}
 	gbo, err := dao.GdaoFetchOne(dao.tableName, filter)
 	if err != nil || gbo == nil {
@@ -110,12 +111,12 @@ func (dao *DaoAppDynamodb) Get(id string) (*BoApp, error) {
 }
 
 // GetAll implements IDaoApp.GetAll
-func (dao *DaoAppDynamodb) GetAll() ([]*BoApp, error) {
+func (dao *DaoAppDynamodb) GetAll() ([]*common.BoApp, error) {
 	rows, err := dao.GdaoFetchMany(dao.tableName, nil, nil, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, e := range rows {
 		bo, err := dao.toBoApp(e)
 		if err != nil {
@@ -127,7 +128,7 @@ func (dao *DaoAppDynamodb) GetAll() ([]*BoApp, error) {
 }
 
 // Update implements IDaoApp.Update
-func (dao *DaoAppDynamodb) Update(bo *BoApp) (bool, error) {
+func (dao *DaoAppDynamodb) Update(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -137,7 +138,7 @@ func (dao *DaoAppDynamodb) Update(bo *BoApp) (bool, error) {
 }
 
 // Upsert implements IDaoApp.Upsert
-func (dao *DaoAppDynamodb) Upsert(bo *BoApp) (bool, error) {
+func (dao *DaoAppDynamodb) Upsert(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -147,12 +148,12 @@ func (dao *DaoAppDynamodb) Upsert(bo *BoApp) (bool, error) {
 }
 
 // GetN demonstrates fetching documents with paging
-func (dao *DaoAppDynamodb) GetN(startOffset, numRows int) ([]*BoApp, error) {
+func (dao *DaoAppDynamodb) GetN(startOffset, numRows int) ([]*common.BoApp, error) {
 	rows, err := dao.GdaoFetchMany(dao.tableName, nil, nil, startOffset, numRows)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, e := range rows {
 		bo, err := dao.toBoApp(e)
 		if err != nil {
@@ -236,7 +237,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 
 	// insert a document
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo := BoApp{
+	bo := common.BoApp{
 		Id:            "log",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -264,7 +265,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 
 	// insert another document
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo = BoApp{
+	bo = common.BoApp{
 		Id:            "login",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -291,7 +292,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 	}
 
 	// insert another document with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (again)", ValList: []interface{}{"duplicated"}}
+	bo = common.BoApp{Id: "login", ValString: "Authentication application (again)", ValList: []interface{}{"duplicated"}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -300,7 +301,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
@@ -313,13 +314,13 @@ func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			printApp(bo)
+			common.printApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbFetchAllItems(tableName string) {
@@ -332,10 +333,10 @@ func demoDynamodbFetchAllItems(tableName string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			printApp(bo)
+			common.printApp(bo)
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
@@ -370,7 +371,7 @@ func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...string) {
@@ -385,7 +386,7 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     "(updated)",
@@ -427,7 +428,7 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...string) {
@@ -442,7 +443,7 @@ func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...st
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     fmt.Sprintf("(upsert)"),
@@ -484,7 +485,7 @@ func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...st
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
@@ -498,7 +499,7 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
 	for i := 0; i < n; i++ {
 		id := fmt.Sprintf("%03d", i)
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo := BoApp{
+		bo := common.BoApp{
 			Id:            id,
 			Description:   t.String(),
 			ValBool:       rand.Int31()%2 == 0,
@@ -532,7 +533,7 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func main() {

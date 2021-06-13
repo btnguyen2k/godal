@@ -3,6 +3,7 @@ package main
 
 import (
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/sql"
@@ -15,7 +16,7 @@ var colsSql = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "va
 /*----------------------------------------------------------------------*/
 
 // toGenericBo transforms BoApp to godal.IGenericBo
-func toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
+func toGenericBo(bo *common.BoApp) (godal.IGenericBo, error) {
 	if bo == nil {
 		return nil, nil
 	}
@@ -23,11 +24,11 @@ func toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
 }
 
 // toBoApp transforms godal.IGenericBo to BoApp
-func toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
+func toBoApp(gbo godal.IGenericBo) (*common.BoApp, error) {
 	if gbo == nil {
 		return nil, nil
 	}
-	bo := &BoApp{}
+	bo := &common.BoApp{}
 	return bo.fromGenericBo(gbo), nil
 }
 
@@ -52,7 +53,7 @@ func (dao *DaoAppSql) EnableTxMode(txMode bool) {
 }
 
 // Delete implements IDaoApp.Delete
-func (dao *DaoAppSql) Delete(bo *BoApp) (bool, error) {
+func (dao *DaoAppSql) Delete(bo *common.BoApp) (bool, error) {
 	gbo, err := toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -62,7 +63,7 @@ func (dao *DaoAppSql) Delete(bo *BoApp) (bool, error) {
 }
 
 // Create implements IDaoApp.Create
-func (dao *DaoAppSql) Create(bo *BoApp) (bool, error) {
+func (dao *DaoAppSql) Create(bo *common.BoApp) (bool, error) {
 	gbo, err := toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -72,7 +73,7 @@ func (dao *DaoAppSql) Create(bo *BoApp) (bool, error) {
 }
 
 // Get implements IDaoApp.Get
-func (dao *DaoAppSql) Get(id string) (*BoApp, error) {
+func (dao *DaoAppSql) Get(id string) (*common.BoApp, error) {
 	filter := &godal.FilterOptFieldOpValue{FieldName: "id", Operator: godal.FilterOpEqual, Value: id}
 	gbo, err := dao.GdaoFetchOne(dao.tableName, filter)
 	if err != nil || gbo == nil {
@@ -82,13 +83,13 @@ func (dao *DaoAppSql) Get(id string) (*BoApp, error) {
 }
 
 // GetAll implements IDaoApp.GetAll
-func (dao *DaoAppSql) GetAll() ([]*BoApp, error) {
+func (dao *DaoAppSql) GetAll() ([]*common.BoApp, error) {
 	sorting := (&godal.SortingOpt{}).Add(&godal.SortingField{FieldName: "val_time"})
 	rows, err := dao.GdaoFetchMany(dao.tableName, nil, sorting, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, row := range rows {
 		bo, err := toBoApp(row)
 		if err != nil {
@@ -100,13 +101,13 @@ func (dao *DaoAppSql) GetAll() ([]*BoApp, error) {
 }
 
 // GetN implements IDaoApp.GetN
-func (dao *DaoAppSql) GetN(startOffset, numRows int) ([]*BoApp, error) {
+func (dao *DaoAppSql) GetN(startOffset, numRows int) ([]*common.BoApp, error) {
 	// sorting := map[string]int{"id": 1} // sort by "id" attribute, ascending
 	rows, err := dao.GdaoFetchMany(dao.tableName, nil, nil, startOffset, numRows)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, row := range rows {
 		bo, err := toBoApp(row)
 		if err != nil {
@@ -118,7 +119,7 @@ func (dao *DaoAppSql) GetN(startOffset, numRows int) ([]*BoApp, error) {
 }
 
 // Update implements IDaoApp.Update
-func (dao *DaoAppSql) Update(bo *BoApp) (bool, error) {
+func (dao *DaoAppSql) Update(bo *common.BoApp) (bool, error) {
 	gbo, err := toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -128,7 +129,7 @@ func (dao *DaoAppSql) Update(bo *BoApp) (bool, error) {
 }
 
 // Upsert implements IDaoApp.Upsert
-func (dao *DaoAppSql) Upsert(bo *BoApp) (bool, error) {
+func (dao *DaoAppSql) Upsert(bo *common.BoApp) (bool, error) {
 	gbo, err := toGenericBo(bo)
 	if err != nil {
 		return false, err

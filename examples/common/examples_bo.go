@@ -1,5 +1,4 @@
-// This is not a standalone script!
-package main
+package common
 
 import (
 	"encoding/json"
@@ -12,11 +11,12 @@ import (
 )
 
 var (
-	sep = "================================================================================"
+	SEP      = "================================================================================"
+	TIMEZONE = "Asia/Ho_Chi_Minh"
 )
 
-func printApp(app *BoApp) {
-	fmt.Printf("\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+func PrintApp(app *BoApp) {
+	fmt.Printf("\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 	fmt.Printf("\t\t%s (%T): %v\n", "Id", app.Id, app.Id)
 	fmt.Printf("\t\t%s (%T): %v\n", "Description", app.Description, app.Description)
 	fmt.Printf("\t\t%s (%T): %v\n", "ValBool", app.ValBool, app.ValBool)
@@ -55,12 +55,12 @@ type BoApp struct {
 	ValMap        map[string]interface{} `json:"val_map"`
 }
 
-func (app *BoApp) toJson() []byte {
+func (app *BoApp) ToJson() []byte {
 	js, _ := json.Marshal(app)
 	return js
 }
 
-func (app *BoApp) toGenericBo() godal.IGenericBo {
+func (app *BoApp) ToGenericBo() godal.IGenericBo {
 	gbo := godal.NewGenericBo()
 	gbo.GboSetAttr("id", app.Id)
 	gbo.GboSetAttr("val_desc", app.Description)
@@ -86,13 +86,25 @@ func (app *BoApp) toGenericBo() godal.IGenericBo {
 	return gbo
 }
 
-func (app *BoApp) fromGenericBo(gbo godal.IGenericBo) *BoApp {
-	app.Id = gbo.GboGetAttrUnsafe("id", reddo.TypeString).(string)
-	app.Description = gbo.GboGetAttrUnsafe("val_desc", reddo.TypeString).(string)
-	app.ValBool = gbo.GboGetAttrUnsafe("val_bool", reddo.TypeInt).(int64) > 0
-	app.ValInt = int(gbo.GboGetAttrUnsafe("val_int", reddo.TypeInt).(int64))
-	app.ValFloat = gbo.GboGetAttrUnsafe("val_float", reddo.TypeFloat).(float64)
-	app.ValString = gbo.GboGetAttrUnsafe("val_string", reddo.TypeString).(string)
+func (app *BoApp) FromGenericBo(gbo godal.IGenericBo) *BoApp {
+	if v := gbo.GboGetAttrUnsafe("id", reddo.TypeString); v != nil {
+		app.Id = v.(string)
+	}
+	if v := gbo.GboGetAttrUnsafe("val_desc", reddo.TypeString); v != nil {
+		app.Description = v.(string)
+	}
+	if v := gbo.GboGetAttrUnsafe("val_bool", reddo.TypeBool); v != nil {
+		app.ValBool = v.(bool)
+	}
+	if v := gbo.GboGetAttrUnsafe("val_int", reddo.TypeInt); v != nil {
+		app.ValInt = int(v.(int64))
+	}
+	if v := gbo.GboGetAttrUnsafe("val_float", reddo.TypeFloat); v != nil {
+		app.ValFloat = v.(float64)
+	}
+	if v := gbo.GboGetAttrUnsafe("val_string", reddo.TypeString); v != nil {
+		app.ValString = v.(string)
+	}
 	app.ValTime, _ = gbo.GboGetTimeWithLayout("val_time", time.RFC3339Nano)
 	app.ValTimeZ, _ = gbo.GboGetTimeWithLayout("val_timez", time.RFC3339Nano)
 	app.ValDate, _ = gbo.GboGetTimeWithLayout("val_date", time.RFC3339Nano)

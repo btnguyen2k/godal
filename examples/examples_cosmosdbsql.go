@@ -20,6 +20,7 @@ import (
 	"time"
 
 	_ "github.com/btnguyen2k/gocosmos"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
@@ -32,7 +33,7 @@ type DaoAppCosmosdb struct {
 }
 
 // NewDaoAppCosmosdb is helper function to create AzureCosmosDB-implementation of IDaoApp.
-func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppCosmosdb{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
 	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlC, godal.NewAbstractGenericDao(dao))
@@ -106,7 +107,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo := BoApp{
+	bo := common.BoApp{
 		Id:            "log",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -135,7 +136,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo = BoApp{
+	bo = common.BoApp{
 		Id:            "login",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -163,7 +164,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 	}
 
 	// insert another row with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}, ValMap: map[string]interface{}{"duplicated": true}}
+	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}, ValMap: map[string]interface{}{"duplicated": true}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -172,7 +173,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbFetchRowById(table string, ids ...string) {
@@ -188,13 +189,13 @@ func demoCosmosdbFetchRowById(table string, ids ...string) {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			printApp(bo)
+			common.printApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbFetchAllRow(table string) {
@@ -209,10 +210,10 @@ func demoCosmosdbFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			printApp(bo)
+			common.printApp(bo)
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbDeleteRow(table string, ids ...string) {
@@ -252,7 +253,7 @@ func demoCosmosdbDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -270,7 +271,7 @@ func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     "(updated)",
@@ -314,7 +315,7 @@ func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -331,7 +332,7 @@ func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids .
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
@@ -374,7 +375,7 @@ func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids .
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
@@ -393,7 +394,7 @@ func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
 			id = "0" + id
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo := BoApp{
+		bo := common.BoApp{
 			Id:            id,
 			Description:   t.String(),
 			ValBool:       rand.Int31()%2 == 0,
@@ -428,7 +429,7 @@ func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func main() {

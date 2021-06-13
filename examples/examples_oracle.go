@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 	_ "github.com/godror/godror"
 
@@ -32,7 +33,7 @@ type DaoAppOracle struct {
 }
 
 // NewDaoAppOracle is helper function to create Oracle-implementation of IDaoApp.
-func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppOracle{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
@@ -104,7 +105,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo := BoApp{
+	bo := common.BoApp{
 		Id:            "log",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -132,7 +133,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo = BoApp{
+	bo = common.BoApp{
 		Id:            "login",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -159,7 +160,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 	}
 
 	// insert another row with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
+	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -168,7 +169,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleFetchRowById(table string, ids ...string) {
@@ -183,13 +184,13 @@ func demoOracleFetchRowById(table string, ids ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			printApp(bo)
+			common.printApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleFetchAllRow(table string) {
@@ -204,10 +205,10 @@ func demoOracleFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			printApp(bo)
+			common.printApp(bo)
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleDeleteRow(table string, ids ...string) {
@@ -244,7 +245,7 @@ func demoOracleDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -261,7 +262,7 @@ func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     "(updated)",
@@ -303,7 +304,7 @@ func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -320,7 +321,7 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
@@ -362,7 +363,7 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
@@ -381,7 +382,7 @@ func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
 			id = "0" + id
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo := BoApp{
+		bo := common.BoApp{
 			Id:            id,
 			Description:   t.String(),
 			ValBool:       rand.Int31()%2 == 0,
@@ -415,7 +416,7 @@ func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func main() {

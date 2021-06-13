@@ -1,18 +1,17 @@
 /*
 MongoDB Dao example. Run with command:
 
-$ go run examples_bo.go examples_mongo.go
+$ go run examples_mongo.go
 
 MongoDB Dao implementation guideline:
 
-	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
 	  to transform godal.IGenericBo to application's BO and vice versa.
 */
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -21,11 +20,14 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/mongo"
 )
+
+const mongoFieldId = "_id"
 
 // DaoAppMongodb is MongoDB-implementation of IDaoApp.
 type DaoAppMongodb struct {
@@ -34,42 +36,40 @@ type DaoAppMongodb struct {
 }
 
 // NewDaoAppMongodb is helper function to create MongoDB-implementation of IDaoApp.
-func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string) IDaoApp {
+func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string) common.IDaoApp {
 	dao := &DaoAppMongodb{collectionName: collectionName}
 	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
 	return dao
 }
 
 // toGenericBo transforms BoApp to godal.IGenericBo
-func (dao *DaoAppMongodb) toGenericBo(bo *BoApp) (godal.IGenericBo, error) {
+func (dao *DaoAppMongodb) toGenericBo(bo *common.BoApp) (godal.IGenericBo, error) {
 	if bo == nil {
 		return nil, nil
 	}
-	gbo := godal.NewGenericBo()
-	js, err := json.Marshal(bo)
-	if err != nil {
-		return nil, err
-	}
-	err = gbo.GboFromJson(js)
-	return gbo, err
+	gbo := bo.ToGenericBo()
+	gbo.GboSetAttr("id", nil)
+	gbo.GboSetAttr(mongoFieldId, bo.Id)
+	return gbo, nil
 }
 
 // toBoApp transforms godal.IGenericBo to BoApp
-func (dao *DaoAppMongodb) toBoApp(gbo godal.IGenericBo) (*BoApp, error) {
+func (dao *DaoAppMongodb) toBoApp(gbo godal.IGenericBo) (*common.BoApp, error) {
 	if gbo == nil {
 		return nil, nil
 	}
-	bo := BoApp{}
-	err := gbo.GboTransferViaJson(&bo)
-	return &bo, err
+	bo := common.BoApp{}
+	bo.FromGenericBo(gbo)
+	bo.Id = gbo.GboGetAttrUnsafe(mongoFieldId, reddo.TypeString).(string)
+	return &bo, nil
 }
 
 /*----------------------------------------------------------------------*/
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *DaoAppMongodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	id, _ := bo.GboGetAttr("id", reddo.TypeString)
-	return map[string]interface{}{"id": id}
+func (dao *DaoAppMongodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
+	id, _ := bo.GboGetAttr(mongoFieldId, reddo.TypeString)
+	return godal.MakeFilter(map[string]interface{}{mongoFieldId: id})
 }
 
 // EnableTxMode implements IDaoApp.EnableTxMode
@@ -78,7 +78,7 @@ func (dao *DaoAppMongodb) EnableTxMode(txMode bool) {
 }
 
 // Delete implements IDaoApp.Delete
-func (dao *DaoAppMongodb) Delete(bo *BoApp) (bool, error) {
+func (dao *DaoAppMongodb) Delete(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -88,7 +88,7 @@ func (dao *DaoAppMongodb) Delete(bo *BoApp) (bool, error) {
 }
 
 // Create implements IDaoApp.Create
-func (dao *DaoAppMongodb) Create(bo *BoApp) (bool, error) {
+func (dao *DaoAppMongodb) Create(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -98,8 +98,8 @@ func (dao *DaoAppMongodb) Create(bo *BoApp) (bool, error) {
 }
 
 // Get implements IDaoApp.Get
-func (dao *DaoAppMongodb) Get(id string) (*BoApp, error) {
-	filter := map[string]interface{}{"id": id}
+func (dao *DaoAppMongodb) Get(id string) (*common.BoApp, error) {
+	filter := godal.MakeFilter(map[string]interface{}{mongoFieldId: id})
 	gbo, err := dao.GdaoFetchOne(dao.collectionName, filter)
 	if err != nil || gbo == nil {
 		return nil, err
@@ -108,13 +108,13 @@ func (dao *DaoAppMongodb) Get(id string) (*BoApp, error) {
 }
 
 // GetAll implements IDaoApp.GetAll
-func (dao *DaoAppMongodb) GetAll() ([]*BoApp, error) {
-	sorting := map[string]int{"val_time": 1} // sort by "val_time" attribute, ascending
+func (dao *DaoAppMongodb) GetAll() ([]*common.BoApp, error) {
+	sorting := (&godal.SortingField{FieldName: "val_time"}).ToSortingOpt()
 	rows, err := dao.GdaoFetchMany(dao.collectionName, nil, sorting, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, e := range rows {
 		bo, err := dao.toBoApp(e)
 		if err != nil {
@@ -126,7 +126,7 @@ func (dao *DaoAppMongodb) GetAll() ([]*BoApp, error) {
 }
 
 // Update implements IDaoApp.Update
-func (dao *DaoAppMongodb) Update(bo *BoApp) (bool, error) {
+func (dao *DaoAppMongodb) Update(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -136,7 +136,7 @@ func (dao *DaoAppMongodb) Update(bo *BoApp) (bool, error) {
 }
 
 // Upsert implements IDaoApp.Upsert
-func (dao *DaoAppMongodb) Upsert(bo *BoApp) (bool, error) {
+func (dao *DaoAppMongodb) Upsert(bo *common.BoApp) (bool, error) {
 	gbo, err := dao.toGenericBo(bo)
 	if err != nil {
 		return false, err
@@ -146,13 +146,13 @@ func (dao *DaoAppMongodb) Upsert(bo *BoApp) (bool, error) {
 }
 
 // GetN demonstrates fetching documents with paging (result is sorted by "val_time")
-func (dao *DaoAppMongodb) GetN(startOffset, numRows int) ([]*BoApp, error) {
-	sorting := map[string]int{"id": 1} // sort by "id" attribute, ascending
+func (dao *DaoAppMongodb) GetN(startOffset, numRows int) ([]*common.BoApp, error) {
+	sorting := (&godal.SortingField{FieldName: "id"}).ToSortingOpt()
 	rows, err := dao.GdaoFetchMany(dao.collectionName, nil, sorting, startOffset, numRows)
 	if err != nil {
 		return nil, err
 	}
-	var result []*BoApp
+	var result []*common.BoApp
 	for _, e := range rows {
 		bo, err := dao.toBoApp(e)
 		if err != nil {
@@ -202,7 +202,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 
 	// insert a document
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo := BoApp{
+	bo := common.BoApp{
 		Id:            "log",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -220,7 +220,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -230,7 +230,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 
 	// insert another document
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo = BoApp{
+	bo = common.BoApp{
 		Id:            "login",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -248,7 +248,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -257,8 +257,8 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 	}
 
 	// insert another document with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -266,7 +266,7 @@ func demoMongoInsertDocs(loc *time.Location, collection string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoFetchDocById(collection string, docIds ...string) {
@@ -280,13 +280,13 @@ func demoMongoFetchDocById(collection string, docIds ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoFetchAllDocs(collection string) {
@@ -300,10 +300,10 @@ func demoMongoFetchAllDocs(collection string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoDeleteDocs(collection string, docIds ...string) {
@@ -319,7 +319,7 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
@@ -330,7 +330,7 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -339,7 +339,7 @@ func demoMongoDeleteDocs(collection string, docIds ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string) {
@@ -355,7 +355,7 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     "(updated)",
@@ -369,7 +369,7 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -381,7 +381,7 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
@@ -391,13 +391,13 @@ func demoMongoUpdateDocs(loc *time.Location, collection string, docIds ...string
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, docIds ...string) {
@@ -405,7 +405,7 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 	dao := NewDaoAppMongodb(mc, collection)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-", txMode)
+	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-\n", txMode)
 	for _, id := range docIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
@@ -413,7 +413,7 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
@@ -427,7 +427,7 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
 			bo.ValTime = t
@@ -439,7 +439,7 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
@@ -449,13 +449,13 @@ func demoMongoUpsertDocs(loc *time.Location, collection string, txMode bool, doc
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
@@ -473,7 +473,7 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 			id = "0" + id
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo := BoApp{
+		bo := common.BoApp{
 			Id:            id,
 			Description:   t.String(),
 			ValBool:       rand.Int31()%2 == 0,
@@ -504,44 +504,44 @@ func demoMongoSelectSortingAndLimit(loc *time.Location, collection string) {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.SEP)
 }
 
-func demoMongoFetchDocNotExists(collection string, docId string) {
-	mc := createMongoConnect()
-	dao := NewDaoAppMongodb(mc, collection)
-	initDataMongo(mc, collection)
-	dao.EnableTxMode(false)
-
-	fmt.Printf("-== (not-exists) ==-\n")
-	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000)
-	bo := BoApp{
-		Id:            "log",
-		Description:   t.String(),
-		ValBool:       rand.Int31()%2 == 0,
-		ValInt:        rand.Int(),
-		ValFloat:      rand.Float64(),
-		ValString:     fmt.Sprintf("Logging application"),
-		ValTime:       t,
-		ValTimeZ:      t,
-		ValDate:       t,
-		ValDateZ:      t,
-		ValDatetime:   t,
-		ValDatetimeZ:  t,
-		ValTimestamp:  t,
-		ValTimestampZ: t,
-		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
-		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
-	}
-	result, err := dao.Create(&bo)
-	// bo, err := dao.Get(docId)
-	fmt.Println(result, err)
-
-	fmt.Println(sep)
-}
+// func demoMongoFetchDocNotExists(collection string, docId string) {
+// 	mc := createMongoConnect()
+// 	dao := NewDaoAppMongodb(mc, collection)
+// 	initDataMongo(mc, collection)
+// 	dao.EnableTxMode(false)
+//
+// 	fmt.Printf("-== (not-exists) ==-\n")
+// 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000)
+// 	bo := common.BoApp{
+// 		Id:            "log",
+// 		Description:   t.String(),
+// 		ValBool:       rand.Int31()%2 == 0,
+// 		ValInt:        rand.Int(),
+// 		ValFloat:      rand.Float64(),
+// 		ValString:     fmt.Sprintf("Logging application"),
+// 		ValTime:       t,
+// 		ValTimeZ:      t,
+// 		ValDate:       t,
+// 		ValDateZ:      t,
+// 		ValDatetime:   t,
+// 		ValDatetimeZ:  t,
+// 		ValTimestamp:  t,
+// 		ValTimestampZ: t,
+// 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
+// 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
+// 	}
+// 	result, err := dao.Create(&bo)
+// 	// bo, err := dao.Get(docId)
+// 	fmt.Println(result, err)
+//
+// 	fmt.Println(common.SEP)
+// }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -558,5 +558,6 @@ func main() {
 	demoMongoUpsertDocs(loc, collection, true, "log", "logging")
 	demoMongoUpsertDocs(loc, collection, false, "log", "loggging")
 	demoMongoSelectSortingAndLimit(loc, collection)
-	demoMongoFetchDocNotExists(collection, "not-exists")
+	demoMongoFetchDocById(collection, "not-exists")
+	// demoMongoFetchDocNotExists(collection, "not-exists")
 }

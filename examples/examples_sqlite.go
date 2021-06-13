@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -32,7 +33,7 @@ type DaoAppSqlite struct {
 }
 
 // NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
-func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) IDaoApp {
+func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppSqlite{}
 	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
@@ -104,7 +105,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert a row
 	t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo := BoApp{
+	bo := common.BoApp{
 		Id:            "log",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -132,7 +133,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row
 	t = time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-	bo = BoApp{
+	bo = common.BoApp{
 		Id:            "login",
 		Description:   t.String(),
 		ValBool:       rand.Int31()%2 == 0,
@@ -159,7 +160,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 	}
 
 	// insert another row with duplicated id
-	bo = BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
+	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
 	fmt.Println("\tCreating bo:", string(bo.toJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
@@ -168,7 +169,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteFetchRowById(table string, ids ...string) {
@@ -185,13 +186,13 @@ func demoSqliteFetchRowById(table string, ids ...string) {
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		}
 		if bo != nil {
-			printApp(bo)
+			common.printApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteFetchAllRow(table string) {
@@ -206,10 +207,10 @@ func demoSqliteFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			printApp(bo)
+			common.printApp(bo)
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteDeleteRow(table string, ids ...string) {
@@ -246,7 +247,7 @@ func demoSqliteDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -265,7 +266,7 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 		}
 		if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     "(updated)",
@@ -307,7 +308,7 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -324,7 +325,7 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
-			bo = &BoApp{
+			bo = &common.BoApp{
 				Id:            id,
 				Description:   t.String(),
 				ValString:     fmt.Sprintf("(upsert,txmode=%v)", txMode),
@@ -366,7 +367,7 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			}
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
@@ -385,7 +386,7 @@ func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
 			id = "0" + id
 		}
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo := BoApp{
+		bo := common.BoApp{
 			Id:            id,
 			Description:   t.String(),
 			ValBool:       rand.Int31()%2 == 0,
@@ -419,7 +420,7 @@ func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
 			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
 		}
 	}
-	fmt.Println(sep)
+	fmt.Println(common.sep)
 }
 
 func main() {

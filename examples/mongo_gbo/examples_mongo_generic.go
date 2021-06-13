@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
@@ -21,8 +22,8 @@ import (
 )
 
 const (
-	mongoGenericTz      = "Asia/Ho_Chi_Minh"
-	mongoGenericSep     = "================================================================================"
+	// mongoGenericTz      = "Asia/Ho_Chi_Minh"
+	// mongoGenericSep     = "================================================================================"
 	mongoGenericFieldId = "_id"
 )
 
@@ -59,9 +60,9 @@ type myGenericDaoMongo struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	id := bo.GboGetAttrUnsafe(mongoGenericFieldId, reddo.TypeString)
-	return map[string]interface{}{mongoGenericFieldId: id}
+func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
+	id, _ := bo.GboGetAttr(mongoGenericFieldId, reddo.TypeString)
+	return godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id})
 }
 
 func newGenericDaoMongo(mc *prom.MongoConnect, txMode bool) godal.IGenericDao {
@@ -131,7 +132,7 @@ func demoMongoInsertDocsGeneric(loc *time.Location, collection string, txMode bo
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoFetchDocByIdGeneric(collection string, docIds ...string) {
@@ -140,7 +141,7 @@ func demoMongoFetchDocByIdGeneric(collection string, docIds ...string) {
 
 	fmt.Printf("-== Fetch documents by id ==-\n")
 	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -150,7 +151,7 @@ func demoMongoFetchDocByIdGeneric(collection string, docIds ...string) {
 		}
 	}
 
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoFetchAllDocsGeneric(collection string) {
@@ -166,7 +167,7 @@ func demoMongoFetchAllDocsGeneric(collection string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoDeleteDocsGeneric(collection string, docIds ...string) {
@@ -175,7 +176,7 @@ func demoMongoDeleteDocsGeneric(collection string, docIds ...string) {
 
 	fmt.Println("-== Delete documents from collection ==-")
 	for _, id := range docIds {
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -188,7 +189,7 @@ func demoMongoDeleteDocsGeneric(collection string, docIds ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+			bo1, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -201,7 +202,7 @@ func demoMongoDeleteDocsGeneric(collection string, docIds ...string) {
 		}
 
 	}
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoUpdateDocsGeneric(loc *time.Location, collection string, docIds ...string) {
@@ -211,9 +212,10 @@ func demoMongoUpdateDocsGeneric(loc *time.Location, collection string, docIds ..
 	fmt.Println("-== Update documents from collection ==-")
 	for _, id := range docIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -233,7 +235,7 @@ func demoMongoUpdateDocsGeneric(loc *time.Location, collection string, docIds ..
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+			bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -243,7 +245,7 @@ func demoMongoUpdateDocsGeneric(loc *time.Location, collection string, docIds ..
 			}
 		}
 	}
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoUpsertDocsGeneric(loc *time.Location, collection string, txMode bool, docIds ...string) {
@@ -253,9 +255,10 @@ func demoMongoUpsertDocsGeneric(loc *time.Location, collection string, txMode bo
 	fmt.Printf("-== Upsert documents to collection (TxMode=%v) ==-", txMode)
 	for _, id := range docIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -275,7 +278,7 @@ func demoMongoUpsertDocsGeneric(loc *time.Location, collection string, txMode bo
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(collection, map[string]interface{}{mongoGenericFieldId: id})
+			bo, err := dao.GdaoFetchOne(collection, godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -285,7 +288,7 @@ func demoMongoUpsertDocsGeneric(loc *time.Location, collection string, txMode bo
 			}
 		}
 	}
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoMongoSelectSortingAndLimitGeneric(loc *time.Location, collection string) {
@@ -320,7 +323,7 @@ func demoMongoSelectSortingAndLimitGeneric(loc *time.Location, collection string
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
 	fmt.Printf("\tFetching %d docs, starting from offset %d...\n", numRows, startOffset)
-	sorting := map[string]int{mongoGenericFieldId: 1} // sort by "id" attribute, ascending
+	sorting := (&godal.SortingField{FieldName: mongoGenericFieldId}).ToSortingOpt()
 	boList, err := dao.GdaoFetchMany(collection, nil, sorting, startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
@@ -329,12 +332,12 @@ func demoMongoSelectSortingAndLimitGeneric(loc *time.Location, collection string
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(mongoGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation(mongoGenericTz)
+	loc, _ := time.LoadLocation(common.TIMEZONE)
 	fmt.Println("mongoGenericTz:", loc)
 	collection := "apps"
 	fmt.Println("Collection:", collection)
