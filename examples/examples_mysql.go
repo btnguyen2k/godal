@@ -29,16 +29,16 @@ import (
 
 // DaoAppMysql is MySQL-implementation of IDaoApp.
 type DaoAppMysql struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppMysql is helper function to create MySQL-implementation of IDaoApp.
 func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppMysql{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorMySql)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
 	return dao
 }
 
@@ -83,8 +83,8 @@ func initDataMysql(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME", "DATE", "DATE", "DATETIME", "DATETIME", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
 		"JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range common.colsSql {
+		sql += common.colsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)

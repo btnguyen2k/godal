@@ -29,16 +29,16 @@ import (
 
 // DaoAppOracle is Oracle-implementation of IDaoApp.
 type DaoAppOracle struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppOracle is helper function to create Oracle-implementation of IDaoApp.
 func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppOracle{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorOracle)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
 	return dao
 }
 
@@ -83,8 +83,8 @@ func initDataOracle(sqlC *prom.SqlConnect, table string) {
 		"DATE", "DATE", "DATE", "DATE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
 		"CLOB", "CLOB"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range common.colsSql {
+		sql += common.colsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)

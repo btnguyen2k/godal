@@ -84,9 +84,9 @@ type myGenericDaoCosmosdb struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+func (dao *myGenericDaoCosmosdb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
 	id := bo.GboGetAttrUnsafe(fieldIdCosmosdbGeneric, reddo.TypeString)
-	return map[string]interface{}{fieldIdCosmosdbGeneric: id}
+	return godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id})
 }
 
 // custom row mapper to transform 'val_list' and 'val_list' to Go objects
@@ -112,6 +112,14 @@ func (m *myRowMapperCosmosdb) ToBo(storageId string, row interface{}) (godal.IGe
 
 func (m *myRowMapperCosmosdb) ColumnsList(storageId string) []string {
 	return []string{"*"}
+}
+
+func (m *myRowMapperCosmosdb) ToDbColName(storageId, fieldName string) string {
+	return fieldName
+}
+
+func (m *myRowMapperCosmosdb) ToBoFieldName(storageId, colName string) string {
+	return colName
 }
 
 func newGenericDaoCosmosdb(sqlc *prom.SqlConnect, txMode bool) godal.IGenericDao {
@@ -182,7 +190,7 @@ func demoCosmosdbFetchRowByIdGeneric(table string, ids ...string) {
 
 	fmt.Printf("-== Fetch rows by id ==-\n")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 		if err != nil {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -219,7 +227,7 @@ func demoCosmosdbDeleteRowGeneric(table string, ids ...string) {
 
 	fmt.Println("-== Delete rows from table ==-")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 		if err != nil {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -234,7 +242,7 @@ func demoCosmosdbDeleteRowGeneric(table string, ids ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+			bo1, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 			if err != nil {
 				panic(err)
 				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
@@ -258,7 +266,7 @@ func demoCosmosdbUpdateRowsGeneric(loc *time.Location, table string, ids ...stri
 	fmt.Println("-== Update rows from table ==-")
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 		if err != nil {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -282,7 +290,7 @@ func demoCosmosdbUpdateRowsGeneric(loc *time.Location, table string, ids ...stri
 			// fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+			bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 			if err != nil {
 				panic(err)
 				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
@@ -303,7 +311,7 @@ func demoCosmosdbUpsertRowsGeneric(loc *time.Location, table string, txMode bool
 	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 		if err != nil {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
@@ -327,7 +335,7 @@ func demoCosmosdbUpsertRowsGeneric(loc *time.Location, table string, txMode bool
 			// fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdCosmosdbGeneric: id})
+			bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdCosmosdbGeneric: id}))
 			if err != nil {
 				panic(err)
 				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
@@ -373,7 +381,7 @@ func demoCosmosdbSelectSortingAndLimitGeneric(loc *time.Location, table string) 
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
 	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
-	sorting := map[string]int{fieldIdCosmosdbGeneric: 1} // sort by "id" attribute, ascending
+	sorting := (&godal.SortingField{FieldName: fieldIdCosmosdbGeneric}).ToSortingOpt()
 	boList, err := dao.GdaoFetchMany(table, nil, sorting, startOffset, numRows)
 	if err != nil {
 		panic(err)

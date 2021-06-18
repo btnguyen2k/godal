@@ -29,16 +29,16 @@ import (
 
 // DaoAppSqlite is SQLite-implementation of IDaoApp.
 type DaoAppSqlite struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
 func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppSqlite{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorSqlite)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
 	return dao
 }
 
@@ -83,8 +83,8 @@ func initDataSqlite(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME WITH TIME ZONE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
 		"JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range common.colsSql {
+		sql += common.colsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)

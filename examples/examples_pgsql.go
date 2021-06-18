@@ -29,16 +29,16 @@ import (
 
 // DaoAppPgsql is PostgreSQL-implementation of IDaoApp.
 type DaoAppPgsql struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppPgsql is helper function to create PostgreSQL-implementation of IDaoApp.
 func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppPgsql{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorPgSql)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
 	return dao
 }
 
@@ -83,8 +83,8 @@ func initDataPgsql(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME WITH TIME ZONE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
 		"JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range common.colsSql {
+		sql += common.colsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)

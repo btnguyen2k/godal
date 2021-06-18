@@ -29,16 +29,16 @@ import (
 
 // DaoAppMssql is MSSQL-implementation of IDaoApp.
 type DaoAppMssql struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppMssql is helper function to create MSSQL-implementation of IDaoApp.
 func NewDaoAppMssql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppMssql{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorMsSql)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
 	return dao
 }
 
@@ -83,8 +83,8 @@ func initDataMssql(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME", "DATE", "DATE", "DATETIME", "DATETIMEOFFSET", "DATETIME2", "DATETIMEOFFSET",
 		"NTEXT", "NTEXT"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range colsSql {
-		sql += colsSql[i] + " " + types[i] + ","
+	for i := range common.colsSql {
+		sql += common.colsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)

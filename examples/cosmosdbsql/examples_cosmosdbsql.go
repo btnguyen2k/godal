@@ -1,7 +1,7 @@
 /*
 Azure Cosmos DB Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_cosmosdbsql.go
+$ go run examples_cosmosdbsql.go
 
 Azure Cosmos DB Dao implementation guideline:
 
@@ -29,13 +29,13 @@ import (
 
 // DaoAppCosmosdb is AzureCosmosDB-implementation of IDaoApp.
 type DaoAppCosmosdb struct {
-	*DaoAppSql
+	*common.DaoAppSql
 }
 
 // NewDaoAppCosmosdb is helper function to create AzureCosmosDB-implementation of IDaoApp.
 func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppCosmosdb{}
-	dao.DaoAppSql = &DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlC, godal.NewAbstractGenericDao(dao))
 	inner.CosmosSetPkGboMapPath(map[string]string{tableName: "id"})
 	dao.IGenericDaoSql = inner
@@ -88,7 +88,7 @@ func initDataCosmosdb(sqlC *prom.SqlConnect, table string) {
 		// fmt.Printf("Error while executing query [%s]: %s\n", sql, err)
 	}
 
-	sql = fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", table, colsSql[0])
+	sql = fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", table, common.ColsSql[0])
 	fmt.Println("Query:", sql)
 	_, err = sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -125,7 +125,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		panic(err)
@@ -154,7 +154,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		panic(err)
@@ -165,7 +165,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row with duplicated id
 	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}, ValMap: map[string]interface{}{"duplicated": true}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -173,7 +173,7 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoCosmosdbFetchRowById(table string, ids ...string) {
@@ -189,16 +189,16 @@ func demoCosmosdbFetchRowById(table string, ids ...string) {
 			panic(err)
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
-func demoCosmosdbFetchAllRow(table string) {
+func demoCosmosdbFetchAllRows(table string) {
 	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
 	dao := NewDaoAppCosmosdb(sqlC, table)
@@ -210,13 +210,13 @@ func demoCosmosdbFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
-func demoCosmosdbDeleteRow(table string, ids ...string) {
+func demoCosmosdbDeleteRows(table string, ids ...string) {
 	sqlC := createSqlConnectForCosmosdb()
 	defer sqlC.Close()
 	dao := NewDaoAppCosmosdb(sqlC, table)
@@ -231,7 +231,7 @@ func demoCosmosdbDeleteRow(table string, ids ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				panic(err)
@@ -244,7 +244,7 @@ func demoCosmosdbDeleteRow(table string, ids ...string) {
 				panic(err)
 				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -253,7 +253,7 @@ func demoCosmosdbDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -285,7 +285,7 @@ func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -297,7 +297,7 @@ func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			panic(err)
@@ -309,13 +309,13 @@ func demoCosmosdbUpdateRows(loc *time.Location, table string, ids ...string) {
 				panic(err)
 				// fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -346,7 +346,7 @@ func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids .
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
 			bo.ValTime = t
@@ -358,7 +358,7 @@ func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids .
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			panic(err)
@@ -369,13 +369,13 @@ func demoCosmosdbUpsertRows(loc *time.Location, table string, txMode bool, ids .
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
@@ -426,10 +426,10 @@ func demoCosmosdbSelectSortingAndLimit(loc *time.Location, table string) {
 		// fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
@@ -441,8 +441,8 @@ func main() {
 	demoCosmosdbInsertRows(loc, table, true)
 	demoCosmosdbInsertRows(loc, table, false)
 	demoCosmosdbFetchRowById(table, "login", "loggin")
-	demoCosmosdbFetchAllRow(table)
-	demoCosmosdbDeleteRow(table, "login", "loggin")
+	demoCosmosdbFetchAllRows(table)
+	demoCosmosdbDeleteRows(table, "login", "loggin")
 	demoCosmosdbUpdateRows(loc, table, "log", "logging")
 	demoCosmosdbUpsertRows(loc, table, true, "log", "logging")
 	demoCosmosdbUpsertRows(loc, table, false, "log", "loggging")
