@@ -1,7 +1,7 @@
 /*
 AWS DynamoDB example. Run with command:
 
-$ go run examples_bo.go examples_dynamodb.go
+$ go run examples_dynamodb.go
 
 AWS DynamoDB Dao implementation guideline:
 
@@ -76,8 +76,9 @@ func (dao *DaoAppDynamodb) EnableTxMode(txMode bool) {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *DaoAppDynamodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{"id": bo.GboGetAttrUnsafe("id", reddo.TypeString)}
+func (dao *DaoAppDynamodb) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
+	id := bo.GboGetAttrUnsafe("id", reddo.TypeString)
+	return godal.MakeFilter(map[string]interface{}{"id": id})
 }
 
 // Delete implements IDaoApp.Delete
@@ -102,7 +103,7 @@ func (dao *DaoAppDynamodb) Create(bo *common.BoApp) (bool, error) {
 
 // Get implements IDaoApp.Get
 func (dao *DaoAppDynamodb) Get(id string) (*common.BoApp, error) {
-	filter := map[string]interface{}{"id": id}
+	filter := godal.MakeFilter(map[string]interface{}{"id": id})
 	gbo, err := dao.GdaoFetchOne(dao.tableName, filter)
 	if err != nil || gbo == nil {
 		return nil, err
@@ -255,7 +256,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -283,7 +284,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -293,7 +294,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 
 	// insert another document with duplicated id
 	bo = common.BoApp{Id: "login", ValString: "Authentication application (again)", ValList: []interface{}{"duplicated"}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -301,7 +302,7 @@ func demoDynamodbInsertItems(loc *time.Location, tableName string) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
@@ -314,13 +315,13 @@ func demoDynamodbFetchItemById(tableName string, itemIds ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbFetchAllItems(tableName string) {
@@ -333,10 +334,10 @@ func demoDynamodbFetchAllItems(tableName string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
@@ -351,7 +352,7 @@ func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
@@ -362,7 +363,7 @@ func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -371,7 +372,7 @@ func demoDynamodbDeleteItems(tableName string, itemsIds ...string) {
 		}
 
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...string) {
@@ -400,7 +401,7 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -412,7 +413,7 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
@@ -422,13 +423,13 @@ func demoDynamodbUpdateItems(loc *time.Location, tableName string, itemIds ...st
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...string) {
@@ -457,7 +458,7 @@ func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...st
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert)")
 			bo.ValTime = t
@@ -469,7 +470,7 @@ func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...st
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
@@ -479,13 +480,13 @@ func demoDynamodbUpsertItems(loc *time.Location, tableName string, itemIds ...st
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
@@ -530,10 +531,10 @@ func demoDynamodbSelectSortingAndLimit(loc *time.Location, tableName string) {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func main() {

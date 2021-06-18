@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 
 	"github.com/btnguyen2k/godal"
@@ -23,8 +24,6 @@ import (
 )
 
 const (
-	dynamodbGenericTz            = "Asia/Ho_Chi_Minh"
-	dynamodbGenericSep           = "================================================================================"
 	dynamodbGenericFieldId       = "id"
 	dynamodbGenericFieldUsername = "username"
 	dynamodbGenericFieldVersion  = "version"
@@ -121,8 +120,9 @@ type myGenericDaoDynamodb struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) interface{} {
-	return map[string]interface{}{dynamodbGenericFieldId: bo.GboGetAttrUnsafe(dynamodbGenericFieldId, reddo.TypeString)}
+func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGenericBo) godal.FilterOpt {
+	id := bo.GboGetAttrUnsafe(dynamodbGenericFieldId, reddo.TypeString)
+	return godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id})
 }
 
 func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal.IGenericDao {
@@ -132,7 +132,7 @@ func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal
 	return dao
 }
 
-func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
+func demoDynamodbInsertItems(loc *time.Location, tableName, indexName string) {
 	adc := createAwsDynamodbConnectGeneric()
 	initDataDynamodbGeneric(adc, tableName, indexName)
 	dao := newGenericDaoDynamodb(adc, tableName)
@@ -196,7 +196,7 @@ func demoDynamodbInsertItem(loc *time.Location, tableName, indexName string) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbFetchItemByIdGeneric(tableName string, itemIds ...string) {
@@ -205,7 +205,7 @@ func demoDynamodbFetchItemByIdGeneric(tableName string, itemIds ...string) {
 
 	fmt.Printf("-== Fetch items by id ==-\n")
 	for _, id := range itemIds {
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -215,7 +215,7 @@ func demoDynamodbFetchItemByIdGeneric(tableName string, itemIds ...string) {
 		}
 	}
 
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbFetchAllItemsGeneric(tableName, indexName string) {
@@ -236,7 +236,7 @@ func demoDynamodbFetchAllItemsGeneric(tableName, indexName string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbDeleteItemsGeneric(tableName string, itemIds ...string) {
@@ -245,7 +245,7 @@ func demoDynamodbDeleteItemsGeneric(tableName string, itemIds ...string) {
 
 	fmt.Println("-== Delete items from table ==-")
 	for _, id := range itemIds {
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -258,7 +258,7 @@ func demoDynamodbDeleteItemsGeneric(tableName string, itemIds ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+			bo1, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -271,7 +271,7 @@ func demoDynamodbDeleteItemsGeneric(tableName string, itemIds ...string) {
 		}
 
 	}
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbUpdateItemsGeneric(loc *time.Location, tableName string, itemIds ...string) {
@@ -281,9 +281,10 @@ func demoDynamodbUpdateItemsGeneric(loc *time.Location, tableName string, itemId
 	fmt.Println("-== Update items from table ==-")
 	for _, id := range itemIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -304,7 +305,7 @@ func demoDynamodbUpdateItemsGeneric(loc *time.Location, tableName string, itemId
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+			bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -314,7 +315,7 @@ func demoDynamodbUpdateItemsGeneric(loc *time.Location, tableName string, itemId
 			}
 		}
 	}
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...string) {
@@ -324,9 +325,10 @@ func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...str
 	fmt.Printf("-== Upsert items to collection ==-\n")
 	for _, id := range itemIds {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+		bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -347,7 +349,7 @@ func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...str
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(tableName, map[string]interface{}{dynamodbGenericFieldId: id})
+			bo, err := dao.GdaoFetchOne(tableName, godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -357,7 +359,7 @@ func demoDynamodbUpsertItem(loc *time.Location, tableName string, itemIds ...str
 			}
 		}
 	}
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func demoDynamodbSelectSortingAndLimitGeneric(loc *time.Location, tableName, indexNameInit, indexNameFetch string) {
@@ -404,18 +406,18 @@ func demoDynamodbSelectSortingAndLimitGeneric(loc *time.Location, tableName, ind
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(dynamodbGenericSep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	loc, _ := time.LoadLocation(dynamodbGenericTz)
-	fmt.Println("dynamodbGenericTz:", loc)
+	loc, _ := time.LoadLocation(common.TIMEZONE)
+	// fmt.Println("dynamodbGenericTz:", loc)
 	tableName := "test"
 	indexName := "idx_sorted"
-	fmt.Println("Table & Index:", tableName, indexName)
+	// fmt.Println("Table & Index:", tableName, indexName)
 
-	demoDynamodbInsertItem(loc, tableName, indexName)
+	demoDynamodbInsertItems(loc, tableName, indexName)
 	demoDynamodbFetchItemByIdGeneric(tableName, "login", "loggin")
 	demoDynamodbFetchAllItemsGeneric(tableName, "")
 	demoDynamodbFetchAllItemsGeneric(tableName, indexName)
