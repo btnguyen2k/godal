@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
+	"github.com/btnguyen2k/godal/examples/common"
 	"github.com/btnguyen2k/prom"
 	_ "github.com/go-sql-driver/mysql"
 
@@ -22,7 +23,6 @@ import (
 )
 
 const (
-	sepMysqlGeneric     = "================================================================================"
 	fieldIdMysqlGeneric = "id"
 )
 
@@ -83,14 +83,22 @@ type myGenericDaoMysql struct {
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{} {
+func (dao *myGenericDaoMysql) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
 	id := bo.GboGetAttrUnsafe(fieldIdMysqlGeneric, reddo.TypeString)
-	return map[string]interface{}{fieldIdMysqlGeneric: id}
+	return godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id})
 }
 
 // custom row mapper to transform 'val_list' and 'val_list' to Go objects
 type myRowMapper struct {
 	next godal.IRowMapper
+}
+
+func (m *myRowMapper) ToDbColName(storageId, fieldName string) string {
+	return m.next.ToDbColName(storageId, fieldName)
+}
+
+func (m *myRowMapper) ToBoFieldName(storageId, colName string) string {
+	panic("implement me")
 }
 
 func (m *myRowMapper) ToRow(storageId string, bo godal.IGenericBo) (interface{}, error) {
@@ -181,7 +189,7 @@ func demoMysqlInsertRowsGeneric(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlFetchRowByIdGeneric(table string, ids ...string) {
@@ -190,7 +198,7 @@ func demoMysqlFetchRowByIdGeneric(table string, ids ...string) {
 
 	fmt.Printf("-== Fetch rows by id ==-\n")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
@@ -200,7 +208,7 @@ func demoMysqlFetchRowByIdGeneric(table string, ids ...string) {
 		}
 	}
 
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlFetchAllRows(table string) {
@@ -216,7 +224,7 @@ func demoMysqlFetchAllRows(table string) {
 			fmt.Println("\tFetched bo:", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlDeleteRowGeneric(table string, ids ...string) {
@@ -225,7 +233,7 @@ func demoMysqlDeleteRowGeneric(table string, ids ...string) {
 
 	fmt.Println("-== Delete rows from table ==-")
 	for _, id := range ids {
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo == nil {
@@ -238,7 +246,7 @@ func demoMysqlDeleteRowGeneric(table string, ids ...string) {
 			} else {
 				fmt.Printf("\t\tResult: %v\n", result)
 			}
-			bo1, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+			bo1, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo1 != nil {
@@ -251,7 +259,7 @@ func demoMysqlDeleteRowGeneric(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlUpdateRowsGeneric(loc *time.Location, table string, ids ...string) {
@@ -261,9 +269,10 @@ func demoMysqlUpdateRowsGeneric(loc *time.Location, table string, ids ...string)
 	fmt.Println("-== Update rows from table ==-")
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -283,7 +292,7 @@ func demoMysqlUpdateRowsGeneric(loc *time.Location, table string, ids ...string)
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+			bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -293,19 +302,20 @@ func demoMysqlUpdateRowsGeneric(loc *time.Location, table string, ids ...string)
 			}
 		}
 	}
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlUpsertRowsGeneric(loc *time.Location, table string, txMode bool, ids ...string) {
 	sqlC := createSqlConnectForMysqlGeneric()
 	dao := newGenericDaoMysql(sqlC, false)
 
-	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-\n", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
-		bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+		bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
+			continue
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 			bo = godal.NewGenericBo()
@@ -325,7 +335,7 @@ func demoMysqlUpsertRowsGeneric(loc *time.Location, table string, txMode bool, i
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
 		} else {
 			fmt.Printf("\t\tResult: %v\n", result)
-			bo, err := dao.GdaoFetchOne(table, map[string]interface{}{fieldIdMysqlGeneric: id})
+			bo, err := dao.GdaoFetchOne(table, godal.MakeFilter(map[string]interface{}{fieldIdMysqlGeneric: id}))
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
@@ -335,7 +345,7 @@ func demoMysqlUpsertRowsGeneric(loc *time.Location, table string, txMode bool, i
 			}
 		}
 	}
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlSelectSortingAndLimitGeneric(loc *time.Location, table string) {
@@ -370,7 +380,7 @@ func demoMysqlSelectSortingAndLimitGeneric(loc *time.Location, table string) {
 	startOffset := rand.Intn(n)
 	numRows := rand.Intn(10) + 1
 	fmt.Printf("\tFetching %d rows, starting from offset %d...\n", numRows, startOffset)
-	sorting := map[string]int{fieldIdMysqlGeneric: 1} // sort by "id" attribute, ascending
+	sorting := (&godal.SortingField{FieldName: fieldIdMysqlGeneric}).ToSortingOpt()
 	boList, err := dao.GdaoFetchMany(table, nil, sorting, startOffset, numRows)
 	if err != nil {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
@@ -379,7 +389,7 @@ func demoMysqlSelectSortingAndLimitGeneric(loc *time.Location, table string) {
 			fmt.Printf("\t\tApp info: %v\n", string(bo.GboToJsonUnsafe()))
 		}
 	}
-	fmt.Println(sepMysqlGeneric)
+	fmt.Println(common.SEP)
 }
 
 func main() {

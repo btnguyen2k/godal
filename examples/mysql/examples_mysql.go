@@ -1,11 +1,11 @@
 /*
 MySQL Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_mysql.go
+$ go run examples_mysql.go
 
 MySQL Dao implementation guideline:
 
-	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
 	  to transform godal.IGenericBo to application's BO and vice versa.
 */
@@ -35,10 +35,12 @@ type DaoAppMysql struct {
 // NewDaoAppMysql is helper function to create MySQL-implementation of IDaoApp.
 func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppMysql{}
-	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorMySql)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{
+		NameTransformation: sql.NameTransfLowerCase,
+		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
 	return dao
 }
 
@@ -83,8 +85,8 @@ func initDataMysql(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME", "DATE", "DATE", "DATETIME", "DATETIME", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
 		"JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range common.colsSql {
-		sql += common.colsSql[i] + " " + types[i] + ","
+	for i := range common.ColsSql {
+		sql += common.ColsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)
@@ -123,7 +125,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -151,7 +153,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -160,8 +162,10 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 	}
 
 	// insert another row with duplicated id
-	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	bo.Id = "login"
+	bo.ValString = "Authentication application (TxMode=true)(again)"
+	bo.ValList = []interface{}{"duplicated"}
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -169,7 +173,7 @@ func demoMysqlInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlFetchRowById(table string, ids ...string) {
@@ -184,16 +188,16 @@ func demoMysqlFetchRowById(table string, ids ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
-func demoMysqlFetchAllRow(table string) {
+func demoMysqlFetchAllRows(table string) {
 	sqlC := createSqlConnectForMysql()
 	defer sqlC.Close()
 	dao := NewDaoAppMysql(sqlC, table)
@@ -205,10 +209,10 @@ func demoMysqlFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlDeleteRow(table string, ids ...string) {
@@ -225,7 +229,7 @@ func demoMysqlDeleteRow(table string, ids ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
@@ -236,7 +240,7 @@ func demoMysqlDeleteRow(table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -245,7 +249,7 @@ func demoMysqlDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -276,7 +280,7 @@ func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -288,7 +292,7 @@ func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
@@ -298,13 +302,13 @@ func demoMysqlUpdateRows(loc *time.Location, table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -313,7 +317,7 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 	dao := NewDaoAppMysql(sqlC, table)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-\n", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
@@ -335,7 +339,7 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
 			bo.ValTime = t
@@ -347,7 +351,7 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
@@ -357,13 +361,13 @@ func demoMysqlUpsertRows(loc *time.Location, table string, txMode bool, ids ...s
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
@@ -413,10 +417,10 @@ func demoMysqlSelectSortingAndLimit(loc *time.Location, table string) {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
@@ -428,7 +432,7 @@ func main() {
 	demoMysqlInsertRows(loc, table, true)
 	demoMysqlInsertRows(loc, table, false)
 	demoMysqlFetchRowById(table, "login", "loggin")
-	demoMysqlFetchAllRow(table)
+	demoMysqlFetchAllRows(table)
 	demoMysqlDeleteRow(table, "login", "loggin")
 	demoMysqlUpdateRows(loc, table, "log", "logging")
 	demoMysqlUpsertRows(loc, table, true, "log", "logging")
