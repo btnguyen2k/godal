@@ -5,7 +5,8 @@ $ go run examples_oracle.go
 
 Oracle Dao implementation guideline:
 
-	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
+	  (already implemented by common.DaoAppSql)
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
 	  to transform godal.IGenericBo to application's BO and vice versa.
 */

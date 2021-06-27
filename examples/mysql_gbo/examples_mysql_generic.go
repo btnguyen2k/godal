@@ -2,6 +2,10 @@
 Generic MySQL Dao example. Run with command:
 
 $ go run examples_mysql_generic.go
+
+MySQL Dao implementation guideline:
+
+	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 */
 package main
 

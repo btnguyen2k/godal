@@ -6,6 +6,7 @@ $ go run examples_mssql.go
 MSSQL Dao implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
+	  (already implemented by common.DaoAppSql)
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
 	  to transform godal.IGenericBo to application's BO and vice versa.
 */

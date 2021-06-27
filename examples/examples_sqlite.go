@@ -1,11 +1,12 @@
 /*
 SQLite Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_sqlite.go
+$ go run examples_sqlite.go
 
 SQLite Dao implementation guideline:
 
-	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
+	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
+	  (already implemented by common.DaoAppSql)
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
 	  to transform godal.IGenericBo to application's BO and vice versa.
 */
@@ -317,7 +318,7 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 	dao := NewDaoAppSqlite(sqlC, table)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-\n", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
