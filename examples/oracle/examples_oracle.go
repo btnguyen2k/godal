@@ -1,7 +1,7 @@
 /*
 Oracle Dao example.
 
-$ go run examples_bo.go examples_sql.go examples_oracle.go
+$ go run examples_oracle.go
 
 Oracle Dao implementation guideline:
 
@@ -35,10 +35,12 @@ type DaoAppOracle struct {
 // NewDaoAppOracle is helper function to create Oracle-implementation of IDaoApp.
 func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppOracle{}
-	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorOracle)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{
+		NameTransformation: sql.NameTransfLowerCase,
+		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
 	return dao
 }
 
@@ -83,8 +85,8 @@ func initDataOracle(sqlC *prom.SqlConnect, table string) {
 		"DATE", "DATE", "DATE", "DATE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
 		"CLOB", "CLOB"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range common.colsSql {
-		sql += common.colsSql[i] + " " + types[i] + ","
+	for i := range common.ColsSql {
+		sql += common.ColsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)
@@ -123,7 +125,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -151,7 +153,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -161,7 +163,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row with duplicated id
 	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -169,7 +171,7 @@ func demoOracleInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleFetchRowById(table string, ids ...string) {
@@ -184,13 +186,13 @@ func demoOracleFetchRowById(table string, ids ...string) {
 		if err != nil {
 			fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		} else if bo != nil {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleFetchAllRow(table string) {
@@ -205,10 +207,10 @@ func demoOracleFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleDeleteRow(table string, ids ...string) {
@@ -225,7 +227,7 @@ func demoOracleDeleteRow(table string, ids ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
@@ -236,7 +238,7 @@ func demoOracleDeleteRow(table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -245,7 +247,7 @@ func demoOracleDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -276,7 +278,7 @@ func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -288,7 +290,7 @@ func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
@@ -298,13 +300,13 @@ func demoOracleUpdateRows(loc *time.Location, table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -313,7 +315,7 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 	dao := NewDaoAppOracle(sqlC, table)
 	dao.EnableTxMode(txMode)
 
-	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-", txMode)
+	fmt.Printf("-== Upsert rows to table (TxMode=%v) ==-\n", txMode)
 	for _, id := range ids {
 		t := time.Unix(int64(rand.Int31()), rand.Int63()%1000000000).In(loc)
 		bo, err := dao.Get(id)
@@ -335,7 +337,7 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
 			bo.ValTime = t
@@ -347,7 +349,7 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
@@ -357,13 +359,13 @@ func demoOracleUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
@@ -413,10 +415,10 @@ func demoOracleSelectSortingAndLimit(loc *time.Location, table string) {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
