@@ -36,10 +36,12 @@ type DaoAppSqlite struct {
 // NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
 func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppSqlite{}
-	dao.DaoAppSql = &common.DaoAppSql{tableName: tableName}
+	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(prom.FlavorSqlite)
-	dao.SetRowMapper(&sql.GenericRowMapperSql{NameTransformation: sql.NameTransfLowerCase, ColumnsListMap: map[string][]string{tableName: common.colsSql}})
+	dao.SetRowMapper(&sql.GenericRowMapperSql{
+		NameTransformation: sql.NameTransfLowerCase,
+		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
 	return dao
 }
 
@@ -84,8 +86,8 @@ func initDataSqlite(sqlC *prom.SqlConnect, table string) {
 		"TIME", "TIME WITH TIME ZONE", "DATE", "DATE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE", "TIMESTAMP", "TIMESTAMP WITH TIME ZONE",
 		"JSON", "JSON"}
 	sql = fmt.Sprintf("CREATE TABLE %s (", table)
-	for i := range common.colsSql {
-		sql += common.colsSql[i] + " " + types[i] + ","
+	for i := range common.ColsSql {
+		sql += common.ColsSql[i] + " " + types[i] + ","
 	}
 	sql += "PRIMARY KEY(id))"
 	fmt.Println("Query:", sql)
@@ -124,7 +126,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{true, 0, "1", 2.3, "system", "utility"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "utility"}, "age": 103, "active": true},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err := dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -152,7 +154,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 		ValList:       []interface{}{false, 9.8, "7", 6, "system", "security"},
 		ValMap:        map[string]interface{}{"tags": []string{"system", "security"}, "age": 81, "active": false},
 	}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -162,7 +164,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 
 	// insert another row with duplicated id
 	bo = common.BoApp{Id: "login", ValString: "Authentication application (TxMode=true)(again)", ValList: []interface{}{"duplicated"}}
-	fmt.Println("\tCreating bo:", string(bo.toJson()))
+	fmt.Println("\tCreating bo:", string(bo.ToJson()))
 	result, err = dao.Create(&bo)
 	if err != nil {
 		fmt.Printf("\t\tError: %s\n", err)
@@ -170,7 +172,7 @@ func demoSqliteInsertRows(loc *time.Location, table string, txMode bool) {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoSqliteFetchRowById(table string, ids ...string) {
@@ -187,16 +189,16 @@ func demoSqliteFetchRowById(table string, ids ...string) {
 			// fmt.Printf("\tError while fetching app [%s]: %s\n", id, err)
 		}
 		if bo != nil {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		} else {
 			fmt.Printf("\tApp [%s] does not exist\n", id)
 		}
 	}
 
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
-func demoSqliteFetchAllRow(table string) {
+func demoSqliteFetchAllRows(table string) {
 	sqlC := createSqlConnectForSqlite()
 	defer sqlC.Close()
 	dao := NewDaoAppSqlite(sqlC, table)
@@ -208,10 +210,10 @@ func demoSqliteFetchAllRow(table string) {
 		fmt.Printf("\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			common.printApp(bo)
+			common.PrintApp(bo)
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoSqliteDeleteRow(table string, ids ...string) {
@@ -228,7 +230,7 @@ func demoSqliteDeleteRow(table string, ids ...string) {
 		} else if bo == nil {
 			fmt.Printf("\tApp [%s] does not exist, no need to delete\n", id)
 		} else {
-			fmt.Println("\tDeleting bo:", string(bo.toJson()))
+			fmt.Println("\tDeleting bo:", string(bo.ToJson()))
 			result, err := dao.Delete(bo)
 			if err != nil {
 				fmt.Printf("\t\tError: %s\n", err)
@@ -239,7 +241,7 @@ func demoSqliteDeleteRow(table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if app != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] no longer exist\n", id)
 				result, err = dao.Delete(bo)
@@ -248,7 +250,7 @@ func demoSqliteDeleteRow(table string, ids ...string) {
 		}
 
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
@@ -281,7 +283,7 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += "(updated)"
 			bo.ValTime = t
@@ -293,7 +295,7 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpdating bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpdating bo:", string(bo.ToJson()))
 		result, err := dao.Update(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while updating app [%s]: %s\n", id, err)
@@ -303,13 +305,13 @@ func demoSqliteUpdateRows(loc *time.Location, table string, ids ...string) {
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...string) {
@@ -340,7 +342,7 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 				ValTimestampZ: t,
 			}
 		} else {
-			fmt.Println("\tExisting bo:", string(bo.toJson()))
+			fmt.Println("\tExisting bo:", string(bo.ToJson()))
 			bo.Description = t.String()
 			bo.ValString += fmt.Sprintf("(upsert,txmode=%v)", txMode)
 			bo.ValTime = t
@@ -352,7 +354,7 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			bo.ValTimestamp = t
 			bo.ValTimestampZ = t
 		}
-		fmt.Println("\t\tUpserting bo:", string(bo.toJson()))
+		fmt.Println("\t\tUpserting bo:", string(bo.ToJson()))
 		result, err := dao.Upsert(bo)
 		if err != nil {
 			fmt.Printf("\t\tError while upserting app [%s]: %s\n", id, err)
@@ -362,13 +364,13 @@ func demoSqliteUpsertRows(loc *time.Location, table string, txMode bool, ids ...
 			if err != nil {
 				fmt.Printf("\t\tError while fetching app [%s]: %s\n", id, err)
 			} else if bo != nil {
-				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+				fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 			} else {
 				fmt.Printf("\t\tApp [%s] does not exist\n", id)
 			}
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
@@ -418,10 +420,10 @@ func demoSqliteSelectSortingAndLimit(loc *time.Location, table string) {
 		fmt.Printf("\t\tError while fetching apps: %s\n", err)
 	} else {
 		for _, bo := range boList {
-			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.toJson()))
+			fmt.Printf("\t\tApp [%s] info: %v\n", bo.Id, string(bo.ToJson()))
 		}
 	}
-	fmt.Println(common.sep)
+	fmt.Println(common.SEP)
 }
 
 func main() {
@@ -433,7 +435,7 @@ func main() {
 	demoSqliteInsertRows(loc, table, true)
 	demoSqliteInsertRows(loc, table, false)
 	demoSqliteFetchRowById(table, "login", "loggin")
-	demoSqliteFetchAllRow(table)
+	demoSqliteFetchAllRows(table)
 	demoSqliteDeleteRow(table, "login", "loggin")
 	demoSqliteUpdateRows(loc, table, "log", "logging")
 	demoSqliteUpsertRows(loc, table, true, "log", "logging")
