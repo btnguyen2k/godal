@@ -6,6 +6,7 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
+// ColsSql holds name of database table columns.
 var ColsSql = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "val_string",
 	"val_time", "val_timez", "val_date", "val_datez", "val_datetime", "val_datetimez", "val_timestamp", "val_timestampz",
 	"val_list", "val_map"}

@@ -11,10 +11,14 @@ import (
 )
 
 var (
-	SEP      = "================================================================================"
+	// SEP defines separator string used for displaying purpose
+	SEP = "================================================================================"
+
+	// TIMEZONE defines the timezone used for all examples
 	TIMEZONE = "Asia/Ho_Chi_Minh"
 )
 
+// PrintApp prints a BoApp's info to stdout.
 func PrintApp(app *BoApp) {
 	fmt.Printf("\tApp [%s] info: %v\n", app.Id, string(app.ToJson()))
 	fmt.Printf("\t\t%s (%T): %v\n", "Id", app.Id, app.Id)
@@ -55,11 +59,13 @@ type BoApp struct {
 	ValMap        map[string]interface{} `json:"val_map"`
 }
 
+// ToJson serializes BoApp to JSON string.
 func (app *BoApp) ToJson() []byte {
 	js, _ := json.Marshal(app)
 	return js
 }
 
+// ToGenericBo transforms BoApp to godal.IGenericBo
 func (app *BoApp) ToGenericBo() godal.IGenericBo {
 	gbo := godal.NewGenericBo()
 	gbo.GboSetAttr("id", app.Id)
@@ -86,6 +92,7 @@ func (app *BoApp) ToGenericBo() godal.IGenericBo {
 	return gbo
 }
 
+// FromGenericBo imports BoApp's data from a godal.IGenericBo instance.
 func (app *BoApp) FromGenericBo(gbo godal.IGenericBo) *BoApp {
 	if v := gbo.GboGetAttrUnsafe("id", reddo.TypeString); v != nil {
 		app.Id = v.(string)
