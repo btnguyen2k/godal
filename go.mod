@@ -14,5 +14,5 @@ require (
 	github.com/godror/godror v0.24.2
 	github.com/jackc/pgx/v4 v4.10.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
-	go.mongodb.org/mongo-driver v1.5.0
+	go.mongodb.org/mongo-driver v1.5.1
 )
