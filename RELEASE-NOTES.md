@@ -1,5 +1,9 @@
 # godal release notes
 
+## 2021-10-25 - v0.5.2
+
+- `GenericDaoDynamodb.GdaoFetchMany`: prefix table name with character `!` to query 'backward' instead of the normal 'forward' mode (used only in "query" operation).
+
 ## 2021-07-01 - v0.5.1
 
 - (BREAKING CHANGE) `dynamodb` package: implement `FilterOpt` following `IGenericDao` interface.

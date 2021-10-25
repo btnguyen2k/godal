@@ -129,6 +129,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -562,11 +563,16 @@ func (dao *GenericDaoDynamodb) GdaoFetchOneWithContext(ctx aws.Context, table st
 //   - sorting will not be used as DynamoDB does not currently support custom sorting of queried items.
 //
 // This function uses "scan" operation by default, which is expensive! To force "query" operation, prefix the table name with character @.
+// (Available since v0.5.2) Furthermore, prefix the table name with character ! to query "backward" instead of the default "forward" mode ("query" mode must be used).
 func (dao *GenericDaoDynamodb) GdaoFetchMany(table string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	return dao.GdaoFetchManyWithContext(nil, table, filter, sorting, startOffset, numItems)
 }
 
-// GdaoFetchManyWithContext is is AWS DynamoDB variant of GdaoFetchMany.
+var reTablePrefixDirectives = regexp.MustCompile(`^\W+`)
+var reUseQuery = regexp.MustCompile(`^\W*@\W*\w+`)
+var reQueryBackward = regexp.MustCompile(`^\W*!\W*\w+`)
+
+// GdaoFetchManyWithContext is AWS DynamoDB variant of GdaoFetchMany.
 func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table string, filter godal.FilterOpt, _ *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error) {
 	f, err := dao.BuildConditionBuilder(table, filter)
 	if err != nil {
@@ -575,11 +581,9 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 	result := make([]godal.IGenericBo, 0)
 	tokens := strings.Split(table, ":")
 	tableName := tokens[0]
-	useScan := true
-	if strings.HasPrefix(tableName, "@") {
-		useScan = false
-		tableName = strings.TrimPrefix(tableName, "@")
-	}
+	useQuery := reUseQuery.FindString(table) != ""
+	queryBackward := reQueryBackward.FindString(table) != ""
+	tableName = reTablePrefixDirectives.ReplaceAllString(tableName, "")
 	indexName := ""
 	if len(tokens) > 1 {
 		indexName = tokens[1]
@@ -615,10 +619,10 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 		}
 		return true, nil
 	}
-	if useScan {
-		err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, callbackFunc)
+	if useQuery {
+		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc, prom.AwsQueryOpt{ScanIndexBackward: aws.Bool(queryBackward)})
 	} else {
-		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc)
+		err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, callbackFunc)
 	}
 
 	return result, err
