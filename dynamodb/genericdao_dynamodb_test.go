@@ -2,6 +2,7 @@ package dynamodb
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
 	"strconv"
@@ -942,46 +943,83 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	usermap := make(map[string]*UserBoDynamodb)
-	for i := 0; i < 10; i++ {
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
 		user := &UserBoDynamodb{
-			Id:       strconv.Itoa(i),
-			Username: "user" + strconv.Itoa(9-i),
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
 			Name:     "Thanh",
 			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
-			Subject:  "Subject" + strconv.Itoa(i%4),
-			Level:    i,
+			Subject:  subject,
+			Level:    level,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
-		usermap[user.Id] = user
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
-	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
+	var filter godal.FilterOpt
+	startOfset := 3
+	limitNumRows := 5
+	expectedNumItems := 0
+
+	fSubject := "Subject1"
+	fSubjectLevel := 50
+	filter = (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: fSubject}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: fSubjectLevel})
+	for i, level := range subjectMap[fSubject] {
+		if level >= fSubjectLevel && i >= startOfset && expectedNumItems < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 3 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 
-	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, 0, 3); err != nil {
+	fUsername := "user5"
+	expectedNumItems = 0
+	for i := 0; i < numItems; i++ {
+		username := "user" + strconv.Itoa(numItems-1-idList[i])
+		if username >= fUsername && expectedNumItems-startOfset < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	expectedNumItems -= startOfset
+	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: fUsername}
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 3 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
@@ -999,37 +1037,144 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	usermap := make(map[string]*UserBoDynamodb)
-	for i := 0; i < 10; i++ {
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
 		user := &UserBoDynamodb{
-			Id:       strconv.Itoa(i),
-			Username: "user" + strconv.Itoa(9-i),
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
 			Name:     "Thanh",
 			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
-			Subject:  "Subject" + strconv.Itoa(i%4),
-			Level:    i,
+			Subject:  subject,
+			Level:    level,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
-		usermap[user.Id] = user
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
+	fSubject := "Subject1"
+	fSubjectLevel := 50
 	filter := (&godal.FilterOptAnd{}).
-		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
-		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: fSubject}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: fSubjectLevel})
+	expectedNumItems := 0
+	startOfset := 3
+	limitNumRows := 5
+	for i, level := range subjectMap[fSubject] {
+		if level >= fSubjectLevel && i >= startOfset && expectedNumItems < limitNumRows {
+			expectedNumItems++
+		}
+	}
 	// the "@" prefix instructs that GdaoFetchMany should use "query" instead of "scan"
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName, filter, nil, 0, 3); err != nil {
+	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 2 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
-		for _, row := range dbRows {
+		userList := make([]*UserBoDynamodb, 0)
+		for i, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			userList = append(userList, fetchedUser)
+			if i > 0 && userList[i].Level < userList[i-1].Level {
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+			}
+		}
+	}
+}
+
+func TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward(t *testing.T) {
+	name := "TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward"
+
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	dao := _initDao(t, name, testDynamodbTableName)
+	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
+	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
+	}
+
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
+		user := &UserBoDynamodb{
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
+			Name:     "Thanh",
+			Version:  int(time.Now().Unix()),
+			Active:   i%3 == 0,
+			Created:  time.Now(),
+			Subject:  subject,
+			Level:    level,
+		}
+		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		if err != nil {
+			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+		}
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
+	}
+
+	fSubject := "Subject1"
+	fSubjectLevel := 50
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: fSubject}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: fSubjectLevel})
+	expectedNumItems := 0
+	startOfset := 3
+	limitNumRows := 5
+	for i, level := range subjectMap[fSubject] {
+		if level >= fSubjectLevel && i >= startOfset && expectedNumItems < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	// the "@" prefix instructs that GdaoFetchMany should use "query" instead of "scan"
+	// the "!" prefix instructs that GdaoFetchMany should query "backward" instead of "forward"
+	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", name, err)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+	} else {
+		userList := make([]*UserBoDynamodb, 0)
+		for i, row := range dbRows {
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			userList = append(userList, fetchedUser)
+			if i > 0 && userList[i].Level > userList[i-1].Level {
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+			}
 		}
 	}
 }
@@ -1046,58 +1191,91 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	usermap := make(map[string]*UserBoDynamodb)
-	for i := 0; i < 10; i++ {
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
 		user := &UserBoDynamodb{
-			Id:       strconv.Itoa(i),
-			Username: "user" + strconv.Itoa(9-i),
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
 			Name:     "Thanh",
 			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
-			Subject:  "Subject" + strconv.Itoa(i%4),
-			Level:    i,
+			Subject:  subject,
+			Level:    level,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
-		usermap[user.Id] = user
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
+	var filter godal.FilterOpt
+	startOfset := 3
+	limitNumRows := 5
+	expectedNumItems := 0
 
-	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
-	// format @<table-name>:<gsi-name>:<false> indicate that:
-	// - @: use 'query' instead of 'scan'
+	fId := "5"
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(i)
+		if id >= fId && expectedNumItems-startOfset < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	expectedNumItems -= startOfset
+	filter = &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: fId}
+	// format <table-name>:<gsi-name>:<false> indicates that:
 	// - gsi-name: filter against GSI
 	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 3 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			if fetchedUser.Id != usermap[fetchedUser.Id].Id {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, usermap[fetchedUser.Id].Id, fetchedUser.Id)
+			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
 
-	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
-	// format @<table-name>:<gsi-name>:<true> indicate that:
-	// - @: use 'query' instead of 'scan'
+	fUsername := "user5"
+	expectedNumItems = 0
+	for i := 0; i < numItems; i++ {
+		username := "user" + strconv.Itoa(numItems-1-idList[i])
+		if username >= fUsername && expectedNumItems-startOfset < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	expectedNumItems -= startOfset
+	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: fUsername}
+	// format <table-name>:<gsi-name>:<true> indicates that:
 	// - gsi-name: filter against GSI
 	// - 'true': re-fetch from main table as GSI does not contain all fields
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
+	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 3 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, dbRows)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
@@ -1114,57 +1292,185 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
 	}
 
-	usermap := make(map[string]*UserBoDynamodb)
-	for i := 0; i < 10; i++ {
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
 		user := &UserBoDynamodb{
-			Id:       strconv.Itoa(i),
-			Username: "user" + strconv.Itoa(9-i),
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
 			Name:     "Thanh",
 			Version:  int(time.Now().Unix()),
 			Active:   i%3 == 0,
 			Created:  time.Now(),
-			Subject:  "Subject" + strconv.Itoa(i%4),
-			Level:    i,
+			Subject:  subject,
+			Level:    level,
 		}
 		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
 		if err != nil {
 			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
 		}
-		usermap[user.Id] = user
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
 	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
+	fSubject := "Subject1"
+	fSubjectLevel := 50
 	filter := (&godal.FilterOptAnd{}).
-		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
-		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
-	// format @<table-name>:<gsi-name>:<true> indicate that:
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: fSubject}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: fSubjectLevel})
+	expectedNumItems := 0
+	startOfset := 3
+	limitNumRows := 5
+	for i, level := range subjectMap[fSubject] {
+		if level >= fSubjectLevel && i >= startOfset && expectedNumItems < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	// format @<table-name>:<gsi-name>:<true> indicates that:
 	// - @: use 'query' instead of 'scan'
 	// - gsi-name: filter against GSI
 	// - 'true': re-fetch from main table as GSI does not contain all fields
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":true", filter, nil, 0, 3); err != nil {
+	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 2 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
-		for _, row := range dbRows {
+		userList := make([]*UserBoDynamodb, 0)
+		for i, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, usermap[fetchedUser.Id], fetchedUser)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			userList = append(userList, fetchedUser)
+			if i > 0 && userList[i].Level < userList[i-1].Level {
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+			}
 		}
 	}
 
-	// format @<table-name>:<gsi-name>:<false> indicate that:
+	// format @<table-name>:<gsi-name>:<false> indicates that:
 	// - @: use 'query' instead of 'scan'
 	// - gsi-name: filter against GSI
 	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":false", filter, nil, 0, 3); err != nil {
+	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
 		t.Fatalf("%s failed: %s", name, err)
-	} else if dbRows == nil || len(dbRows) != 2 {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, 3, len(dbRows))
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
 			fetchedUser := dao.toUser(row)
-			if fetchedUser.Id != usermap[fetchedUser.Id].Id {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, usermap[fetchedUser.Id].Id, fetchedUser.Id)
+			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
+			}
+		}
+	}
+}
+
+func TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward(t *testing.T) {
+	name := "TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward"
+
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	dao := _initDao(t, name, testDynamodbTableName)
+	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
+	}
+
+	userMap := make(map[string]*UserBoDynamodb)
+	subjectMap := make(map[string][]int)
+	numItems := 100
+	idList := make([]int, numItems)
+	for i := 0; i < numItems; i++ {
+		idList[i] = i
+	}
+	rand.Shuffle(numItems, func(i, j int) { idList[i], idList[j] = idList[j], idList[i] })
+	for i := 0; i < numItems; i++ {
+		id := strconv.Itoa(idList[i])
+		subject := "Subject" + strconv.Itoa(i%4)
+		level := i
+		user := &UserBoDynamodb{
+			Id:       id,
+			Username: "user" + strconv.Itoa(numItems-1-idList[i]),
+			Name:     "Thanh",
+			Version:  int(time.Now().Unix()),
+			Active:   i%3 == 0,
+			Created:  time.Now(),
+			Subject:  subject,
+			Level:    level,
+		}
+		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		if err != nil {
+			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+		}
+		userMap[user.Id] = user
+		if _, ok := subjectMap[subject]; !ok {
+			subjectMap[subject] = make([]int, 0)
+		}
+		subjectMap[subject] = append(subjectMap[subject], level)
+	}
+
+	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
+	fSubject := "Subject1"
+	fSubjectLevel := 50
+	filter := (&godal.FilterOptAnd{}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: fSubject}).
+		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: fSubjectLevel})
+	expectedNumItems := 0
+	startOfset := 3
+	limitNumRows := 5
+	for i, level := range subjectMap[fSubject] {
+		if level >= fSubjectLevel && i >= startOfset && expectedNumItems < limitNumRows {
+			expectedNumItems++
+		}
+	}
+	// format !@<table-name>:<gsi-name>:<true> indicates that:
+	// - !: query 'backward' instead of 'forward'
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'true': re-fetch from main table as GSI does not contain all fields
+	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", name, err)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+	} else {
+		userList := make([]*UserBoDynamodb, 0)
+		for i, row := range dbRows {
+			fetchedUser := dao.toUser(row)
+			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			userList = append(userList, fetchedUser)
+			if i > 0 && userList[i].Level > userList[i-1].Level {
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+			}
+		}
+	}
+
+	// format !@<table-name>:<gsi-name>:<false> indicates that:
+	// - !: query 'backward' instead of 'forward'
+	// - @: use 'query' instead of 'scan'
+	// - gsi-name: filter against GSI
+	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
+	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", name, err)
+	} else if dbRows == nil || len(dbRows) != expectedNumItems {
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+	} else {
+		for _, row := range dbRows {
+			fetchedUser := dao.toUser(row)
+			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
+				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
