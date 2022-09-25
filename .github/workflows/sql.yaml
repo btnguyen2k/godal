@@ -17,8 +17,12 @@ jobs:
       uses: actions/checkout@v2
     - name: Test
       run: |
-        go test -cover -coverprofile=coverage_general.txt -v .
-        bash <(curl -s https://codecov.io/bash) -cF general
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_general.txt .
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: general
+        name: general
 
   testMssql:
     name: Test with MSSQL
@@ -37,8 +41,12 @@ jobs:
         export TIMEZONE="Asia/Ho_Chi_Minh"
         export MSSQL_DRIVER="sqlserver"
         export MSSQL_URL="sqlserver://sa:SecretPassword1@localhost:1433?database=tempdb"
-        go test -cover -coverprofile=coverage_mssql.txt -v ./sql
-        bash <(curl -s https://codecov.io/bash) -cF mssql
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_mssql.txt ./sql
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: mssql
+        name: mssql
 
   testMysql:
     name: Test with MySQL
@@ -57,8 +65,12 @@ jobs:
         export TIMEZONE="Asia/Ho_Chi_Minh"
         export MYSQL_DRIVER="mysql"
         export MYSQL_URL="test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=false&loc=\${loc}"
-        go test -cover -coverprofile=coverage_mysql.txt -v ./sql
-        bash <(curl -s https://codecov.io/bash) -cF mysql
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_mysql.txt ./sql
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: mysql
+        name: mysql
 
   testPostgresql:
     name: Test with PostgreSQL
@@ -77,8 +89,13 @@ jobs:
         export TIMEZONE="Asia/Ho_Chi_Minh"
         export PGSQL_DRIVER="pgx"
         export PGSQL_URL="postgres://test:test@localhost:5432/test?sslmode=disable&client_encoding=UTF-8&application_name=godal"
-        go test -cover -coverprofile=coverage_pgsql.txt -v ./sql
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_pgsql.txt ./sql
         bash <(curl -s https://codecov.io/bash) -cF pgsql
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: pgsql
+        name: pgsql
 
   testSqlite:
     name: Test with SQLite
@@ -96,5 +113,9 @@ jobs:
         mkdir ./temp
         export SQLITE_DRIVER="sqlite3"
         export SQLITE_URL="./temp/temp.db"
-        go test -cover -coverprofile=coverage_sqlite.txt -v ./sql
-        bash <(curl -s https://codecov.io/bash) -cF sqlite
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_sqlite.txt ./sql
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: sqlite
+        name: sqlite
