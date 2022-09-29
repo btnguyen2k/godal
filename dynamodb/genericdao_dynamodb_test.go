@@ -12,15 +12,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/dynamodb"
 
 	"github.com/btnguyen2k/godal"
 )
 
-func _createAwsDynamodbConnect(t *testing.T, testName string) *prom.AwsDynamodbConnect {
+func _createAwsDynamodbConnect(t *testing.T, testName string) *dynamodb.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -38,99 +38,70 @@ func _createAwsDynamodbConnect(t *testing.T, testName string) *prom.AwsDynamodbC
 			cfg.DisableSSL = aws.Bool(true)
 		}
 	}
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	adc, err := dynamodb.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		t.Fatalf("%s/%s failed: %s", testName, "NewAwsDynamodbConnect", err)
 	}
 	return adc
 }
 
-func inSlide(item string, slide []string) bool {
-	for _, s := range slide {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
-
-func waitForTable(adc *prom.AwsDynamodbConnect, table string, statusList []string, delay int) {
-	for status, err := adc.GetTableStatus(nil, table); !inSlide(status, statusList) && err == nil; {
-		fmt.Printf("    Table [%s] status: %v - %s\n", table, status, err)
-		if delay > 0 {
-			time.Sleep(time.Duration(delay) * time.Second)
-		}
-		status, err = adc.GetTableStatus(nil, table)
-	}
-}
-
-func waitForGsi(adc *prom.AwsDynamodbConnect, table, index string, statusList []string, delay int) {
-	for status, err := adc.GetGlobalSecondaryIndexStatus(nil, table, index); !inSlide(status, statusList) && err == nil; {
-		fmt.Printf("    GSI [%s] on table [%s] status: %v - %s\n", index, table, status, err)
-		if delay > 0 {
-			time.Sleep(time.Duration(delay) * time.Second)
-		}
-		status, err = adc.GetGlobalSecondaryIndexStatus(nil, table, index)
-	}
-}
-
-func prepareAwsDynamodbTableCompoundKey(adc *prom.AwsDynamodbConnect, tableName string) error {
+func prepareAwsDynamodbTableCompoundKey(adc *dynamodb.AwsDynamodbConnect, tableName string) error {
 	err := adc.DeleteTable(nil, tableName)
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
 	fmt.Printf("  Deleted table [%s]\n", tableName)
-	waitForTable(adc, tableName, []string{""}, 1)
+	dynamodb.AwsDynamodbWaitForTableStatus(adc, tableName, []string{}, 1*time.Second, 30*time.Second)
 
 	err = adc.CreateTable(nil, tableName, 2, 2,
-		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsAttrTypeString}, {fieldLevel, prom.AwsAttrTypeNumber}},
-		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsKeyTypePartition}, {fieldLevel, prom.AwsKeyTypeSort}})
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		[]dynamodb.AwsDynamodbNameAndType{{fieldSubject, dynamodb.AwsAttrTypeString}, {fieldLevel, dynamodb.AwsAttrTypeNumber}},
+		[]dynamodb.AwsDynamodbNameAndType{{fieldSubject, dynamodb.AwsKeyTypePartition}, {fieldLevel, dynamodb.AwsKeyTypeSort}})
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	waitForTable(adc, tableName, []string{"ACTIVE"}, 1)
+	dynamodb.AwsDynamodbWaitForTableStatus(adc, tableName, []string{"ACTIVE"}, 1*time.Second, 30*time.Second)
 
 	return nil
 }
 
-func prepareAwsDynamodbTable(adc *prom.AwsDynamodbConnect, tableName string) error {
+func prepareAwsDynamodbTable(adc *dynamodb.AwsDynamodbConnect, tableName string) error {
 	err := adc.DeleteTable(nil, tableName)
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
 	fmt.Printf("  Deleted table [%s]\n", tableName)
-	waitForTable(adc, tableName, []string{""}, 1)
+	dynamodb.AwsDynamodbWaitForTableStatus(adc, tableName, []string{}, 1*time.Second, 30*time.Second)
 
 	err = adc.CreateTable(nil, tableName, 2, 2,
-		[]prom.AwsDynamodbNameAndType{{fieldId, prom.AwsAttrTypeString}},
-		[]prom.AwsDynamodbNameAndType{{fieldId, prom.AwsKeyTypePartition}})
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		[]dynamodb.AwsDynamodbNameAndType{{fieldId, dynamodb.AwsAttrTypeString}},
+		[]dynamodb.AwsDynamodbNameAndType{{fieldId, dynamodb.AwsKeyTypePartition}})
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	waitForTable(adc, tableName, []string{"ACTIVE"}, 1)
+	dynamodb.AwsDynamodbWaitForTableStatus(adc, tableName, []string{"ACTIVE"}, 1*time.Second, 30*time.Second)
 
 	gsiName := "gsi_" + tableName + "_" + fieldUsername
 	err = adc.CreateGlobalSecondaryIndex(nil, tableName, gsiName, 2, 2,
-		[]prom.AwsDynamodbNameAndType{{fieldUsername, prom.AwsAttrTypeString}},
-		[]prom.AwsDynamodbNameAndType{{fieldUsername, prom.AwsKeyTypePartition}})
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		[]dynamodb.AwsDynamodbNameAndType{{fieldUsername, dynamodb.AwsAttrTypeString}},
+		[]dynamodb.AwsDynamodbNameAndType{{fieldUsername, dynamodb.AwsKeyTypePartition}})
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	waitForGsi(adc, tableName, gsiName, []string{"ACTIVE"}, 1)
+	dynamodb.AwsDynamodbWaitForGsiStatus(adc, tableName, gsiName, []string{"ACTIVE"}, 1*time.Second, 30*time.Second)
 
 	gsiName = "gsi_" + tableName + "_" + fieldSubject + "_" + fieldLevel
 	err = adc.CreateGlobalSecondaryIndex(nil, tableName, gsiName, 2, 2,
-		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsAttrTypeString}, {fieldLevel, prom.AwsAttrTypeNumber}},
-		[]prom.AwsDynamodbNameAndType{{fieldSubject, prom.AwsKeyTypePartition}, {fieldLevel, prom.AwsKeyTypeSort}})
-	if prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeResourceInUseException) != nil {
+		[]dynamodb.AwsDynamodbNameAndType{{fieldSubject, dynamodb.AwsAttrTypeString}, {fieldLevel, dynamodb.AwsAttrTypeNumber}},
+		[]dynamodb.AwsDynamodbNameAndType{{fieldSubject, dynamodb.AwsKeyTypePartition}, {fieldLevel, dynamodb.AwsKeyTypeSort}})
+	if dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeResourceInUseException) != nil {
 		return err
 	}
-	waitForGsi(adc, tableName, gsiName, []string{"ACTIVE"}, 1)
+	dynamodb.AwsDynamodbWaitForGsiStatus(adc, tableName, gsiName, []string{"ACTIVE"}, 1*time.Second, 30*time.Second)
 
 	return nil
 }
 
-func createDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) *MyUserDaoDynamodb {
+func createDaoDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) *MyUserDaoDynamodb {
 	dao := &MyUserDaoDynamodb{tableName: tableName}
 	dao.GenericDaoDynamodb = NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
@@ -525,6 +496,52 @@ func TestToFilterMap(t *testing.T) {
 
 const testTimeZone = "Asia/Ho_Chi_Minh"
 
+type _testFailedWithMsgFunc func(msg string)
+
+type _testSetupOrTeardownFunc func(t *testing.T, testName string)
+
+func setupTest(t *testing.T, testName string, extraSetupFunc, extraTeardownFunc _testSetupOrTeardownFunc) func(t *testing.T) {
+	if extraSetupFunc != nil {
+		extraSetupFunc(t, testName)
+	}
+	return func(t *testing.T) {
+		if extraTeardownFunc != nil {
+			extraTeardownFunc(t, testName)
+		}
+	}
+}
+
+var _setupTestDaoAndTable _testSetupOrTeardownFunc = func(t *testing.T, testName string) {
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	testDao = _initDao(t, testName, testDynamodbTableName)
+	err := prepareAwsDynamodbTable(testDao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %s", testName+"/prepareAwsDynamodbTable", err)
+	}
+}
+
+var _setupTestDaoAndTableCompoundKey _testSetupOrTeardownFunc = func(t *testing.T, testName string) {
+	if os.Getenv(envAwsDynamodbTestTableName) != "" {
+		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
+	}
+	testDao = _initDao(t, testName, testDynamodbTableName)
+	testDao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
+	err := prepareAwsDynamodbTableCompoundKey(testDao.GetAwsDynamodbConnect(), testDynamodbTableName)
+	if err != nil {
+		t.Fatalf("%s failed: %s", testName+"/prepareAwsDynamodbTable", err)
+	}
+}
+
+var _teardownTest _testSetupOrTeardownFunc = func(t *testing.T, testName string) {
+	if testDao != nil {
+		testDao.GetAwsDynamodbConnect().Close()
+	}
+}
+
+var testDao *MyUserDaoDynamodb
+
 func _compareUsers(t *testing.T, name string, expected, target *UserBoDynamodb) {
 	if target == nil {
 		t.Fatalf("%s failed: target is nil", name)
@@ -565,24 +582,18 @@ func _compareUsers(t *testing.T, name string, expected, target *UserBoDynamodb) 
 }
 
 func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
-	name := "TestGenericDaoDynamodb_BuildConditionBuilder"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_BuildConditionBuilder"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	var input godal.FilterOpt
 	var output, expected *expression.ConditionBuilder
+	var err error
 
 	input = nil
 	expected = nil
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 
 	_n := expression.Name("field")
@@ -592,35 +603,35 @@ func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
 	for i, opt := range optsList {
 		expected = &expectedList[i]
 		input = godal.FilterOptFieldOpValue{FieldName: "field", Operator: opt, Value: "value"}
-		if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+		if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 		}
 		input = &godal.FilterOptFieldOpValue{FieldName: "field", Operator: opt, Value: "value"}
-		if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+		if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+			t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 		}
 	}
 
 	_expected := expression.Name("field").AttributeNotExists()
 	expected = &_expected
 	input = godal.FilterOptFieldIsNull{FieldName: "field"}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 	input = &godal.FilterOptFieldIsNull{FieldName: "field"}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 
 	_expected = expression.Name("field").AttributeExists()
 	expected = &_expected
 	input = godal.FilterOptFieldIsNotNull{FieldName: "field"}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 	input = &godal.FilterOptFieldIsNotNull{FieldName: "field"}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 
 	_expected = expression.Name("field1").GreaterThan(expression.Value(1)).
@@ -628,14 +639,14 @@ func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
 	input = godal.FilterOptAnd{Filters: []godal.FilterOpt{
 		godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpGreater, Value: 1},
 		godal.FilterOptFieldOpValue{FieldName: "field2", Operator: godal.FilterOpLessOrEqual, Value: "3"}}}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 	input = &godal.FilterOptAnd{Filters: []godal.FilterOpt{
 		godal.FilterOptFieldOpValue{FieldName: "field1", Operator: godal.FilterOpGreater, Value: 1},
 		godal.FilterOptFieldOpValue{FieldName: "field2", Operator: godal.FilterOpLessOrEqual, Value: "3"}}}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 
 	_expected = expression.Name("field3").GreaterThan(expression.Value("5")).
@@ -643,28 +654,21 @@ func TestGenericDaoDynamodb_BuildConditionBuilder(t *testing.T) {
 	input = godal.FilterOptOr{Filters: []godal.FilterOpt{
 		godal.FilterOptFieldOpValue{FieldName: "field3", Operator: godal.FilterOpGreater, Value: "5"},
 		godal.FilterOptFieldOpValue{FieldName: "field4", Operator: godal.FilterOpLessOrEqual, Value: 7}}}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 	input = &godal.FilterOptOr{Filters: []godal.FilterOpt{
 		godal.FilterOptFieldOpValue{FieldName: "field3", Operator: godal.FilterOpGreater, Value: "5"},
 		godal.FilterOptFieldOpValue{FieldName: "field4", Operator: godal.FilterOpLessOrEqual, Value: 7}}}
-	if output, err = dao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
-		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", name, expected, output, err)
+	if output, err = testDao.BuildConditionBuilder(testDynamodbTableName, input); err != nil || !reflect.DeepEqual(expected, output) {
+		t.Fatalf("%s failed: expected %#v but received %#v / Error: %s", testName, expected, output, err)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoDelete"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoDelete"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	user := &UserBoDynamodb{
 		Id:       "1",
@@ -676,53 +680,46 @@ func TestGenericDaoDynamodb_GdaoDelete(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
-	_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+	_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 	}
 
 	// GdaoDelete should be successful and number of affected rows should be 0
 	filterUser := &UserBoDynamodb{Id: "2"}
-	if numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(filterUser)); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDelete(testDao.tableName, testDao.toGbo(filterUser)); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 0 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 0, numRows)
 	}
 
 	// GdaoDelete should be successful and number of affected rows should be 1
 	filterUser = &UserBoDynamodb{Id: user.Id}
-	if numRows, err := dao.GdaoDelete(dao.tableName, dao.toGbo(filterUser)); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDelete(testDao.tableName, testDao.toGbo(filterUser)); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 1, numRows)
 	}
 
 	// GdaoFetchOne should be successful and the returned BO should be nil
-	if u, err := dao.GdaoFetchOne(dao.tableName, dao.GdaoCreateFilter(dao.tableName, dao.toGbo(user))); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	if u, err := testDao.GdaoFetchOne(testDao.tableName, testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(user))); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if u != nil {
-		t.Fatalf("%s failed: non-nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: non-nil", testName+"/GdaoFetchOne")
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoDeleteMany_Scan(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoDeleteMany_Scan"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoDeleteMany_Scan"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	// GdaoDeleteMany should be successful but no row deleted
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: "5"}
-	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 0 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 0, numRows)
 	}
 
 	for i := 0; i < 10; i++ {
@@ -737,41 +734,33 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Scan(t *testing.T) {
 			Subject:  "Subject" + strconv.Itoa(i%4),
 			Level:    i,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 	}
 
 	// GdaoDeleteMany should be successful and 5 rows deleted
-	if numRows, err := dao.GdaoDeleteMany(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 5 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 5, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 5, numRows)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoDeleteMany_Query(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoDeleteMany_Query"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoDeleteMany_Query"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTableCompoundKey, _teardownTest)
+	defer teardownTest(t)
 
 	// GdaoDeleteMany should be successful but no row deleted
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
-	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany("@"+testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 0 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 0, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 0, numRows)
 	}
 
 	for i := 0; i < 10; i++ {
@@ -786,32 +775,25 @@ func TestGenericDaoDynamodb_GdaoDeleteMany_Query(t *testing.T) {
 			Subject:  "Subject" + strconv.Itoa(i%4),
 			Level:    i,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 	}
 
 	// GdaoDeleteMany should be successful and 2 rows deleted
 	// the "@" prefix instructs that GdaoDeleteMany should use "query" instead of "scan"
-	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany("@"+testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 2 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 2, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 2, numRows)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	for i := 0; i < 10; i++ {
 		id := strconv.Itoa(i)
@@ -825,34 +807,27 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Scan(t *testing.T) {
 			Subject:  "Subject" + strconv.Itoa(i%4),
 			Level:    i,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 	}
 
 	// GdaoDeleteMany should be successful and 5 rows deleted
-	// use format <table-name>:<gsi-name> to filter using GSI
-	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
+	// use format <table-testName>:<gsi-testName> to filter using GSI
+	gsiName := "gsi_" + testDao.tableName + "_" + fieldUsername
 	filter := &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: "user5"}
-	if numRows, err := dao.GdaoDeleteMany(dao.tableName+":"+gsiName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany(testDao.tableName+":"+gsiName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 5 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 5, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 5, numRows)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	for i := 0; i < 10; i++ {
 		id := strconv.Itoa(i)
@@ -866,44 +841,37 @@ func TestGenericDaoDynamodb_GdaoDeleteManyGSI_Query(t *testing.T) {
 			Subject:  "Subject" + strconv.Itoa(i%4),
 			Level:    i,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 	}
 
 	// GdaoDeleteMany should be successful and 2 rows deleted
-	// use format <table-name>:<gsi-name> to filter using GSI
+	// use format <table-testName>:<gsi-testName> to filter using GSI
 	// the "@" prefix instructs that GdaoDeleteMany should use "query" instead of "scan"
-	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
+	gsiName := "gsi_" + testDao.tableName + "_" + fieldSubject + "_" + fieldLevel
 	filter := (&godal.FilterOptAnd{}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldSubject, Operator: godal.FilterOpEqual, Value: "Subject1"}).
 		Add(&godal.FilterOptFieldOpValue{FieldName: fieldLevel, Operator: godal.FilterOpGreaterOrEqual, Value: 5})
-	if numRows, err := dao.GdaoDeleteMany("@"+dao.tableName+":"+gsiName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoDeleteMany("@"+testDao.tableName+":"+gsiName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 2 {
-		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", name, 2, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) deleted but received %#v", testName, 2, numRows)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchOne"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchOne"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	// GdaoFetchOne should be successful but no row is returned
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	filter := testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(&UserBoDynamodb{Id: "1"}))
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo != nil {
-		t.Fatalf("%s failed: non-nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: non-nil", testName+"/GdaoFetchOne")
 	}
 
 	user := &UserBoDynamodb{
@@ -916,32 +884,25 @@ func TestGenericDaoDynamodb_GdaoFetchOne(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
-	_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+	_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+		t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 	}
 
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
-		fetchedUser := dao.toUser(gbo)
-		_compareUsers(t, name, user, fetchedUser)
+		fetchedUser := testDao.toUser(gbo)
+		_compareUsers(t, testName, user, fetchedUser)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchMany_Scan"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchMany_Scan"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -965,9 +926,9 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -991,14 +952,14 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 			expectedNumItems++
 		}
 	}
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany(testDao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 
@@ -1012,30 +973,22 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Scan(t *testing.T) {
 	}
 	expectedNumItems -= startOfset
 	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: fUsername}
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany(testDao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchMany_Query"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchMany_Query"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTableCompoundKey, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -1059,9 +1012,9 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -1084,35 +1037,27 @@ func TestGenericDaoDynamodb_GdaoFetchMany_Query(t *testing.T) {
 		}
 	}
 	// the "@" prefix instructs that GdaoFetchMany should use "query" instead of "scan"
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("@"+testDao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		userList := make([]*UserBoDynamodb, 0)
 		for i, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 			userList = append(userList, fetchedUser)
 			if i > 0 && userList[i].Level < userList[i-1].Level {
-				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", testName, userList[i-1].Level, userList[i].Level)
 			}
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTableCompoundKey, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -1136,9 +1081,9 @@ func TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -1162,34 +1107,27 @@ func TestGenericDaoDynamodb_GdaoFetchMany_QueryBackward(t *testing.T) {
 	}
 	// the "@" prefix instructs that GdaoFetchMany should use "query" instead of "scan"
 	// the "!" prefix instructs that GdaoFetchMany should query "backward" instead of "forward"
-	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("!@"+testDao.tableName, filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		userList := make([]*UserBoDynamodb, 0)
 		for i, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 			userList = append(userList, fetchedUser)
 			if i > 0 && userList[i].Level > userList[i-1].Level {
-				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", testName, userList[i-1].Level, userList[i].Level)
 			}
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -1213,9 +1151,9 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -1224,7 +1162,7 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
-	gsiName := "gsi_" + dao.tableName + "_" + fieldUsername
+	gsiName := "gsi_" + testDao.tableName + "_" + fieldUsername
 	var filter godal.FilterOpt
 	startOfset := 3
 	limitNumRows := 5
@@ -1239,18 +1177,18 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 	}
 	expectedNumItems -= startOfset
 	filter = &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpGreaterOrEqual, Value: fId}
-	// format <table-name>:<gsi-name>:<false> indicates that:
-	// - gsi-name: filter against GSI
+	// format <table-testName>:<gsi-testName>:<false> indicates that:
+	// - gsi-testName: filter against GSI
 	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany(testDao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
+			fetchedUser := testDao.toUser(row)
 			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
+				t.Fatalf("%s failed: expected %#v but received %#v", testName, userMap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
@@ -1265,32 +1203,25 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Scan(t *testing.T) {
 	}
 	expectedNumItems -= startOfset
 	filter = &godal.FilterOptFieldOpValue{FieldName: fieldUsername, Operator: godal.FilterOpGreaterOrEqual, Value: fUsername}
-	// format <table-name>:<gsi-name>:<true> indicates that:
-	// - gsi-name: filter against GSI
+	// format <table-testName>:<gsi-testName>:<true> indicates that:
+	// - gsi-testName: filter against GSI
 	// - 'true': re-fetch from main table as GSI does not contain all fields
-	if dbRows, err := dao.GdaoFetchMany(dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany(testDao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchManyGSI_Query"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchManyGSI_Query"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -1314,9 +1245,9 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -1325,7 +1256,7 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
-	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
+	gsiName := "gsi_" + testDao.tableName + "_" + fieldSubject + "_" + fieldLevel
 	fSubject := "Subject1"
 	fSubjectLevel := 50
 	filter := (&godal.FilterOptAnd{}).
@@ -1339,55 +1270,48 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_Query(t *testing.T) {
 			expectedNumItems++
 		}
 	}
-	// format @<table-name>:<gsi-name>:<true> indicates that:
+	// format @<table-testName>:<gsi-testName>:<true> indicates that:
 	// - @: use 'query' instead of 'scan'
-	// - gsi-name: filter against GSI
+	// - gsi-testName: filter against GSI
 	// - 'true': re-fetch from main table as GSI does not contain all fields
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("@"+testDao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		userList := make([]*UserBoDynamodb, 0)
 		for i, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 			userList = append(userList, fetchedUser)
 			if i > 0 && userList[i].Level < userList[i-1].Level {
-				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", testName, userList[i-1].Level, userList[i].Level)
 			}
 		}
 	}
 
-	// format @<table-name>:<gsi-name>:<false> indicates that:
+	// format @<table-testName>:<gsi-testName>:<false> indicates that:
 	// - @: use 'query' instead of 'scan'
-	// - gsi-name: filter against GSI
+	// - gsi-testName: filter against GSI
 	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
-	if dbRows, err := dao.GdaoFetchMany("@"+dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("@"+testDao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
+			fetchedUser := testDao.toUser(row)
 			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
+				t.Fatalf("%s failed: expected %#v but received %#v", testName, userMap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	userMap := make(map[string]*UserBoDynamodb)
 	subjectMap := make(map[string][]int)
@@ -1411,9 +1335,9 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward(t *testing.T) {
 			Subject:  subject,
 			Level:    level,
 		}
-		_, err = dao.GdaoCreate(dao.tableName, dao.toGbo(user))
+		_, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user))
 		if err != nil {
-			t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+			t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 		}
 		userMap[user.Id] = user
 		if _, ok := subjectMap[subject]; !ok {
@@ -1422,7 +1346,7 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward(t *testing.T) {
 		subjectMap[subject] = append(subjectMap[subject], level)
 	}
 
-	gsiName := "gsi_" + dao.tableName + "_" + fieldSubject + "_" + fieldLevel
+	gsiName := "gsi_" + testDao.tableName + "_" + fieldSubject + "_" + fieldLevel
 	fSubject := "Subject1"
 	fSubjectLevel := 50
 	filter := (&godal.FilterOptAnd{}).
@@ -1436,57 +1360,50 @@ func TestGenericDaoDynamodb_GdaoFetchManyGSI_QueryBackward(t *testing.T) {
 			expectedNumItems++
 		}
 	}
-	// format !@<table-name>:<gsi-name>:<true> indicates that:
+	// format !@<table-testName>:<gsi-testName>:<true> indicates that:
 	// - !: query 'backward' instead of 'forward'
 	// - @: use 'query' instead of 'scan'
-	// - gsi-name: filter against GSI
+	// - gsi-testName: filter against GSI
 	// - 'true': re-fetch from main table as GSI does not contain all fields
-	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("!@"+testDao.tableName+":"+gsiName+":true", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		userList := make([]*UserBoDynamodb, 0)
 		for i, row := range dbRows {
-			fetchedUser := dao.toUser(row)
-			_compareUsers(t, name, userMap[fetchedUser.Id], fetchedUser)
+			fetchedUser := testDao.toUser(row)
+			_compareUsers(t, testName, userMap[fetchedUser.Id], fetchedUser)
 			userList = append(userList, fetchedUser)
 			if i > 0 && userList[i].Level > userList[i-1].Level {
-				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", name, userList[i-1].Level, userList[i].Level)
+				t.Fatalf("%s failed: ordering unsynced %#v vs %#v", testName, userList[i-1].Level, userList[i].Level)
 			}
 		}
 	}
 
-	// format !@<table-name>:<gsi-name>:<false> indicates that:
+	// format !@<table-testName>:<gsi-testName>:<false> indicates that:
 	// - !: query 'backward' instead of 'forward'
 	// - @: use 'query' instead of 'scan'
-	// - gsi-name: filter against GSI
+	// - gsi-testName: filter against GSI
 	// - 'false': do not re-fetch (the returned rows may not contain all fields!)
-	if dbRows, err := dao.GdaoFetchMany("!@"+dao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if dbRows, err := testDao.GdaoFetchMany("!@"+testDao.tableName+":"+gsiName+":false", filter, nil, startOfset, limitNumRows); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if dbRows == nil || len(dbRows) != expectedNumItems {
-		t.Fatalf("%s failed: expected %#v row(s) but received %#v", name, expectedNumItems, len(dbRows))
+		t.Fatalf("%s failed: expected %#v row(s) but received %#v", testName, expectedNumItems, len(dbRows))
 	} else {
 		for _, row := range dbRows {
-			fetchedUser := dao.toUser(row)
+			fetchedUser := testDao.toUser(row)
 			if fetchedUser.Id != userMap[fetchedUser.Id].Id {
-				t.Fatalf("%s failed: expected %#v but received %#v", name, userMap[fetchedUser.Id].Id, fetchedUser.Id)
+				t.Fatalf("%s failed: expected %#v but received %#v", testName, userMap[fetchedUser.Id].Id, fetchedUser.Id)
 			}
 		}
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoCreate"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoCreate"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	user := &UserBoDynamodb{
 		Id:       "1",
@@ -1498,35 +1415,27 @@ func TestGenericDaoDynamodb_GdaoCreate(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName, 1, numRows)
 	}
 
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	filter := testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(&UserBoDynamodb{Id: "1"}))
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
-		fetchedUser := dao.toUser(gbo)
-		_compareUsers(t, name, user, fetchedUser)
+		fetchedUser := testDao.toUser(gbo)
+		_compareUsers(t, testName, user, fetchedUser)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoCreateDuplicated"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoCreateDuplicated"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTableCompoundKey, _teardownTest)
+	defer teardownTest(t)
 
 	user := &UserBoDynamodb{
 		Id:       "1",
@@ -1538,39 +1447,34 @@ func TestGenericDaoDynamodb_GdaoCreateDuplicated(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name, err)
+	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName, err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name, 1, numRows)
-	}
-	clone := *user
-	clone.Username = "thanhn"
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(&clone)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
-		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName, 1, numRows)
 	}
 
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Subject: "English", Level: 1}))
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	// PK is fieldSubject:fieldLevel
+	clone := *user
+	clone.Username += "-new"
+	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(&clone)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+		t.Fatalf("%s failed: num rows %#v / error: %s", testName, numRows, err)
+	}
+
+	filter := testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(&UserBoDynamodb{Subject: "English", Level: 1}))
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
-		fetchedUser := dao.toUser(gbo)
-		_compareUsers(t, name, user, fetchedUser)
+		fetchedUser := testDao.toUser(gbo)
+		_compareUsers(t, testName, user, fetchedUser)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoUpdate"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoUpdate"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	user := &UserBoDynamodb{
 		Id:       "1",
@@ -1583,47 +1487,40 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 		Level:    1,
 	}
 	// GdaoUpdate should be successful but no row affected
-	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoUpdate", err)
+	if numRows, err := testDao.GdaoUpdate(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoUpdate", err)
 	} else if numRows != 0 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 0, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoUpdate", 0, numRows)
 	}
-	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoCreate", 1, numRows)
 	}
 
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoUpdate", err)
+	user.Username += "-new"
+	if numRows, err := testDao.GdaoUpdate(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoUpdate", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoUpdate", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoUpdate", 1, numRows)
 	}
 
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	filter := testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(&UserBoDynamodb{Id: "1"}))
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
-		fetchedUser := dao.toUser(gbo)
-		_compareUsers(t, name, user, fetchedUser)
+		fetchedUser := testDao.toUser(gbo)
+		_compareUsers(t, testName, user, fetchedUser)
 	}
 }
 
+// TestGenericDaoDynamodb_GdaoUpdateDuplicated is not applicable!
 // func TestGenericDaoDynamodb_GdaoUpdateDuplicated(t *testing.T) {
-// 	name := "TestGenericDaoDynamodb_GdaoUpdateDuplicated"
-//
-// 	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-// 		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-// 	}
-// 	dao := _initDao(t, name, testDynamodbTableName)
-// 	dao.SetRowMapper(&GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{testDynamodbTableName: {fieldSubject, fieldLevel}}})
-// 	err := prepareAwsDynamodbTableCompoundKey(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-// 	if err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-// 	}
+// 	testName := "TestGenericDaoDynamodb_GdaoUpdateDuplicated"
+// 	teardownTest := setupTest(t, testName, _setupTestDaoAndTableCompoundKey, _teardownTest)
+// 	defer teardownTest(t)
 //
 // 	user1 := &UserBoDynamodb{
 // 		Id:       "1",
@@ -1645,34 +1542,27 @@ func TestGenericDaoDynamodb_GdaoUpdate(t *testing.T) {
 // 		Subject:  "English",
 // 		Level:    2,
 // 	}
-// 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user1)); err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+// 	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user1)); err != nil {
+// 		t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 // 	} else if numRows != 1 {
-// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoCreate", 1, numRows)
 // 	}
-// 	if numRows, err := dao.GdaoCreate(dao.tableName, dao.toGbo(user2)); err != nil {
-// 		t.Fatalf("%s failed: %s", name+"/GdaoCreate", err)
+// 	if numRows, err := testDao.GdaoCreate(testDao.tableName, testDao.toGbo(user2)); err != nil {
+// 		t.Fatalf("%s failed: %s", testName+"/GdaoCreate", err)
 // 	} else if numRows != 1 {
-// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoCreate", 1, numRows)
+// 		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoCreate", 1, numRows)
 // 	}
 //
-// 	user1.Level = 2
-// 	if numRows, err := dao.GdaoUpdate(dao.tableName, dao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
-// 		t.Fatalf("%s failed: num rows %#v / error: %s", name, numRows, err)
+// 	user1.Level = user2.Level
+// 	if numRows, err := testDao.GdaoUpdate(testDao.tableName, testDao.toGbo(user1)); err != godal.ErrGdaoDuplicatedEntry || numRows != 0 {
+// 		t.Fatalf("%s failed: num rows %#v / error: %s", testName, numRows, err)
 // 	}
 // }
 
 func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoSave"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoSave"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	user := &UserBoDynamodb{
 		Id:       "1",
@@ -1684,41 +1574,34 @@ func TestGenericDaoDynamodb_GdaoSave(t *testing.T) {
 		Subject:  "English",
 		Level:    1,
 	}
-	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
+	if numRows, err := testDao.GdaoSave(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoSave", 1, numRows)
 	}
 
-	user.Username = "thanhn"
-	if numRows, err := dao.GdaoSave(dao.tableName, dao.toGbo(user)); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
+	user.Username += "-new"
+	if numRows, err := testDao.GdaoSave(testDao.tableName, testDao.toGbo(user)); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoSave", 1, numRows)
 	}
 
-	filter := dao.GdaoCreateFilter(dao.tableName, dao.toGbo(&UserBoDynamodb{Id: "1"}))
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	filter := testDao.GdaoCreateFilter(testDao.tableName, testDao.toGbo(&UserBoDynamodb{Id: "1"}))
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
-		fetchedUser := dao.toUser(gbo)
-		_compareUsers(t, name, user, fetchedUser)
+		fetchedUser := testDao.toUser(gbo)
+		_compareUsers(t, testName, user, fetchedUser)
 	}
 }
 
 func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
-	name := "TestGenericDaoDynamodb_GdaoSaveShouldReplace"
-
-	if os.Getenv(envAwsDynamodbTestTableName) != "" {
-		testDynamodbTableName = os.Getenv(envAwsDynamodbTestTableName)
-	}
-	dao := _initDao(t, name, testDynamodbTableName)
-	err := prepareAwsDynamodbTable(dao.GetAwsDynamodbConnect(), testDynamodbTableName)
-	if err != nil {
-		t.Fatalf("%s failed: %s", name+"/prepareAwsDynamodbTable", err)
-	}
+	testName := "TestGenericDaoDynamodb_GdaoSaveShouldReplace"
+	teardownTest := setupTest(t, testName, _setupTestDaoAndTable, _teardownTest)
+	defer teardownTest(t)
 
 	gbo := godal.NewGenericBo()
 
@@ -1729,34 +1612,34 @@ func TestGenericDaoDynamodb_GdaoSaveShouldReplace(t *testing.T) {
 		"version":  1,
 	}
 	gbo.GboImportViaJson(data1)
-	if numRows, err := dao.GdaoSave(dao.tableName, gbo); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
+	if numRows, err := testDao.GdaoSave(testDao.tableName, gbo); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoSave", 1, numRows)
 	}
 
 	data2 := map[string]interface{}{
-		"id":     "1",
-		"name":   "Thanh Nguyen",
-		"active": true,
+		"id":       "1",
+		"testName": "Thanh Nguyen",
+		"active":   true,
 	}
 	gbo.GboImportViaJson(data2)
-	if numRows, err := dao.GdaoSave(dao.tableName, gbo); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoSave", err)
+	if numRows, err := testDao.GdaoSave(testDao.tableName, gbo); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoSave", err)
 	} else if numRows != 1 {
-		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", name+"/GdaoSave", 1, numRows)
+		t.Fatalf("%s failed: expected %#v row(s) inserted but received %#v", testName+"/GdaoSave", 1, numRows)
 	}
 
 	filter := godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: "1"}
-	if gbo, err := dao.GdaoFetchOne(dao.tableName, filter); err != nil {
-		t.Fatalf("%s failed: %s", name+"/GdaoFetchOne", err)
+	if gbo, err := testDao.GdaoFetchOne(testDao.tableName, filter); err != nil {
+		t.Fatalf("%s failed: %s", testName+"/GdaoFetchOne", err)
 	} else if gbo == nil {
-		t.Fatalf("%s failed: nil", name+"/GdaoFetchOne")
+		t.Fatalf("%s failed: nil", testName+"/GdaoFetchOne")
 	} else {
 		data := make(map[string]interface{})
 		gbo.GboTransferViaJson(&data)
 		if !reflect.DeepEqual(data2, data) {
-			t.Fatalf("%s failed: expected %v but received %v", name+"/GdaoFetchOne", data2, data)
+			t.Fatalf("%s failed: expected %v but received %v", testName+"/GdaoFetchOne", data2, data)
 		}
 	}
 }
