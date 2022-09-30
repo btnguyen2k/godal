@@ -9,17 +9,17 @@ Generic [AWS DynamoDB](https://aws.amazon.com/dynamodb/) DAO implementation.
 
 **General**
 
-- DAO must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.`
+- DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.`
 - Row-mapper's `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.
 
 **Use `GenericDaoDynamodb` (and `godal.IGenericBo`) directly**
 
 - Define a DAO struct that implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
-- Use a row-mapper whose `ColumnsList(table string) []string` must return all attribute names of specified table's primary key.
+- Use a row-mapper whose `ColumnsList(table string) []string` returns all attribute names of specified table's primary key.
 
-**Implement custom DynamoDB business DAO and BO**
+**Implement custom DynamoDB business DAOs and BOs**
 
-- Define and implement the business DAO (Note: DAO must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`
+- Define and implement the business DAO (Note: DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`
   and its row-mapper's `ColumnsList(table string) []string` function must return all attribute names of specified table's primary key).
 - Define functions to transform `godal.IGenericBo` to business BO and vice versa.
 

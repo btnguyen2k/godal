@@ -3,14 +3,14 @@ Package dynamodb provides a generic AWS DynamoDB implementation of godal.IGeneri
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Row-mapper's function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
 
 Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
-	- Use a row-mapper whose 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
-	- Optionally, create a helper function to create dao instances.
+	- Define a DAO struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- Use a row-mapper whose 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
+	- Optionally, create a helper function to create DAO instances.
 
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
@@ -45,11 +45,11 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
 	its function 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
 
-Guideline: Implement custom AWS DynamoDB business dao and bo
+Guideline: Implement custom AWS DynamoDB business DAOs and BOs
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
-	- Optionally, create a helper function to create dao instances.
-	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+	- Define and implement the business dao (Note: DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
+	- Optionally, create a helper function to create DAO instances.
+	- Define functions to transform godal.IGenericBo to business BO and vice versa.
 
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
@@ -293,14 +293,14 @@ func NewGenericDaoDynamodb(dynamodbConnect *dynamodb.AwsDynamodbConnect, agdao *
 // GenericDaoDynamodb is AWS DynamoDB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-// 	 - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
-// 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
-// 	 - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
-// 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
+// 	 - (n) GdaoCreateFilter(tableName string, bo godal.IGenericBo) godal.FilterOpt
+// 	 - (y) GdaoDelete(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoDeleteMany(tableName string, filter godal.FilterOpt) (int, error)
+// 	 - (y) GdaoFetchOne(tableName string, filter godal.FilterOpt) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(tableName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoCreate(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoUpdate(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoSave(tableName string, bo godal.IGenericBo) (int, error)
 //
 // Available: since v0.2.0
 type GenericDaoDynamodb struct {

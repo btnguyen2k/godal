@@ -3,51 +3,51 @@ Package mongo provides a generic MongoDB implementation of godal.IGenericDao.
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 
 Guideline: Use GenericDaoMongo (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
-	- Optionally, create a helper function to create dao instances.
+	- Define a DAO struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- Optionally, create a helper function to create DAO instances.
 
 	import (
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		"github.com/btnguyen2k/godal/mongo"
-		"github.com/btnguyen2k/prom"
+		godalmongo "github.com/btnguyen2k/godal/mongo"
+		prommongo "github.com/btnguyen2k/prom/mongo"
 	)
 
 	type myGenericDaoMongo struct {
-		*mongodrv.GenericDaoMongo
+		*godalmongo.GenericDaoMongo
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
-	func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt {
+	func (dao *myGenericDaoMongo) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) godal.FilterOpt {
 		id := bo.GboGetAttrUnsafe(fieldId, reddo.TypeString)
 		return &godal.FilterOptFieldOpValue{FieldName: fieldId, Operator: godal.FilterOpEqual, Value: id}
 	}
 
 	// newGenericDaoMongo is convenient method to create myGenericDaoMongo instances.
-	func newGenericDaoMongo(mc *mongo.MongoConnect, txModeOnWrite bool) godal.IGenericDao {
+	func newGenericDaoMongo(mc *prommongo.MongoConnect, txModeOnWrite bool) godal.IGenericDao {
 		dao := &myGenericDaoMongo{}
-		dao.GenericDaoMongo = mongodrv.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+		dao.GenericDaoMongo = godalmongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
 		dao.SetTxModeOnWrite(txModeOnWrite)
 		return dao
 	}
 
 	Since MongoDB is schema-less, GenericRowMapperMongo should be sufficient. NewGenericDaoMongo(...) creates a *GenericDaoMongo that uses GenericRowMapperMongo under-the-hood.
 
-Guideline: Implement custom MongoDB business dao and bo
+Guideline: Implement custom MongoDB business DAOs and BOs
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
-	- Optionally, create a helper function to create dao instances.
-	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+	- Define and implement the business DAO (Note: DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
+	- Optionally, create a helper function to create DAO instances.
+	- Define functions to transform godal.IGenericBo to business BO and vice versa.
 
 	import (
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		"github.com/btnguyen2k/godal/mongo"
-		"github.com/btnguyen2k/prom"
+		godalmongo "github.com/btnguyen2k/godal/mongo"
+		prommongo "github.com/btnguyen2k/prom/mongo"
 	)
 
 	// BoApp defines business object app
@@ -91,14 +91,14 @@ Guideline: Implement custom MongoDB business dao and bo
 
 	// DaoAppMongodb is MongoDB-implementation of business dao
 	type DaoAppMongodb struct {
-		*mongodrv.GenericDaoMongo
+		*godalmongo.GenericDaoMongo
 		collectionName string
 	}
 
 	// NewDaoAppMongodb is convenient method to create DaoAppMongodb instances.
-	func NewDaoAppMongodb(mc *mongo.MongoConnect, collectionName string, txModeOnWrite bool) *DaoAppMongodb {
+	func NewDaoAppMongodb(mc *prommongo.MongoConnect, collectionName string, txModeOnWrite bool) *DaoAppMongodb {
 		dao := &DaoAppMongodb{collectionName: collectionName}
-		dao.GenericDaoMongo = mongodrv.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+		dao.GenericDaoMongo = godalmongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
 		dao.SetTxModeOnWrite(txModeOnWrite)
 		return dao
 	}
@@ -107,7 +107,7 @@ Guideline: Implement custom MongoDB business dao and bo
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 
-To create mongo.MongoConnect, see package github.com/btnguyen2k/prom
+To create MongoConnect instances, see package github.com/btnguyen2k/prom/mongo
 */
 package mongo
 
@@ -273,14 +273,14 @@ func NewGenericDaoMongo(mongoConnect *mongo.MongoConnect, agdao *godal.AbstractG
 // GenericDaoMongo is MongoDB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-//   - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
-// 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
-// 	 - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
-// 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
+//   - (n) GdaoCreateFilter(collectionName string, bo godal.IGenericBo) godal.FilterOpt
+// 	 - (y) GdaoDelete(collectionName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoDeleteMany(collectionName string, filter godal.FilterOpt) (int, error)
+// 	 - (y) GdaoFetchOne(collectionName string, filter godal.FilterOpt) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(collectionName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoCreate(collectionName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoUpdate(collectionName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoSave(collectionName string, bo godal.IGenericBo) (int, error)
 type GenericDaoMongo struct {
 	*godal.AbstractGenericDao
 	mongoConnect  *mongo.MongoConnect
