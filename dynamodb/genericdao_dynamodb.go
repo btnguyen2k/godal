@@ -15,17 +15,17 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
 		//"github.com/aws/aws-sdk-go/aws/credentials"
-		//"github.com/aws/aws-sdk-go/service/dynamodb"
+		//awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
-		"github.com/btnguyen2k/prom"
+		godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
+		promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 	)
 
 	type myGenericDaoDynamodb struct {
-		*gdaodynamodb.GenericDaoDynamodb
+		*godaldynamodb.GenericDaoDynamodb
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
@@ -35,10 +35,10 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	}
 
 	// newGenericDaoDynamodb is convenient method to create myGenericDaoDynamodb instances.
-	func newGenericDaoDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) godal.IGenericDao {
+	func newGenericDaoDynamodb(adc *promdynamodb.AwsDynamodbConnect, tableName string) godal.IGenericDao {
 		dao := &myGenericDaoDynamodb{}
-		dao.GenericDaoDynamodb = gdaodynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
+		dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+		dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
 		return dao
 	}
 
@@ -54,13 +54,13 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
 		//"github.com/aws/aws-sdk-go/aws/credentials"
-		//"github.com/aws/aws-sdk-go/service/dynamodb"
+		//awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
-		"github.com/btnguyen2k/prom"
+		godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
+		promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 	)
 
 	// BoApp defines business object app
@@ -104,15 +104,15 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 
 	// DaoAppDynamodb is AWS DynamoDB-implementation of business dao
 	type DaoAppDynamodb struct {
-		*gdaodynamod.GenericDaoDynamodb
+		*godaldynamodb.GenericDaoDynamodb
 		tableName string
 	}
 
 	// NewDaoAppDynamodb is convenient method to create DaoAppDynamodb instances.
-	func NewDaoAppDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
+	func NewDaoAppDynamodb(adc *promdynamodb.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
 		dao := &DaoAppDynamodb{tableName: tableName}
-		dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamod.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
+		dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+		dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
 		return dao
 	}
 
@@ -121,7 +121,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 
-To create dynamodb.AwsDynamodbConnect, see package github.com/btnguyen2k/prom
+To create AwsDynamodbConnect instances, see package github.com/btnguyen2k/prom/dynamodb
 */
 package dynamodb
 
