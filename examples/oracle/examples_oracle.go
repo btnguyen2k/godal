@@ -3,7 +3,7 @@ Oracle Dao example.
 
 $ go run examples_oracle.go
 
-Oracle Dao implementation guideline:
+Oracle prommongo.:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	  (already implemented by common.DaoAppSql)
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 	_ "github.com/godror/godror"
 
 	"github.com/btnguyen2k/godal"
@@ -34,11 +34,10 @@ type DaoAppOracle struct {
 }
 
 // NewDaoAppOracle is helper function to create Oracle-implementation of IDaoApp.
-func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppOracle(sqlC *promsql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppOracle{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorOracle)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{
 		NameTransformation: sql.NameTransfLowerCase,
 		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
@@ -47,7 +46,7 @@ func NewDaoAppOracle(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForOracle() *prom.SqlConnect {
+func createSqlConnectForOracle() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("ORACLE_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("ORACLE_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,13 +60,13 @@ func createSqlConnectForOracle() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorOracle)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
@@ -75,7 +74,7 @@ func createSqlConnectForOracle() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataOracle(sqlC *prom.SqlConnect, table string) {
+func initDataOracle(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {

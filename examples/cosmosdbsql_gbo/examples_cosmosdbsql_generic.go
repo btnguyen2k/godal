@@ -9,17 +9,18 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
 	_ "github.com/btnguyen2k/gocosmos"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/godal/sql"
+	promsql "github.com/btnguyen2k/prom/sql"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/cosmosdbsql"
-	"github.com/btnguyen2k/godal/sql"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 
 var colsSqlCosmosdbGeneric = []string{"id", "val_desc", "val_bool", "val_int", "val_float", "val_string", "val_time", "val_list", "val_map"}
 
-func createSqlConnectForCosmosdbGeneric() *prom.SqlConnect {
+func createSqlConnectForCosmosdbGeneric() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -44,26 +45,32 @@ func createSqlConnectForCosmosdbGeneric() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 
-	dsn += ";Db=godal"
+	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
+	db := "godal"
+	if result := dbre.FindAllStringSubmatch(dsn, -1); result != nil {
+		db = result[0][1]
+	} else {
+		dsn += ";Db=" + db
+	}
 
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorCosmosDb)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
 
-	sqlConnect.GetDB().Exec(`CREATE DATABASE IF NOT EXISTS godal WITH maxru=10000`)
+	sqlConnect.GetDB().Exec(`CREATE DATABASE IF NOT EXISTS "+db+" WITH maxru=10000`)
 
 	return sqlConnect
 }
 
-func initDataCosmosdbGeneric(sqlC *prom.SqlConnect, table string) {
+func initDataCosmosdbGeneric(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP COLLECTION IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -79,7 +86,6 @@ func initDataCosmosdbGeneric(sqlC *prom.SqlConnect, table string) {
 }
 
 type myGenericDaoCosmosdb struct {
-	// *sql.GenericDaoSql
 	sql.IGenericDaoSql
 }
 
@@ -122,12 +128,12 @@ func (m *myRowMapperCosmosdb) ToBoFieldName(storageId, colName string) string {
 	return colName
 }
 
-func newGenericDaoCosmosdb(sqlc *prom.SqlConnect, txMode bool) godal.IGenericDao {
+func newGenericDaoCosmosdb(sqlc *promsql.SqlConnect, txMode bool) godal.IGenericDao {
 	dao := &myGenericDaoCosmosdb{}
 	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
 	inner.CosmosSetPkGboMapPath(map[string]string{"*": colsSqlCosmosdbGeneric[0]})
 	dao.IGenericDaoSql = inner
-	dao.SetTxModeOnWrite(txMode).SetSqlFlavor(prom.FlavorCosmosDb)
+	dao.SetTxModeOnWrite(txMode)
 	dao.SetRowMapper(&myRowMapperCosmosdb{cosmosdbsql.GenericRowMapperCosmosdbInstance})
 	return dao
 }

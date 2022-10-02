@@ -10,20 +10,20 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	prommongo "github.com/btnguyen2k/prom/mongo"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/mongo"
 )
 
-// convenient function to create prom.MongoConnect instance
-func createMongoConnectGeneric() *prom.MongoConnect {
+// convenient function to create prommongo.MongoConnect instance
+func createMongoConnectGeneric() *prommongo.MongoConnect {
 	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
 	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
 	if mongoUrl == "" || mongoDb == "" {
 		panic("Please define env MONGO_URL, MONGO_DB")
 	}
-	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	mc, err := prommongo.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -35,10 +35,10 @@ func createMongoConnectGeneric() *prom.MongoConnect {
 }
 
 // convenient function to create MyGenericDaoMongo instance
-func createMyGenericDaoMongo(mgc *prom.MongoConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+func createMyGenericDaoMongo(mgc *prommongo.MongoConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
 	err := mgc.GetCollection(collectionUserGeneric).Drop(nil)
 	fmt.Printf("[INFO] Dropped collection %s: %s\n", collectionUserGeneric, err)
-	_, err = mgc.CreateCollection(collectionUserGeneric)
+	err = mgc.CreateCollection(collectionUserGeneric)
 	fmt.Printf("[INFO] Created collection %s: %s\n", collectionUserGeneric, err)
 
 	dao := &MyGenericDaoMongo{}

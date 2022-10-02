@@ -3,7 +3,7 @@ MySQL Dao example.
 
 $ go run examples_mysql.go
 
-MySQL Dao implementation guideline:
+MySQL DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	  (already implemented by common.DaoAppSql)
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/btnguyen2k/godal"
@@ -34,11 +34,10 @@ type DaoAppMysql struct {
 }
 
 // NewDaoAppMysql is helper function to create MySQL-implementation of IDaoApp.
-func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppMysql(sqlC *promsql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppMysql{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorMySql)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{
 		NameTransformation: sql.NameTransfLowerCase,
 		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
@@ -47,7 +46,7 @@ func NewDaoAppMysql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForMysql() *prom.SqlConnect {
+func createSqlConnectForMysql() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("MYSQL_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("MYSQL_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,13 +60,13 @@ func createSqlConnectForMysql() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorMySql)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
@@ -75,7 +74,7 @@ func createSqlConnectForMysql() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataMysql(sqlC *prom.SqlConnect, table string) {
+func initDataMysql(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {

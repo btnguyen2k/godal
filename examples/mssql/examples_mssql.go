@@ -3,7 +3,7 @@ MSSQL Dao example.
 
 $ go run examples_mssql.go
 
-MSSQL Dao implementation guideline:
+MSSQL DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	  (already implemented by common.DaoAppSql)
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 	_ "github.com/denisenkom/go-mssqldb"
 
 	"github.com/btnguyen2k/godal"
@@ -34,11 +34,10 @@ type DaoAppMssql struct {
 }
 
 // NewDaoAppMssql is helper function to create MSSQL-implementation of IDaoApp.
-func NewDaoAppMssql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppMssql(sqlC *promsql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppMssql{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorMsSql)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{
 		NameTransformation: sql.NameTransfLowerCase,
 		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
@@ -47,7 +46,7 @@ func NewDaoAppMssql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForMssql() *prom.SqlConnect {
+func createSqlConnectForMssql() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("MSSQL_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("MSSQL_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,13 +60,13 @@ func createSqlConnectForMssql() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorMsSql)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
@@ -75,7 +74,7 @@ func createSqlConnectForMssql() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataMssql(sqlC *prom.SqlConnect, table string) {
+func initDataMssql(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {

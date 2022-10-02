@@ -12,14 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/dynamodb"
 )
 
-// convenient function to create prom.AwsDynamodbConnect instance
-func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
+// convenient function to create promdynamodb.AwsDynamodbConnect instance
+func createAwsDynamodbConnectGeneric() *promdynamodb.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -36,7 +36,7 @@ func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
 			cfg.DisableSSL = aws.Bool(true)
 		}
 	}
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	adc, err := promdynamodb.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -44,12 +44,12 @@ func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
 }
 
 // convenient function to create MyGenericDaoDynamodb instance
-func createMyGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+func createMyGenericDaoDynamodb(adc *promdynamodb.AwsDynamodbConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
 	err := adc.DeleteTable(nil, tableUserGeneric)
 	fmt.Printf("[INFO] Deleted table %s: %s\n", tableUserGeneric, err)
 	err = adc.CreateTable(nil, tableUserGeneric, 1, 1,
-		[]prom.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: prom.AwsAttrTypeString}},
-		[]prom.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: prom.AwsKeyTypePartition}})
+		[]promdynamodb.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: promdynamodb.AwsAttrTypeString}},
+		[]promdynamodb.AwsDynamodbNameAndType{{Name: fieldUserIdGeneric, Type: promdynamodb.AwsKeyTypePartition}})
 	fmt.Printf("[INFO] Created table %s: %s\n", tableUserGeneric, err)
 
 	dao := &MyGenericDaoDynamodb{}

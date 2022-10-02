@@ -3,7 +3,7 @@ SQLite Dao example.
 
 $ go run examples_sqlite.go
 
-SQLite Dao implementation guideline:
+SQLite DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	  (already implemented by common.DaoAppSql)
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/btnguyen2k/godal"
@@ -34,11 +34,10 @@ type DaoAppSqlite struct {
 }
 
 // NewDaoAppSqlite is helper function to create SQLite-implementation of IDaoApp.
-func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppSqlite(sqlC *promsql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppSqlite{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorSqlite)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{
 		NameTransformation: sql.NameTransfLowerCase,
 		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
@@ -47,7 +46,7 @@ func NewDaoAppSqlite(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForSqlite() *prom.SqlConnect {
+func createSqlConnectForSqlite() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("SQLITE_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("SQLITE_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,13 +60,13 @@ func createSqlConnectForSqlite() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorSqlite)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
@@ -75,7 +74,7 @@ func createSqlConnectForSqlite() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataSqlite(sqlC *prom.SqlConnect, table string) {
+func initDataSqlite(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {

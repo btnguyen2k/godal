@@ -3,7 +3,7 @@ PostgreSQL Dao example.
 
 $ go run examples_pgsql.go
 
-PostgreSQL Dao implementation guideline:
+PostgreSQL DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	  (already implemented by common.DaoAppSql)
@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 	_ "github.com/jackc/pgx/v4/stdlib"
 
 	"github.com/btnguyen2k/godal"
@@ -34,11 +34,10 @@ type DaoAppPgsql struct {
 }
 
 // NewDaoAppPgsql is helper function to create PostgreSQL-implementation of IDaoApp.
-func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppPgsql(sqlC *promsql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppPgsql{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlC, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorPgSql)
 	dao.SetRowMapper(&sql.GenericRowMapperSql{
 		NameTransformation: sql.NameTransfLowerCase,
 		ColumnsListMap:     map[string][]string{tableName: common.ColsSql}})
@@ -47,7 +46,7 @@ func NewDaoAppPgsql(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForPgsql() *prom.SqlConnect {
+func createSqlConnectForPgsql() *promsql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("PGSQL_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("PGSQL_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,13 +60,13 @@ func createSqlConnectForPgsql() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorPgSql)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
@@ -75,7 +74,7 @@ func createSqlConnectForPgsql() *prom.SqlConnect {
 	return sqlConnect
 }
 
-func initDataPgsql(sqlC *prom.SqlConnect, table string) {
+func initDataPgsql(sqlC *promsql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {

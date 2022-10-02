@@ -14,13 +14,13 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/dynamodb"
 
 	"github.com/btnguyen2k/godal"
-	gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
+	godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 	dynamodbGenericFieldActived  = "actived"
 )
 
-func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
+func createAwsDynamodbConnectGeneric() *dynamodb.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -47,24 +47,24 @@ func createAwsDynamodbConnectGeneric() *prom.AwsDynamodbConnect {
 			cfg.DisableSSL = aws.Bool(true)
 		}
 	}
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	adc, err := dynamodb.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		panic(err)
 	}
 	return adc
 }
 
-func initDataDynamodbGeneric(adc *prom.AwsDynamodbConnect, tableName, indexName string) {
-	var schema, key []prom.AwsDynamodbNameAndType
+func initDataDynamodbGeneric(adc *dynamodb.AwsDynamodbConnect, tableName, indexName string) {
+	var schema, key []dynamodb.AwsDynamodbNameAndType
 
 	if ok, err := adc.HasTable(nil, tableName); err != nil {
 		panic(err)
 	} else if !ok {
-		schema = []prom.AwsDynamodbNameAndType{
-			{dynamodbGenericFieldId, prom.AwsAttrTypeString},
+		schema = []dynamodb.AwsDynamodbNameAndType{
+			{dynamodbGenericFieldId, dynamodb.AwsAttrTypeString},
 		}
-		key = []prom.AwsDynamodbNameAndType{
-			{dynamodbGenericFieldId, prom.AwsKeyTypePartition},
+		key = []dynamodb.AwsDynamodbNameAndType{
+			{dynamodbGenericFieldId, dynamodb.AwsKeyTypePartition},
 		}
 		if err := adc.CreateTable(nil, tableName, 2, 2, schema, key); err != nil {
 			panic(err)
@@ -80,13 +80,13 @@ func initDataDynamodbGeneric(adc *prom.AwsDynamodbConnect, tableName, indexName 
 	if status, err := adc.GetGlobalSecondaryIndexStatus(nil, tableName, indexName); err != nil {
 		panic(err)
 	} else if status == "" {
-		schema = []prom.AwsDynamodbNameAndType{
-			{dynamodbGenericFieldActived, prom.AwsAttrTypeNumber},
-			{dynamodbGenericFieldVersion, prom.AwsAttrTypeNumber},
+		schema = []dynamodb.AwsDynamodbNameAndType{
+			{dynamodbGenericFieldActived, dynamodb.AwsAttrTypeNumber},
+			{dynamodbGenericFieldVersion, dynamodb.AwsAttrTypeNumber},
 		}
-		key = []prom.AwsDynamodbNameAndType{
-			{dynamodbGenericFieldActived, prom.AwsKeyTypePartition},
-			{dynamodbGenericFieldVersion, prom.AwsKeyTypeSort},
+		key = []dynamodb.AwsDynamodbNameAndType{
+			{dynamodbGenericFieldActived, dynamodb.AwsKeyTypePartition},
+			{dynamodbGenericFieldVersion, dynamodb.AwsKeyTypeSort},
 		}
 		if err := adc.CreateGlobalSecondaryIndex(nil, tableName, indexName, 1, 1, schema, key); err != nil {
 			panic(err)
@@ -101,7 +101,7 @@ func initDataDynamodbGeneric(adc *prom.AwsDynamodbConnect, tableName, indexName 
 
 	// delete all items
 	pkAttrs := []string{dynamodbGenericFieldId}
-	adc.ScanItemsWithCallback(nil, tableName, nil, prom.AwsDynamodbNoIndex, nil, func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+	adc.ScanItemsWithCallback(nil, tableName, nil, dynamodb.AwsDynamodbNoIndex, nil, func(item dynamodb.AwsDynamodbItem, lastEvaluatedKey map[string]*awsdynamodb.AttributeValue) (b bool, e error) {
 		keyFilter := make(map[string]interface{})
 		for _, v := range pkAttrs {
 			keyFilter[v] = item[v]
@@ -116,7 +116,7 @@ func initDataDynamodbGeneric(adc *prom.AwsDynamodbConnect, tableName, indexName 
 }
 
 type myGenericDaoDynamodb struct {
-	*gdaodynamodb.GenericDaoDynamodb
+	*godaldynamodb.GenericDaoDynamodb
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
@@ -125,10 +125,10 @@ func (dao *myGenericDaoDynamodb) GdaoCreateFilter(table string, bo godal.IGeneri
 	return godal.MakeFilter(map[string]interface{}{dynamodbGenericFieldId: id})
 }
 
-func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal.IGenericDao {
+func newGenericDaoDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) godal.IGenericDao {
 	dao := &myGenericDaoDynamodb{}
-	dao.GenericDaoDynamodb = gdaodynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-	dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {dynamodbGenericFieldId}}})
+	dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+	dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {dynamodbGenericFieldId}}})
 	return dao
 }
 

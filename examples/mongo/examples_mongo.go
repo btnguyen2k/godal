@@ -3,7 +3,7 @@ MongoDB Dao example. Run with command:
 
 $ go run examples_mongo.go
 
-MongoDB Dao implementation guideline:
+MongoDB DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -21,24 +21,24 @@ import (
 
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	prommongo "github.com/btnguyen2k/prom/mongo"
 
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/mongo"
+	godalmongo "github.com/btnguyen2k/godal/mongo"
 )
 
 const mongoFieldId = "_id"
 
 // DaoAppMongodb is MongoDB-implementation of IDaoApp.
 type DaoAppMongodb struct {
-	*mongo.GenericDaoMongo
+	*godalmongo.GenericDaoMongo
 	collectionName string
 }
 
 // NewDaoAppMongodb is helper function to create MongoDB-implementation of IDaoApp.
-func NewDaoAppMongodb(mc *prom.MongoConnect, collectionName string) common.IDaoApp {
+func NewDaoAppMongodb(mc *prommongo.MongoConnect, collectionName string) common.IDaoApp {
 	dao := &DaoAppMongodb{collectionName: collectionName}
-	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+	dao.GenericDaoMongo = godalmongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
 	return dao
 }
 
@@ -164,13 +164,13 @@ func (dao *DaoAppMongodb) GetN(startOffset, numRows int) ([]*common.BoApp, error
 }
 
 /*----------------------------------------------------------------------*/
-func createMongoConnect() *prom.MongoConnect {
+func createMongoConnect() *prommongo.MongoConnect {
 	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
 	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
 	if mongoUrl == "" || mongoDb == "" {
 		panic("Please define env MONGO_URL, MONGO_DB")
 	}
-	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	mc, err := prommongo.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -181,12 +181,12 @@ func createMongoConnect() *prom.MongoConnect {
 	return mc
 }
 
-func initDataMongo(mc *prom.MongoConnect, collection string) {
+func initDataMongo(mc *prommongo.MongoConnect, collection string) {
 	err := mc.GetCollection(collection).Drop(nil)
 	if err != nil {
 		panic(err)
 	}
-	_, err = mc.CreateCollection(collection)
+	err = mc.CreateCollection(collection)
 	if err != nil {
 		panic(err)
 	}

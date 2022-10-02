@@ -3,7 +3,7 @@ AWS DynamoDB example. Run with command:
 
 $ go run examples_dynamodb.go
 
-AWS DynamoDB Dao implementation guideline:
+AWS DynamoDB DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -21,26 +21,26 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/dynamodb"
 
 	"github.com/btnguyen2k/godal"
-	gdaodynamod "github.com/btnguyen2k/godal/dynamodb"
+	godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
 )
 
 // DaoAppDynamodb is DynamoDB-implementation of IDaoApp.
 type DaoAppDynamodb struct {
-	*gdaodynamod.GenericDaoDynamodb
+	*godaldynamodb.GenericDaoDynamodb
 	tableName string
 }
 
 // NewDaoAppDynamodb is a helper function to create DynamoDB-implementation of IDaoApp.
-func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) common.IDaoApp {
+func NewDaoAppDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppDynamodb{tableName: tableName}
-	dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-	dao.SetRowMapper(&gdaodynamod.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
+	dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+	dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
 	return dao
 }
 
@@ -166,7 +166,7 @@ func (dao *DaoAppDynamodb) GetN(startOffset, numRows int) ([]*common.BoApp, erro
 }
 
 /*----------------------------------------------------------------------*/
-func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
+func createAwsDynamodbConnect() *dynamodb.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -183,24 +183,24 @@ func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
 			cfg.DisableSSL = aws.Bool(true)
 		}
 	}
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	adc, err := dynamodb.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		panic(err)
 	}
 	return adc
 }
 
-func initDataDynamodb(adc *prom.AwsDynamodbConnect, tableName string) {
-	var schema, key []prom.AwsDynamodbNameAndType
+func initDataDynamodb(adc *dynamodb.AwsDynamodbConnect, tableName string) {
+	var schema, key []dynamodb.AwsDynamodbNameAndType
 
 	if ok, err := adc.HasTable(nil, tableName); err != nil {
 		panic(err)
 	} else if !ok {
-		schema = []prom.AwsDynamodbNameAndType{
-			{"id", prom.AwsAttrTypeString},
+		schema = []dynamodb.AwsDynamodbNameAndType{
+			{"id", dynamodb.AwsAttrTypeString},
 		}
-		key = []prom.AwsDynamodbNameAndType{
-			{"id", prom.AwsKeyTypePartition},
+		key = []dynamodb.AwsDynamodbNameAndType{
+			{"id", dynamodb.AwsKeyTypePartition},
 		}
 		if err := adc.CreateTable(nil, tableName, 2, 2, schema, key); err != nil {
 			panic(err)
@@ -215,7 +215,7 @@ func initDataDynamodb(adc *prom.AwsDynamodbConnect, tableName string) {
 
 	// delete all items
 	pkAttrs := []string{"id"}
-	adc.ScanItemsWithCallback(nil, tableName, nil, prom.AwsDynamodbNoIndex, nil, func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+	adc.ScanItemsWithCallback(nil, tableName, nil, dynamodb.AwsDynamodbNoIndex, nil, func(item dynamodb.AwsDynamodbItem, lastEvaluatedKey map[string]*awsdynamodb.AttributeValue) (b bool, e error) {
 		keyFilter := make(map[string]interface{})
 		for _, v := range pkAttrs {
 			keyFilter[v] = item[v]
