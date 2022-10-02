@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 )
 
 func TestNewPlaceholderGeneratorQuestion(t *testing.T) {
@@ -261,15 +261,15 @@ func TestFilterBetween(t *testing.T) {
 
 func Test_DeleteBuilder(t *testing.T) {
 	name := "Test_DeleteBuilder"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	expectedSql := map[prom.DbFlavor]string{
-		prom.FlavorPgSql:    "DELETE FROM mytable WHERE (field1 > $1) AND (field2 = $2)",
-		prom.FlavorCosmosDb: "DELETE FROM mytable WHERE (field1 > $1) AND (field2 = $2)",
-		prom.FlavorMsSql:    "DELETE FROM mytable WHERE (field1 > @p1) AND (field2 = @p2)",
-		prom.FlavorOracle:   "DELETE FROM mytable WHERE (field1 > :1) AND (field2 = :2)",
-		prom.FlavorMySql:    "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
-		prom.FlavorSqlite:   "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
-		prom.FlavorDefault:  "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "DELETE FROM mytable WHERE (field1 > $1) AND (field2 = $2)",
+		sql.FlavorCosmosDb: "DELETE FROM mytable WHERE (field1 > $1) AND (field2 = $2)",
+		sql.FlavorMsSql:    "DELETE FROM mytable WHERE (field1 > @p1) AND (field2 = @p2)",
+		sql.FlavorOracle:   "DELETE FROM mytable WHERE (field1 > :1) AND (field2 = :2)",
+		sql.FlavorMySql:    "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorSqlite:   "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorDefault:  "DELETE FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
 	}
 	for _, flavor := range flavorList {
 		builder := NewDeleteBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).WithTable("mytable")
@@ -288,15 +288,15 @@ func Test_DeleteBuilder(t *testing.T) {
 
 func Test_InsertBuilder(t *testing.T) {
 	name := "Test_InsertBuilder"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	expectedSql := map[prom.DbFlavor]string{
-		prom.FlavorPgSql:    "INSERT INTO mytable (field1,field2) VALUES ($1,$2)",
-		prom.FlavorCosmosDb: "INSERT INTO mytable (field1,field2) VALUES ($1,$2)",
-		prom.FlavorMsSql:    "INSERT INTO mytable (field1,field2) VALUES (@p1,@p2)",
-		prom.FlavorOracle:   "INSERT INTO mytable (field1,field2) VALUES (:1,:2)",
-		prom.FlavorMySql:    "INSERT INTO mytable (field1,field2) VALUES (?,?)",
-		prom.FlavorSqlite:   "INSERT INTO mytable (field1,field2) VALUES (?,?)",
-		prom.FlavorDefault:  "INSERT INTO mytable (field1,field2) VALUES (?,?)",
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "INSERT INTO mytable (field1,field2) VALUES ($1,$2)",
+		sql.FlavorCosmosDb: "INSERT INTO mytable (field1,field2) VALUES ($1,$2)",
+		sql.FlavorMsSql:    "INSERT INTO mytable (field1,field2) VALUES (@p1,@p2)",
+		sql.FlavorOracle:   "INSERT INTO mytable (field1,field2) VALUES (:1,:2)",
+		sql.FlavorMySql:    "INSERT INTO mytable (field1,field2) VALUES (?,?)",
+		sql.FlavorSqlite:   "INSERT INTO mytable (field1,field2) VALUES (?,?)",
+		sql.FlavorDefault:  "INSERT INTO mytable (field1,field2) VALUES (?,?)",
 	}
 	for _, flavor := range flavorList {
 		builder := NewInsertBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).
@@ -310,15 +310,15 @@ func Test_InsertBuilder(t *testing.T) {
 
 func Test_UpdateBuilder_NoFilter(t *testing.T) {
 	name := "Test_UpdateBuilder_NoFilter"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	expectedSql := map[prom.DbFlavor]string{
-		prom.FlavorPgSql:    "UPDATE mytable SET field1=$1,field2=$2",
-		prom.FlavorCosmosDb: "UPDATE mytable SET field1=$1,field2=$2",
-		prom.FlavorMsSql:    "UPDATE mytable SET field1=@p1,field2=@p2",
-		prom.FlavorOracle:   "UPDATE mytable SET field1=:1,field2=:2",
-		prom.FlavorMySql:    "UPDATE mytable SET field1=?,field2=?",
-		prom.FlavorSqlite:   "UPDATE mytable SET field1=?,field2=?",
-		prom.FlavorDefault:  "UPDATE mytable SET field1=?,field2=?",
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "UPDATE mytable SET field1=$1,field2=$2",
+		sql.FlavorCosmosDb: "UPDATE mytable SET field1=$1,field2=$2",
+		sql.FlavorMsSql:    "UPDATE mytable SET field1=@p1,field2=@p2",
+		sql.FlavorOracle:   "UPDATE mytable SET field1=:1,field2=:2",
+		sql.FlavorMySql:    "UPDATE mytable SET field1=?,field2=?",
+		sql.FlavorSqlite:   "UPDATE mytable SET field1=?,field2=?",
+		sql.FlavorDefault:  "UPDATE mytable SET field1=?,field2=?",
 	}
 	for _, flavor := range flavorList {
 		builder := NewUpdateBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).WithTable("mytable")
@@ -338,15 +338,15 @@ func Test_UpdateBuilder_NoFilter(t *testing.T) {
 
 func Test_UpdateBuilder_WithFilter(t *testing.T) {
 	name := "Test_UpdateBuilder_NoWhere"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	expectedSql := map[prom.DbFlavor]string{
-		prom.FlavorPgSql:    "UPDATE mytable SET field1=$1,field2=$2 WHERE (field1 > $3) AND (field2 = $4)",
-		prom.FlavorCosmosDb: "UPDATE mytable SET field1=$1,field2=$2 WHERE (field1 > $3) AND (field2 = $4)",
-		prom.FlavorMsSql:    "UPDATE mytable SET field1=@p1,field2=@p2 WHERE (field1 > @p3) AND (field2 = @p4)",
-		prom.FlavorOracle:   "UPDATE mytable SET field1=:1,field2=:2 WHERE (field1 > :3) AND (field2 = :4)",
-		prom.FlavorMySql:    "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
-		prom.FlavorSqlite:   "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
-		prom.FlavorDefault:  "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "UPDATE mytable SET field1=$1,field2=$2 WHERE (field1 > $3) AND (field2 = $4)",
+		sql.FlavorCosmosDb: "UPDATE mytable SET field1=$1,field2=$2 WHERE (field1 > $3) AND (field2 = $4)",
+		sql.FlavorMsSql:    "UPDATE mytable SET field1=@p1,field2=@p2 WHERE (field1 > @p3) AND (field2 = @p4)",
+		sql.FlavorOracle:   "UPDATE mytable SET field1=:1,field2=:2 WHERE (field1 > :3) AND (field2 = :4)",
+		sql.FlavorMySql:    "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorSqlite:   "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorDefault:  "UPDATE mytable SET field1=?,field2=? WHERE (field1 > ?) AND (field2 = ?)",
 	}
 	for _, flavor := range flavorList {
 		filter := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 2}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "b"})
@@ -367,15 +367,15 @@ func Test_UpdateBuilder_WithFilter(t *testing.T) {
 
 func Test_SelectBuilder(t *testing.T) {
 	name := "Test_SelectBuilder"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	expectedSql := map[prom.DbFlavor]string{
-		prom.FlavorPgSql:    "SELECT a,b,c FROM mytable WHERE (field1 > $1) AND (field2 = $2) GROUP BY cola,colb HAVING (cola > $3) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 3 OFFSET 5",
-		prom.FlavorCosmosDb: "SELECT c.a,c.b,c.c FROM mytable c WHERE (c.field1 > $1) AND (c.field2 = $2) GROUP BY c.cola,c.colb HAVING (c.cola > $3) OR (colb = b) ORDER BY c.a,c.b DESC,c.c desc OFFSET 5 LIMIT 3 WITH cross_partition=true",
-		prom.FlavorMsSql:    "SELECT a,b,c FROM mytable WHERE (field1 > @p1) AND (field2 = @p2) GROUP BY cola,colb HAVING (cola > @p3) OR (colb = b) ORDER BY a,b DESC,c desc OFFSET 5 ROWS FETCH NEXT 3 ROWS ONLY",
-		prom.FlavorOracle:   "SELECT a,b,c FROM mytable WHERE (field1 > :1) AND (field2 = :2) GROUP BY cola,colb HAVING (cola > :3) OR (colb = b) ORDER BY a,b DESC,c desc OFFSET 5 ROWS FETCH NEXT 3 ROWS ONLY",
-		prom.FlavorMySql:    "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 5,3",
-		prom.FlavorSqlite:   "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 5,3",
-		prom.FlavorDefault:  "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc",
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT a,b,c FROM mytable WHERE (field1 > $1) AND (field2 = $2) GROUP BY cola,colb HAVING (cola > $3) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 3 OFFSET 5",
+		sql.FlavorCosmosDb: "SELECT c.a,c.b,c.c FROM mytable c WHERE (c.field1 > $1) AND (c.field2 = $2) GROUP BY c.cola,c.colb HAVING (c.cola > $3) OR (colb = b) ORDER BY c.a,c.b DESC,c.c desc OFFSET 5 LIMIT 3 WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT a,b,c FROM mytable WHERE (field1 > @p1) AND (field2 = @p2) GROUP BY cola,colb HAVING (cola > @p3) OR (colb = b) ORDER BY a,b DESC,c desc OFFSET 5 ROWS FETCH NEXT 3 ROWS ONLY",
+		sql.FlavorOracle:   "SELECT a,b,c FROM mytable WHERE (field1 > :1) AND (field2 = :2) GROUP BY cola,colb HAVING (cola > :3) OR (colb = b) ORDER BY a,b DESC,c desc OFFSET 5 ROWS FETCH NEXT 3 ROWS ONLY",
+		sql.FlavorMySql:    "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 5,3",
+		sql.FlavorSqlite:   "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc LIMIT 5,3",
+		sql.FlavorDefault:  "SELECT a,b,c FROM mytable WHERE (field1 > ?) AND (field2 = ?) GROUP BY cola,colb HAVING (cola > ?) OR (colb = b) ORDER BY a,b DESC,c desc",
 	}
 	for _, flavor := range flavorList {
 		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
@@ -413,7 +413,7 @@ func Test_SelectBuilder(t *testing.T) {
 
 func Test_SelectBuilderCosmosdb(t *testing.T) {
 	name := "Test_SelectBuilderCosmosdb"
-	flavor := prom.FlavorCosmosDb
+	flavor := sql.FlavorCosmosDb
 	expectedSql := "SELECT m.a,m.b,m.c FROM mytable m WHERE (m.field1 > $1) AND (m.field2 = $2) GROUP BY m.cola,m.colb HAVING (m.cola > $3) OR (colb = b) ORDER BY m.a,m.b DESC,m.c desc OFFSET 5 LIMIT 3 WITH cross_partition=true"
 	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
 	builder := NewSelectBuilder().WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion()).WithFlavor(flavor).

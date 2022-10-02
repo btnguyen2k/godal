@@ -10,20 +10,20 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	prommongo "github.com/btnguyen2k/prom/mongo"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/mongo"
 )
 
-// convenient function to create prom.MongoConnect instance
-func createMongoConnect() *prom.MongoConnect {
+// convenient function to create prommongo.MongoConnect instance
+func createMongoConnect() *prommongo.MongoConnect {
 	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
 	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
 	if mongoUrl == "" || mongoDb == "" {
 		panic("Please define env MONGO_URL, MONGO_DB")
 	}
-	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	mc, err := prommongo.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -35,10 +35,10 @@ func createMongoConnect() *prom.MongoConnect {
 }
 
 // convenient function to create UserDaoMongo instance
-func createUserDaoMongo(mgc *prom.MongoConnect, collectionName string, rowMapper godal.IRowMapper) IUserDao {
+func createUserDaoMongo(mgc *prommongo.MongoConnect, collectionName string, rowMapper godal.IRowMapper) IUserDao {
 	err := mgc.GetCollection(collectionName).Drop(nil)
 	fmt.Printf("[INFO] Dropped collection %s: %s\n", collectionName, err)
-	_, err = mgc.CreateCollection(collectionName)
+	err = mgc.CreateCollection(collectionName)
 	fmt.Printf("[INFO] Created collection %s: %s\n", collectionName, err)
 
 	dao := &UserDaoMongo{collectionName: collectionName}

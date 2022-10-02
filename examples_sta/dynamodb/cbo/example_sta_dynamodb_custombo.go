@@ -12,14 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/dynamodb"
 )
 
-// convenient function to create prom.AwsDynamodbConnect instance
-func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
+// convenient function to create promdynamodb.AwsDynamodbConnect instance
+func createAwsDynamodbConnect() *promdynamodb.AwsDynamodbConnect {
 	awsRegion := strings.ReplaceAll(os.Getenv("AWS_REGION"), `"`, "")
 	awsAccessKeyId := strings.ReplaceAll(os.Getenv("AWS_ACCESS_KEY_ID"), `"`, "")
 	awsSecretAccessKey := strings.ReplaceAll(os.Getenv("AWS_SECRET_ACCESS_KEY"), `"`, "")
@@ -36,7 +36,7 @@ func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
 			cfg.DisableSSL = aws.Bool(true)
 		}
 	}
-	adc, err := prom.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
+	adc, err := promdynamodb.NewAwsDynamodbConnect(cfg, nil, nil, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -44,12 +44,12 @@ func createAwsDynamodbConnect() *prom.AwsDynamodbConnect {
 }
 
 // convenient function to create UserDaoDynamodb instance
-func createUserDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string, rowMapper godal.IRowMapper) IUserDao {
+func createUserDaoDynamodb(adc *promdynamodb.AwsDynamodbConnect, tableName string, rowMapper godal.IRowMapper) IUserDao {
 	err := adc.DeleteTable(nil, tableName)
 	fmt.Printf("[INFO] Deleted table %s: %s\n", tableName, err)
 	err = adc.CreateTable(nil, tableName, 1, 1,
-		[]prom.AwsDynamodbNameAndType{{Name: fieldUserId, Type: prom.AwsAttrTypeString}},
-		[]prom.AwsDynamodbNameAndType{{Name: fieldUserId, Type: prom.AwsKeyTypePartition}})
+		[]promdynamodb.AwsDynamodbNameAndType{{Name: fieldUserId, Type: promdynamodb.AwsAttrTypeString}},
+		[]promdynamodb.AwsDynamodbNameAndType{{Name: fieldUserId, Type: promdynamodb.AwsKeyTypePartition}})
 	fmt.Printf("[INFO] Created table %s: %s\n", tableName, err)
 
 	dao := &UserDaoDynamodb{tableName: tableName}

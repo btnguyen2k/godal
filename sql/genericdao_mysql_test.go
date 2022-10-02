@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func prepareTableMysql(sqlc *prom.SqlConnect, table string) error {
+func prepareTableMysql(sqlc *sql.SqlConnect, table string) error {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		return err
@@ -35,145 +35,199 @@ const (
 )
 
 func TestGenericDaoMysql_SetGetSqlConnect(t *testing.T) {
-	name := "TestGenericDaoMysql_SetGetSqlConnect"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
-	sqlc, _ := newSqlConnect(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTimeZone, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_SetGetSqlConnect"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.sqlConnect.Close()
+
+	sqlc, _ := _newSqlConnect(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTimeZone, sql.FlavorMySql)
+	defer sqlc.Close()
 	if sqlc == dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should not equal", name)
+		t.Fatalf("%s failed: should not equal", testName)
 	}
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should equal", name)
+		t.Fatalf("%s failed: should equal", testName)
 	}
 }
 
 func TestGenericDaoMysql_StartTx(t *testing.T) {
-	name := "TestGenericDaoMysql_StartTx"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_StartTx"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
-		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
+		t.Fatalf("%s failed: %#v / %#v", testName, tx, err)
 	}
 }
 
 func TestGenericDaoMysql_GdaoDelete(t *testing.T) {
-	name := "TestGenericDaoSql_GdaoDelete"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoSql_GdaoDelete"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoDelete(t, name, dao)
+	dotestGenericDaoSqlGdaoDelete(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoDeleteMany(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoDeleteMany(t, name, dao)
+	dotestGenericDaoSqlGdaoDeleteMany(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoFetchOne(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoFetchOne(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchOne(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoFetchMany(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoFetchMany"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoFetchMany"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoFetchMany(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchMany(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoCreate(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoCreate"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoCreate"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoCreate(t, name, dao)
+	dotestGenericDaoSqlGdaoCreate(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoUpdate(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoUpdate"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoUpdate"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoUpdate(t, name, dao)
+	dotestGenericDaoSqlGdaoUpdate(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoSave(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoSave"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoSave"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoMysql_GdaoSaveTxModeOnWrite(t *testing.T) {
-	name := "TestGenericDaoMysql_GdaoSaveTxModeOnWrite"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_GdaoSaveTxModeOnWrite"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
 	dao.SetTxModeOnWrite(true)
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoMysql_Tx(t *testing.T) {
-	name := "TestGenericDaoMysql_Tx"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_Tx"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlTx(t, name, dao)
+	dotestGenericDaoSqlTx(t, testName, dao)
 }
 
 func TestGenericDaoMysql_FilterNull(t *testing.T) {
-	name := "TestGenericDaoMysql_FilterNull"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_FilterNull"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, testName, dao)
 }
 
 func TestGenericDaoMysql_FilterNotNull(t *testing.T) {
-	name := "TestGenericDaoMysql_FilterNotNull"
-	dao := initDao(t, name, os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, prom.FlavorMySql)
+	testName := "TestGenericDaoMysql_FilterNotNull"
+	dao := _initDao(os.Getenv(envMysqlDriver), os.Getenv(envMysqlUrl), testTableName, sql.FlavorMySql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+	
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMysql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }

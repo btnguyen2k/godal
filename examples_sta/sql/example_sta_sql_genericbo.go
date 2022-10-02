@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
@@ -30,9 +30,9 @@ CREATE TABLE test_user (
 )
 */
 
-// convenient function to create prom.SqlConnect instance (for PostgreSQL)
+// convenient function to create promsql.SqlConnect instance (for PostgreSQL)
 // it is highly recommended to provide a timezone setting (e.g. "Asia/Ho_Chi_Minh")
-func createPgsqlConnect() *prom.SqlConnect {
+func createPgsqlConnect() *promsql.SqlConnect {
 	// driver := strings.ReplaceAll(os.Getenv("PGSQL_DRIVER"), `"`, "")
 	driver := "pgx"
 	dsn := strings.ReplaceAll(os.Getenv("PGSQL_URL"), `"`, "")
@@ -47,33 +47,30 @@ func createPgsqlConnect() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${loc}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorPgSql)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
-	sqlConnect.SetDbFlavor(prom.FlavorPgSql)
 	return sqlConnect
 }
 
 // convenient function to create MyGenericDaoSql instance
-func createMyGenericDaoSql(sqlc *prom.SqlConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+func createMyGenericDaoSql(sqlc *promsql.SqlConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
 	_, err := sqlc.GetDB().Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableUserGeneric))
 	fmt.Printf("[INFO] Dropped table %s: %s\n", tableUserGeneric, err)
 	_, err = sqlc.GetDB().Exec(fmt.Sprintf("CREATE TABLE %s (uid\tVARCHAR(32),uusername\tVARCHAR(64),uname\tVARCHAR(96),uversion\tINT,uactived\tINT,PRIMARY KEY (uid))", tableUserGeneric))
 	fmt.Printf("[INFO] Created table %s: %s\n", tableUserGeneric, err)
 
 	dao := &MyGenericDaoSql{}
-	// dao.GenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
 	dao.IGenericDaoSql = sql.NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
 	dao.SetRowMapper(rowMapper)
-	dao.SetSqlFlavor(sqlc.GetDbFlavor())
 	return dao
 }
 
@@ -119,7 +116,7 @@ func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGeneric
 }
 
 func main() {
-	// create new prom.SqlConnect
+	// create new promsql.SqlConnect
 	sqlc := createPgsqlConnect()
 
 	rowMapper := &sql.GenericRowMapperSql{

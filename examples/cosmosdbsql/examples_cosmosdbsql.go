@@ -3,7 +3,7 @@ Azure Cosmos DB Dao example.
 
 $ go run examples_cosmosdbsql.go
 
-Azure Cosmos DB Dao implementation guideline:
+Azure Cosmos DB DAO implementation guideline:
 
 	- Must implement method godal.IGenericDao.GdaoCreateFilter(storageId string, bo godal.IGenericBo) interface{}
 	- If application uses its own BOs instead of godal.IGenericBo, it is recommended to implement a utility method
@@ -15,13 +15,14 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/btnguyen2k/gocosmos"
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 
 	"github.com/btnguyen2k/godal"
 	"github.com/btnguyen2k/godal/cosmosdbsql"
@@ -33,20 +34,19 @@ type DaoAppCosmosdb struct {
 }
 
 // NewDaoAppCosmosdb is helper function to create AzureCosmosDB-implementation of IDaoApp.
-func NewDaoAppCosmosdb(sqlC *prom.SqlConnect, tableName string) common.IDaoApp {
+func NewDaoAppCosmosdb(sqlC *sql.SqlConnect, tableName string) common.IDaoApp {
 	dao := &DaoAppCosmosdb{}
 	dao.DaoAppSql = &common.DaoAppSql{TableName: tableName}
 	inner := cosmosdbsql.NewGenericDaoCosmosdb(sqlC, godal.NewAbstractGenericDao(dao))
 	inner.CosmosSetPkGboMapPath(map[string]string{tableName: "id"})
 	dao.IGenericDaoSql = inner
-	dao.SetSqlFlavor(prom.FlavorCosmosDb)
 	dao.SetRowMapper(cosmosdbsql.GenericRowMapperCosmosdbInstance)
 	return dao
 }
 
 /*----------------------------------------------------------------------*/
 
-func createSqlConnectForCosmosdb() *prom.SqlConnect {
+func createSqlConnectForCosmosdb() *sql.SqlConnect {
 	driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
 	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -61,26 +61,32 @@ func createSqlConnectForCosmosdb() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 
-	dsn += ";Db=godal"
+	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
+	db := "godal"
+	if result := dbre.FindAllStringSubmatch(dsn, -1); result != nil {
+		db = result[0][1]
+	} else {
+		dsn += ";Db=" + db
+	}
 
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := sql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, sql.FlavorCosmosDb)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [sql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
 
-	sqlConnect.GetDB().Exec(`CREATE DATABASE IF NOT EXISTS godal WITH maxru=10000`)
+	sqlConnect.GetDB().Exec(`CREATE DATABASE IF NOT EXISTS "+db+" WITH maxru=10000`)
 
 	return sqlConnect
 }
 
-func initDataCosmosdb(sqlC *prom.SqlConnect, table string) {
+func initDataCosmosdb(sqlC *sql.SqlConnect, table string) {
 	sql := fmt.Sprintf("DROP COLLECTION IF EXISTS %s", table)
 	_, err := sqlC.GetDB().Exec(sql)
 	if err != nil {
@@ -129,7 +135,6 @@ func demoCosmosdbInsertRows(loc *time.Location, table string, txMode bool) {
 	result, err := dao.Create(&bo)
 	if err != nil {
 		panic(err)
-		// fmt.Printf("\t\tError: %s\n", err)
 	} else {
 		fmt.Printf("\t\tResult: %v\n", result)
 	}

@@ -15,10 +15,10 @@ import (
 
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal/examples/common"
-	"github.com/btnguyen2k/prom"
+	prommongo "github.com/btnguyen2k/prom/mongo"
 
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/godal/mongo"
+	godalmongo "github.com/btnguyen2k/godal/mongo"
 )
 
 const (
@@ -27,13 +27,13 @@ const (
 	mongoGenericFieldId = "_id"
 )
 
-func createMongoConnectGeneric() *prom.MongoConnect {
+func createMongoConnectGeneric() *prommongo.MongoConnect {
 	mongoUrl := strings.ReplaceAll(os.Getenv("MONGO_URL"), `"`, "")
 	mongoDb := strings.ReplaceAll(os.Getenv("MONGO_DB"), `"`, "")
 	if mongoUrl == "" || mongoDb == "" {
 		panic("Please define env MONGO_URL, MONGO_DB")
 	}
-	mc, err := prom.NewMongoConnect(mongoUrl, mongoDb, 10000)
+	mc, err := prommongo.NewMongoConnect(mongoUrl, mongoDb, 10000)
 	if err != nil {
 		panic(err)
 	}
@@ -44,19 +44,19 @@ func createMongoConnectGeneric() *prom.MongoConnect {
 	return mc
 }
 
-func initDataMongoGeneric(mc *prom.MongoConnect, collection string) {
+func initDataMongoGeneric(mc *prommongo.MongoConnect, collection string) {
 	err := mc.GetCollection(collection).Drop(nil)
 	if err != nil {
 		panic(err)
 	}
-	_, err = mc.CreateCollection(collection)
+	err = mc.CreateCollection(collection)
 	if err != nil {
 		panic(err)
 	}
 }
 
 type myGenericDaoMongo struct {
-	*mongo.GenericDaoMongo
+	*godalmongo.GenericDaoMongo
 }
 
 // GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
@@ -65,9 +65,9 @@ func (dao *myGenericDaoMongo) GdaoCreateFilter(storageId string, bo godal.IGener
 	return godal.MakeFilter(map[string]interface{}{mongoGenericFieldId: id})
 }
 
-func newGenericDaoMongo(mc *prom.MongoConnect, txMode bool) godal.IGenericDao {
+func newGenericDaoMongo(mc *prommongo.MongoConnect, txMode bool) godal.IGenericDao {
 	dao := &myGenericDaoMongo{}
-	dao.GenericDaoMongo = mongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
+	dao.GenericDaoMongo = godalmongo.NewGenericDaoMongo(mc, godal.NewAbstractGenericDao(dao))
 	dao.SetTxModeOnWrite(txMode)
 	return dao
 }

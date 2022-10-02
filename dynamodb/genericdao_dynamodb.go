@@ -3,29 +3,29 @@ Package dynamodb provides a generic AWS DynamoDB implementation of godal.IGeneri
 
 General guideline:
 
-	- Dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
 	- Row-mapper's function 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
 
 Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 
-	- Define a dao struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
-	- Use a row-mapper whose 'ColumnsList(table string) []string' must return all attribute names of specified table's primary key.
-	- Optionally, create a helper function to create dao instances.
+	- Define a DAO struct that implements IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt.
+	- Use a row-mapper whose 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
+	- Optionally, create a helper function to create DAO instances.
 
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
 		//"github.com/aws/aws-sdk-go/aws/credentials"
-		//"github.com/aws/aws-sdk-go/service/dynamodb"
+		//awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
-		"github.com/btnguyen2k/prom"
+		godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
+		promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 	)
 
 	type myGenericDaoDynamodb struct {
-		*gdaodynamodb.GenericDaoDynamodb
+		*godaldynamodb.GenericDaoDynamodb
 	}
 
 	// GdaoCreateFilter implements godal.IGenericDao.GdaoCreateFilter.
@@ -35,32 +35,32 @@ Guideline: Use GenericDaoDynamodb (and godal.IGenericBo) directly
 	}
 
 	// newGenericDaoDynamodb is convenient method to create myGenericDaoDynamodb instances.
-	func newGenericDaoDynamodb(adc *prom.AwsDynamodbConnect, tableName string) godal.IGenericDao {
+	func newGenericDaoDynamodb(adc *promdynamodb.AwsDynamodbConnect, tableName string) godal.IGenericDao {
 		dao := &myGenericDaoDynamodb{}
-		dao.GenericDaoDynamodb = gdaodynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
+		dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+		dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {fieldId}}})
 		return dao
 	}
 
 	Since AWS DynamoDB is schema-less, GenericRowMapperDynamodb should be sufficient. However, it must be configured so that
 	its function 'ColumnsList(table string) []string' returns all attribute names of specified table's primary key.
 
-Guideline: Implement custom AWS DynamoDB business dao and bo
+Guideline: Implement custom AWS DynamoDB business DAOs and BOs
 
-	- Define and implement the business dao (Note: dao must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
-	- Optionally, create a helper function to create dao instances.
-	- Define functions to transform godal.IGenericBo to business bo and vice versa.
+	- Define and implement the business dao (Note: DAOs must implement IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt).
+	- Optionally, create a helper function to create DAO instances.
+	- Define functions to transform godal.IGenericBo to business BO and vice versa.
 
 	import (
 		//"github.com/aws/aws-sdk-go/aws"
 		//"github.com/aws/aws-sdk-go/aws/credentials"
-		//"github.com/aws/aws-sdk-go/service/dynamodb"
+		//awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 		//"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 
 		"github.com/btnguyen2k/consu/reddo"
 		"github.com/btnguyen2k/godal"
-		gdaodynamodb "github.com/btnguyen2k/godal/dynamodb"
-		"github.com/btnguyen2k/prom"
+		godaldynamodb "github.com/btnguyen2k/godal/dynamodb"
+		promdynamodb "github.com/btnguyen2k/prom/dynamodb"
 	)
 
 	// BoApp defines business object app
@@ -104,15 +104,15 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 
 	// DaoAppDynamodb is AWS DynamoDB-implementation of business dao
 	type DaoAppDynamodb struct {
-		*gdaodynamod.GenericDaoDynamodb
+		*godaldynamodb.GenericDaoDynamodb
 		tableName string
 	}
 
 	// NewDaoAppDynamodb is convenient method to create DaoAppDynamodb instances.
-	func NewDaoAppDynamodb(adc *prom.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
+	func NewDaoAppDynamodb(adc *promdynamodb.AwsDynamodbConnect, tableName string) *NewDaoAppDynamodb {
 		dao := &DaoAppDynamodb{tableName: tableName}
-		dao.GenericDaoDynamodb = gdaodynamod.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
-		dao.SetRowMapper(&gdaodynamod.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
+		dao.GenericDaoDynamodb = godaldynamodb.NewGenericDaoDynamodb(adc, godal.NewAbstractGenericDao(dao))
+		dao.SetRowMapper(&godaldynamodb.GenericRowMapperDynamodb{ColumnsListMap: map[string][]string{tableName: {"id"}}})
 		return dao
 	}
 
@@ -121,7 +121,7 @@ Guideline: Implement custom AWS DynamoDB business dao and bo
 
 See more examples in 'examples' directory on project's GitHub: https://github.com/btnguyen2k/godal/tree/master/examples
 
-To create prom.AwsDynamodbConnect, see package github.com/btnguyen2k/prom
+To create AwsDynamodbConnect instances, see package github.com/btnguyen2k/prom/dynamodb
 */
 package dynamodb
 
@@ -134,11 +134,11 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	awsdynamodb "github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	"github.com/btnguyen2k/consu/reddo"
 	"github.com/btnguyen2k/godal"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/dynamodb"
 )
 
 // GenericRowMapperDynamodb is a generic implementation of godal.IRowMapper for AWS DynamoDB.
@@ -282,7 +282,7 @@ var (
 /*--------------------------------------------------------------------------------*/
 
 // NewGenericDaoDynamodb constructs a new AWS DynamoDB implementation of 'godal.IGenericDao'.
-func NewGenericDaoDynamodb(dynamodbConnect *prom.AwsDynamodbConnect, agdao *godal.AbstractGenericDao) *GenericDaoDynamodb {
+func NewGenericDaoDynamodb(dynamodbConnect *dynamodb.AwsDynamodbConnect, agdao *godal.AbstractGenericDao) *GenericDaoDynamodb {
 	dao := &GenericDaoDynamodb{AbstractGenericDao: agdao, dynamodbConnect: dynamodbConnect}
 	if dao.GetRowMapper() == nil {
 		dao.SetRowMapper(GenericRowMapperDynamodbInstance)
@@ -293,33 +293,33 @@ func NewGenericDaoDynamodb(dynamodbConnect *prom.AwsDynamodbConnect, agdao *goda
 // GenericDaoDynamodb is AWS DynamoDB implementation of godal.IGenericDao.
 //
 // Function implementations (n = No, y = Yes, i = inherited):
-// 	 - (n) GdaoCreateFilter(storageId string, bo godal.IGenericBo) godal.FilterOpt
-// 	 - (y) GdaoDelete(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoDeleteMany(storageId string, filter godal.FilterOpt) (int, error)
-// 	 - (y) GdaoFetchOne(storageId string, filter godal.FilterOpt) (godal.IGenericBo, error)
-// 	 - (y) GdaoFetchMany(storageId string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
-// 	 - (y) GdaoCreate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoUpdate(storageId string, bo godal.IGenericBo) (int, error)
-// 	 - (y) GdaoSave(storageId string, bo godal.IGenericBo) (int, error)
+// 	 - (n) GdaoCreateFilter(tableName string, bo godal.IGenericBo) godal.FilterOpt
+// 	 - (y) GdaoDelete(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoDeleteMany(tableName string, filter godal.FilterOpt) (int, error)
+// 	 - (y) GdaoFetchOne(tableName string, filter godal.FilterOpt) (godal.IGenericBo, error)
+// 	 - (y) GdaoFetchMany(tableName string, filter godal.FilterOpt, sorting *godal.SortingOpt, startOffset, numItems int) ([]godal.IGenericBo, error)
+// 	 - (y) GdaoCreate(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoUpdate(tableName string, bo godal.IGenericBo) (int, error)
+// 	 - (y) GdaoSave(tableName string, bo godal.IGenericBo) (int, error)
 //
 // Available: since v0.2.0
 type GenericDaoDynamodb struct {
 	*godal.AbstractGenericDao
-	dynamodbConnect *prom.AwsDynamodbConnect
+	dynamodbConnect *dynamodb.AwsDynamodbConnect
 }
 
-// GetAwsDynamodbConnect returns the '*prom.AwsDynamodbConnect' instance attached to this DAO.
-func (dao *GenericDaoDynamodb) GetAwsDynamodbConnect() *prom.AwsDynamodbConnect {
+// GetAwsDynamodbConnect returns the '*dynamodb.AwsDynamodbConnect' instance attached to this DAO.
+func (dao *GenericDaoDynamodb) GetAwsDynamodbConnect() *dynamodb.AwsDynamodbConnect {
 	return dao.dynamodbConnect
 }
 
-// SetAwsDynamodbConnect attaches a '*prom.AwsDynamodbConnect' instance to this DAO.
-func (dao *GenericDaoDynamodb) SetAwsDynamodbConnect(adc *prom.AwsDynamodbConnect) *GenericDaoDynamodb {
+// SetAwsDynamodbConnect attaches a '*dynamodb.AwsDynamodbConnect' instance to this DAO.
+func (dao *GenericDaoDynamodb) SetAwsDynamodbConnect(adc *dynamodb.AwsDynamodbConnect) *GenericDaoDynamodb {
 	dao.dynamodbConnect = adc
 	return dao
 }
 
-func (dao *GenericDaoDynamodb) extractKeysAttributes(table string, item prom.AwsDynamodbItem) map[string]interface{} {
+func (dao *GenericDaoDynamodb) extractKeysAttributes(table string, item dynamodb.AwsDynamodbItem) map[string]interface{} {
 	cols := dao.GetRowMapper().ColumnsList(table)
 	if cols == nil {
 		return nil
@@ -521,7 +521,7 @@ func (dao *GenericDaoDynamodb) GdaoDeleteManyWithContext(ctx aws.Context, table 
 		indexName = tokens[1]
 	}
 	count := 0
-	callbackFunc := func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+	callbackFunc := func(item dynamodb.AwsDynamodbItem, lastEvaluatedKey map[string]*awsdynamodb.AttributeValue) (b bool, e error) {
 		keyFilter := dao.extractKeysAttributes(tableName, item)
 		_, err := dao.dynamodbConnect.DeleteItem(ctx, tableName, keyFilter, nil)
 		if err == nil {
@@ -597,7 +597,7 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 
 	myOffset := -1
 	myCounter := 0
-	callbackFunc := func(item prom.AwsDynamodbItem, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (b bool, e error) {
+	callbackFunc := func(item dynamodb.AwsDynamodbItem, lastEvaluatedKey map[string]*awsdynamodb.AttributeValue) (b bool, e error) {
 		myOffset++
 		if myOffset < startOffset {
 			return true, nil
@@ -620,7 +620,7 @@ func (dao *GenericDaoDynamodb) GdaoFetchManyWithContext(ctx aws.Context, table s
 		return true, nil
 	}
 	if useQuery {
-		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc, prom.AwsQueryOpt{ScanIndexBackward: aws.Bool(queryBackward)})
+		err = dao.dynamodbConnect.QueryItemsWithCallback(ctx, tableName, f, nil, indexName, nil, callbackFunc, dynamodb.AwsQueryOpt{ScanIndexBackward: aws.Bool(queryBackward)})
 	} else {
 		err = dao.dynamodbConnect.ScanItemsWithCallback(ctx, tableName, f, indexName, nil, callbackFunc)
 	}
@@ -644,7 +644,7 @@ func (dao *GenericDaoDynamodb) GdaoCreateWithContext(ctx aws.Context, table stri
 		return 0, err
 	}
 	createResult, err := dao.dynamodbConnect.PutItemIfNotExist(ctx, table, item, pkAttrs)
-	if prom.IsAwsError(err, dynamodb.ErrCodeConditionalCheckFailedException) || createResult == nil {
+	if createResult == nil && dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeConditionalCheckFailedException) == nil {
 		return 0, godal.ErrGdaoDuplicatedEntry
 	}
 	return 1, err
@@ -680,9 +680,9 @@ func (dao *GenericDaoDynamodb) GdaoUpdateWithContext(ctx aws.Context, table stri
 		// remove primary key attributes from update list
 		delete(itemMap, pk)
 	}
-	condition := prom.AwsDynamodbExistsAllBuilder(pkAttrs)
+	condition := dynamodb.AwsDynamodbExistsAllBuilder(pkAttrs)
 	if _, err = dao.dynamodbConnect.UpdateItem(ctx, table, keyFilter, condition, nil, itemMap, nil, nil); err != nil {
-		err = prom.AwsIgnoreErrorIfMatched(err, dynamodb.ErrCodeConditionalCheckFailedException)
+		err = dynamodb.AwsIgnoreErrorIfMatched(err, awsdynamodb.ErrCodeConditionalCheckFailedException)
 		return 0, err
 	}
 	return 1, nil

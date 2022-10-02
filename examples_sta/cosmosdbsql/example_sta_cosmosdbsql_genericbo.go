@@ -6,11 +6,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
+	promsql "github.com/btnguyen2k/prom/sql"
 
 	_ "github.com/btnguyen2k/gocosmos"
 
@@ -19,9 +20,8 @@ import (
 	"github.com/btnguyen2k/godal/sql"
 )
 
-// convenient function to create prom.SqlConnect instance (for CosmosDB)
-func createCosmosdbConnect() *prom.SqlConnect {
-	// driver := strings.ReplaceAll(os.Getenv("COSMOSDB_DRIVER"), `"`, "")
+// convenient function to create promsql.SqlConnect instance (for CosmosDB)
+func createCosmosdbConnect() *promsql.SqlConnect {
 	driver := "gocosmos"
 	dsn := strings.ReplaceAll(os.Getenv("COSMOSDB_URL"), `"`, "")
 	if driver == "" || dsn == "" {
@@ -36,28 +36,33 @@ func createCosmosdbConnect() *prom.SqlConnect {
 	dsn = strings.ReplaceAll(dsn, "${tz}", urlTimezone)
 	dsn = strings.ReplaceAll(dsn, "${timezone}", urlTimezone)
 
-	dsn += ";Db=godal"
+	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
+	db := "godal"
+	if result := dbre.FindAllStringSubmatch(dsn, -1); result != nil {
+		db = result[0][1]
+	} else {
+		dsn += ";Db=" + db
+	}
 
-	sqlConnect, err := prom.NewSqlConnect(driver, dsn, 10000, nil)
+	sqlConnect, err := promsql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, promsql.FlavorCosmosDb)
 	if sqlConnect == nil || err != nil {
 		if err != nil {
 			fmt.Println("Error:", err)
 		}
 		if sqlConnect == nil {
-			panic("error creating [prom.SqlConnect] instance")
+			panic("error creating [promsql.SqlConnect] instance")
 		}
 	}
 	loc, _ := time.LoadLocation(timeZone)
 	sqlConnect.SetLocation(loc)
-	sqlConnect.SetDbFlavor(prom.FlavorCosmosDb)
 
-	sqlConnect.GetDB().Exec("CREATE DATABASE godal WITH maxru=10000")
+	sqlConnect.GetDB().Exec("CREATE DATABASE " + db + " WITH maxru=10000")
 
 	return sqlConnect
 }
 
 // convenient function to create MyGenericDaoSql instance
-func createMyGenericDaoSql(sqlc *prom.SqlConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
+func createMyGenericDaoSql(sqlc *promsql.SqlConnect, rowMapper godal.IRowMapper) godal.IGenericDao {
 	_, err := sqlc.GetDB().Exec(fmt.Sprintf("DROP COLLECTION IF EXISTS %s", tableUserGeneric))
 	fmt.Printf("[INFO] Dropped collection %s: %s\n", tableUserGeneric, err)
 	_, err = sqlc.GetDB().Exec(fmt.Sprintf("CREATE COLLECTION %s WITH pk=/%s", tableUserGeneric, fieldUserIdGeneric))
@@ -69,7 +74,6 @@ func createMyGenericDaoSql(sqlc *prom.SqlConnect, rowMapper godal.IRowMapper) go
 	inner.CosmosSetPkGboMapPath(map[string]string{"*": fieldUserIdGeneric})
 	dao.IGenericDaoSql = inner
 	dao.SetRowMapper(rowMapper)
-	dao.SetSqlFlavor(sqlc.GetDbFlavor())
 	return dao
 }
 
@@ -115,7 +119,7 @@ func (dao *MyGenericDaoSql) GdaoCreateFilter(tableName string, bo godal.IGeneric
 }
 
 func main() {
-	// create new prom.SqlConnect
+	// create new promsql.SqlConnect
 	sqlc := createCosmosdbConnect()
 
 	rowMapper := cosmosdbsql.GenericRowMapperCosmosdbInstance

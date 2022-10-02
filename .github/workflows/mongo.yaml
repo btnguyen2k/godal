@@ -17,8 +17,12 @@ jobs:
       uses: actions/checkout@v2
     - name: Test
       run: |
-        go test -cover -coverprofile=coverage_general.txt -v .
-        bash <(curl -s https://codecov.io/bash) -cF general
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_general.txt .
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: general
+        name: general
 
   testMongoStandalone:
     name: Test with MongoDB (Standalone)
@@ -36,8 +40,12 @@ jobs:
       run: |
         export MONGO_DB="test"
         export MONGO_URL="mongodb://test:test@localhost:27017/?authSource=admin"
-        go test -cover -coverprofile=coverage_mongo_singleserver.txt -v ./mongo
-        bash <(curl -s https://codecov.io/bash) -cF mongo_singleserver
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_mongo_singleserver.txt ./mongo
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: mongo_singleserver
+        name: mongo_singleserver
 
   testMongoReplicaSet:
     name: Test with MongoDB (ReplicaSet)
@@ -55,5 +63,9 @@ jobs:
       run: |
         export MONGO_DB="test"
         export MONGO_URL="mongodb://root:test@localhost:27017/?authSource=admin&replicaSet=replicaset"
-        go test -cover -coverprofile=coverage_mongo_replicaset.txt -v ./mongo
-        bash <(curl -s https://codecov.io/bash) -cF mongo_replicaset
+        go test -v -count 1 -p 1 -cover -coverprofile=coverage_mongo_replicaset.txt ./mongo
+    - name: Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        flags: mongo_replicaset
+        name: mongo_replicaset

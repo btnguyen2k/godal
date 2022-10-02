@@ -2,7 +2,7 @@ package sql
 
 import (
 	"context"
-	"database/sql"
+	gosql "database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,23 +16,22 @@ import (
 	"time"
 
 	"github.com/btnguyen2k/consu/reddo"
-	"github.com/btnguyen2k/prom"
-
 	"github.com/btnguyen2k/godal"
+	"github.com/btnguyen2k/prom/sql"
 )
 
-func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, flavor prom.DbFlavor) (*prom.SqlConnect, error) {
+func _newSqlConnect(driver, url, timezone string, flavor sql.DbFlavor) (*sql.SqlConnect, error) {
 	driver = strings.Trim(driver, "\"")
 	url = strings.Trim(url, "\"")
 	if driver == "" || url == "" {
-		t.Skipf("%s skipped", testName)
+		return nil, nil
 	}
 
 	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")
 	url = strings.ReplaceAll(url, "${loc}", urlTimezone)
 	url = strings.ReplaceAll(url, "${tz}", urlTimezone)
 	url = strings.ReplaceAll(url, "${timezone}", urlTimezone)
-	sqlc, err := prom.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
+	sqlc, err := sql.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
 	if err == nil && sqlc != nil {
 		loc, _ := time.LoadLocation(timezone)
 		sqlc.SetLocation(loc)
@@ -40,96 +39,82 @@ func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, 
 	return sqlc, err
 }
 
-func createDaoSql(sqlc *prom.SqlConnect, tableName string) *UserDaoSql {
+func _createDaoSql(sqlc *sql.SqlConnect, tableName string) *UserDaoSql {
+	if sqlc == nil {
+		return nil
+	}
+	mapFieldToCol := map[string]interface{}{}
+	mapColToField := map[string]interface{}{}
+	for i, col := range colSqlList {
+		mapFieldToCol[fieldGboList[i]] = col
+		mapColToField[col] = fieldGboList[i]
+	}
+
 	rowMapper := &GenericRowMapperSql{
-		NameTransformation: NameTransfLowerCase,
-		GboFieldToColNameTranslator: map[string]map[string]interface{}{
-			tableName: {
-				fieldGboId: colSqlId, fieldGboUsername: colSqlUsername, fieldGboData: colSqlData,
-				fieldGboValPInt: colSqlValPInt, fieldGboValPFloat: colSqlValPFloat, fieldGboValPString: colSqlValPString, fieldGboValPTime: colSqlValPTime,
-			},
-		},
-		ColNameToGboFieldTranslator: map[string]map[string]interface{}{
-			tableName: {
-				colSqlId: fieldGboId, colSqlUsername: fieldGboUsername, colSqlData: fieldGboData,
-				colSqlValPInt: fieldGboValPInt, colSqlValPFloat: fieldGboValPFloat, colSqlValPString: fieldGboValPString, colSqlValPTime: fieldGboValPTime,
-			},
-		},
-		ColumnsListMap: map[string][]string{
-			tableName: {colSqlId, colSqlUsername, colSqlData, colSqlValPInt, colSqlValPFloat, colSqlValPString, colSqlValPTime},
-		},
+		NameTransformation:          NameTransfLowerCase,
+		GboFieldToColNameTranslator: map[string]map[string]interface{}{tableName: mapFieldToCol},
+		ColNameToGboFieldTranslator: map[string]map[string]interface{}{tableName: mapColToField},
+		ColumnsListMap:              map[string][]string{tableName: colSqlList},
 	}
 	dao := &UserDaoSql{tableName: tableName}
 	dao.GenericDaoSql = NewGenericDaoSql(sqlc, godal.NewAbstractGenericDao(dao))
 	dao.SetSqlFlavor(sqlc.GetDbFlavor()).SetRowMapper(rowMapper)
-	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(sql.LevelDefault)
+	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(gosql.LevelDefault)
 	return dao
 }
 
-func initDao(t *testing.T, testName string, driver, url, tableName string, flavor prom.DbFlavor) *UserDaoSql {
-	sqlc, _ := newSqlConnect(t, testName, driver, url, testTimeZone, flavor)
-	return createDaoSql(sqlc, tableName)
-}
-
-func TestGenericDaoSql_SetGetSqlFlavor(t *testing.T) {
-	name := "TestGenericDaoSql_SetGetSqlFlavor"
-	flavorList := []prom.DbFlavor{prom.FlavorDefault, prom.FlavorMySql, prom.FlavorPgSql, prom.FlavorMsSql, prom.FlavorOracle, prom.FlavorSqlite, prom.FlavorCosmosDb}
-	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "Asia/Ho_Chi_Minh", prom.FlavorDefault)
-	for _, flavor := range flavorList {
-		dao.SetSqlFlavor(flavor)
-		if dao.GetSqlFlavor() != flavor {
-			t.Fatalf("%s failed: expected %#v but received %#v", name, flavor, dao.GetSqlFlavor())
-		}
+func _initDao(driver, url, tableName string, flavor sql.DbFlavor) *UserDaoSql {
+	sqlc, err := _newSqlConnect(driver, url, testTimeZone, flavor)
+	if err != nil || sqlc == nil {
+		return nil
 	}
+	return _createDaoSql(sqlc, tableName)
 }
 
 func TestGenericDaoSql_TxMode(t *testing.T) {
-	name := "TestGenericDaoSql_TxMode"
-	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "Asia/Ho_Chi_Minh", prom.FlavorDefault)
+	testName := "TestGenericDaoSql_TxMode"
+	dao := _initDao("mysql", "test:test@tcp(localhost:3306)/test", testTableName, sql.FlavorMySql)
+	defer dao.sqlConnect.Close()
+
 	currentTxMode := dao.GetTxModeOnWrite()
 	dao.SetTxModeOnWrite(!currentTxMode)
-	if dao.GetTxModeOnWrite() == currentTxMode {
-		t.Fatalf("%s failed: expected %#v but received %#v", name+"/TxModeOnWrite", !currentTxMode, dao.GetTxModeOnWrite())
+	if dao.GetTxModeOnWrite() != !currentTxMode {
+		t.Fatalf("%s failed: expected %#v but received %#v", testName+"/TxModeOnWrite", !currentTxMode, dao.GetTxModeOnWrite())
 	}
 	dao.SetTxModeOnWrite(currentTxMode)
 	if dao.GetTxModeOnWrite() != currentTxMode {
-		t.Fatalf("%s failed: expected %#v but received %#v", name+"/TxModeOnWrite", currentTxMode, dao.GetTxModeOnWrite())
+		t.Fatalf("%s failed: expected %#v but received %#v", testName+"/TxModeOnWrite", currentTxMode, dao.GetTxModeOnWrite())
 	}
 
-	isoLevelList := []sql.IsolationLevel{sql.LevelDefault, sql.LevelReadUncommitted, sql.LevelReadCommitted, sql.LevelWriteCommitted,
-		sql.LevelRepeatableRead, sql.LevelSnapshot, sql.LevelSerializable, sql.LevelLinearizable}
+	isoLevelList := []gosql.IsolationLevel{gosql.LevelDefault, gosql.LevelReadUncommitted, gosql.LevelReadCommitted,
+		gosql.LevelWriteCommitted, gosql.LevelRepeatableRead, gosql.LevelSnapshot, gosql.LevelSerializable, gosql.LevelLinearizable}
 	for _, isoLevel := range isoLevelList {
 		dao.SetTxIsolationLevel(isoLevel)
 		if dao.GetTxIsolationLevel() != isoLevel {
-			t.Fatalf("%s failed: expected %#v but received %#v", name+"/TxIsolationLevel", isoLevel, dao.GetTxIsolationLevel())
+			t.Fatalf("%s failed: expected %#v but received %#v", testName+"/TxIsolationLevel", isoLevel, dao.GetTxIsolationLevel())
 		}
 	}
 }
 
-// func TestGenericDaoSql_SetGetOptionOpLiteral(t *testing.T) {
-// 	name := "TestGenericDaoSql_SetGetOptionOpLiteral"
-// 	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "Asia/Ho_Chi_Minh", prom.FlavorDefault)
-// 	dao.SetOptionOpLiteral(nil)
-// 	if dao.GetOptionOpLiteral() != nil {
-// 		t.Fatalf("%s failed: expected %#v but received %#v", name, nil, dao.GetOptionOpLiteral())
-// 	}
-// }
-
 func TestGenericDaoSql_SetGetFuncNewPlaceholderGenerator(t *testing.T) {
-	name := "TestGenericDaoSql_SetGetFuncNewPlaceholderGenerator"
-	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "Asia/Ho_Chi_Minh", prom.FlavorDefault)
+	testName := "TestGenericDaoSql_SetGetFuncNewPlaceholderGenerator"
+	dao := _initDao("mysql", "test:test@tcp(localhost:3306)/test", testTableName, sql.FlavorMySql)
+	defer dao.sqlConnect.Close()
+
 	dao.SetFuncNewPlaceholderGenerator(nil)
 	if dao.GetFuncNewPlaceholderGenerator() != nil {
-		t.Fatalf("%s failed: expected nill", name)
+		t.Fatalf("%s failed: expected nill", testName)
 	}
 }
 
 func TestGenericDaoSql_BuildFilter(t *testing.T) {
-	name := "TestGenericDaoSql_BuildFilter"
-	tableName := "tbl_temp"
-	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", tableName, prom.FlavorDefault)
+	testName := "TestGenericDaoSql_BuildFilter"
+	dao := _initDao("mysql", "test:test@tcp(localhost:3306)/test", testTableName, sql.FlavorMySql)
+	defer dao.sqlConnect.Close()
+
+	tableName := testTableName
 	if f, err := dao.BuildFilter(tableName, nil); f != nil || err != nil {
-		t.Fatalf("%s failed: %#v / %s", name, f, err)
+		t.Fatalf("%s failed: %#v / %s", testName, f, err)
 	}
 
 	var inF godal.FilterOpt
@@ -141,18 +126,18 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		filter := godal.FilterOptFieldOpValue{FieldName: fieldGboUsername, Operator: op, Value: "user1"}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterFieldValue); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterFieldValue, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterFieldValue, but received %T", testName, f)
 			} else {
 				if outF.Field != colSqlUsername {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, outF.Field)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, outF.Field)
 				}
 				if outF.Operator != defOpStrList[i] {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, defOpStrList[i], outF.Operator)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, defOpStrList[i], outF.Operator)
 				}
 				if outF.Value != "user1" {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, "user1", outF.Value)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, "user1", outF.Value)
 				}
 			}
 		}
@@ -162,18 +147,18 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		filter := godal.FilterOptFieldOpField{FieldNameLeft: fieldGboUsername, Operator: op, FieldNameRight: fieldGboId}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterExpression); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterExpression, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterExpression, but received %T", testName, f)
 			} else {
 				if outF.Left != colSqlUsername {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, outF.Left)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, outF.Left)
 				}
 				if outF.Operator != defOpStrList[i] {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, defOpStrList[i], outF.Operator)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, defOpStrList[i], outF.Operator)
 				}
 				if outF.Right != colSqlId {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlId, outF.Right)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlId, outF.Right)
 				}
 			}
 		}
@@ -183,12 +168,12 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		filter := godal.FilterOptFieldIsNull{FieldName: fieldGboUsername}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterIsNull); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterIsNull, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterIsNull, but received %T", testName, f)
 			} else {
 				if outF.Field != colSqlUsername {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, outF.Field)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, outF.Field)
 				}
 			}
 		}
@@ -198,12 +183,12 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		filter := godal.FilterOptFieldIsNotNull{FieldName: fieldGboUsername}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterIsNotNull); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterIsNotNull, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterIsNotNull, but received %T", testName, f)
 			} else {
 				if outF.Field != colSqlUsername {
-					t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, outF.Field)
+					t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, outF.Field)
 				}
 			}
 		}
@@ -220,39 +205,39 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterAnd); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterAnd, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterAnd, but received %T", testName, f)
 			} else {
 				if innerOutF, ok := outF.Filters[0].(*FilterIsNull); !ok {
-					t.Fatalf("%s failed: expected *FilterIsNull, but received %T", name, outF.Filters[0])
+					t.Fatalf("%s failed: expected *FilterIsNull, but received %T", testName, outF.Filters[0])
 				} else {
 					if innerOutF.Field != colSqlId {
-						t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlId, innerOutF.Field)
+						t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlId, innerOutF.Field)
 					}
 				}
 				if innerOutF, ok := outF.Filters[1].(*FilterOr); !ok {
-					t.Fatalf("%s failed: expected *FilterOr, but received %T", name, outF.Filters[1])
+					t.Fatalf("%s failed: expected *FilterOr, but received %T", testName, outF.Filters[1])
 				} else {
 					if inner2OutF, ok := innerOutF.Filters[0].(*FilterIsNotNull); !ok {
-						t.Fatalf("%s failed: expected *FilterIsNotNull, but received %T", name, innerOutF.Filters[0])
+						t.Fatalf("%s failed: expected *FilterIsNotNull, but received %T", testName, innerOutF.Filters[0])
 					} else {
 						if inner2OutF.Field != colSqlUsername {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, inner2OutF.Field)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, inner2OutF.Field)
 						}
 					}
 
 					if inner2OutF, ok := innerOutF.Filters[1].(*FilterFieldValue); !ok {
-						t.Fatalf("%s failed: expected *FilterFieldValue, but received %T", name, innerOutF.Filters[1])
+						t.Fatalf("%s failed: expected *FilterFieldValue, but received %T", testName, innerOutF.Filters[1])
 					} else {
 						if inner2OutF.Field != colSqlData {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlData, inner2OutF.Field)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlData, inner2OutF.Field)
 						}
 						if inner2OutF.Operator != "=" {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, "=", inner2OutF.Operator)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, "=", inner2OutF.Operator)
 						}
 						if inner2OutF.Value != 1 {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, 1, inner2OutF.Value)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, 1, inner2OutF.Value)
 						}
 					}
 				}
@@ -271,39 +256,39 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 		}
 		for _, inF = range []godal.FilterOpt{filter, &filter} {
 			if f, err := dao.BuildFilter(tableName, inF); err != nil {
-				t.Fatalf("%s failed: %s", name, err)
+				t.Fatalf("%s failed: %s", testName, err)
 			} else if outF, ok := f.(*FilterOr); !ok {
-				t.Fatalf("%s failed: expected output of type *FilterOr, but received %T", name, f)
+				t.Fatalf("%s failed: expected output of type *FilterOr, but received %T", testName, f)
 			} else {
 				if innerOutF, ok := outF.Filters[0].(*FilterIsNull); !ok {
-					t.Fatalf("%s failed: expected *FilterIsNull, but received %T", name, outF.Filters[0])
+					t.Fatalf("%s failed: expected *FilterIsNull, but received %T", testName, outF.Filters[0])
 				} else {
 					if innerOutF.Field != colSqlId {
-						t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlId, innerOutF.Field)
+						t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlId, innerOutF.Field)
 					}
 				}
 				if innerOutF, ok := outF.Filters[1].(*FilterAnd); !ok {
-					t.Fatalf("%s failed: expected *FilterAnd, but received %T", name, outF.Filters[1])
+					t.Fatalf("%s failed: expected *FilterAnd, but received %T", testName, outF.Filters[1])
 				} else {
 					if inner2OutF, ok := innerOutF.Filters[0].(*FilterIsNotNull); !ok {
-						t.Fatalf("%s failed: expected *FilterIsNotNull, but received %T", name, innerOutF.Filters[0])
+						t.Fatalf("%s failed: expected *FilterIsNotNull, but received %T", testName, innerOutF.Filters[0])
 					} else {
 						if inner2OutF.Field != colSqlUsername {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlUsername, inner2OutF.Field)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlUsername, inner2OutF.Field)
 						}
 					}
 
 					if inner2OutF, ok := innerOutF.Filters[1].(*FilterFieldValue); !ok {
-						t.Fatalf("%s failed: expected *FilterFieldValue, but received %T", name, innerOutF.Filters[1])
+						t.Fatalf("%s failed: expected *FilterFieldValue, but received %T", testName, innerOutF.Filters[1])
 					} else {
 						if inner2OutF.Field != colSqlData {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, colSqlData, inner2OutF.Field)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, colSqlData, inner2OutF.Field)
 						}
 						if inner2OutF.Operator != "=" {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, "=", inner2OutF.Operator)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, "=", inner2OutF.Operator)
 						}
 						if inner2OutF.Value != 1 {
-							t.Fatalf("%s failed: expected %#v but received %#v", name, 1, inner2OutF.Value)
+							t.Fatalf("%s failed: expected %#v but received %#v", testName, 1, inner2OutF.Value)
 						}
 					}
 				}
@@ -313,34 +298,38 @@ func TestGenericDaoSql_BuildFilter(t *testing.T) {
 }
 
 func TestGenericDaoSql_BuildOrdering(t *testing.T) {
-	name := "TestGenericDaoSql_BuildOrdering"
-	dao := initDao(t, name, "mysql", "test:test@tcp(localhost:3306)/test", "tbl_test", prom.FlavorDefault)
+	testName := "TestGenericDaoSql_BuildOrdering"
+	dao := _initDao("mysql", "test:test@tcp(localhost:3306)/test", testTableName, sql.FlavorMySql)
+	defer dao.sqlConnect.Close()
 
+	tableName := testTableName
 	var opts *godal.SortingOpt = nil
-	if ordering, err := dao.BuildSorting("tbl_test", opts); ordering != nil || err != nil {
-		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
+	if ordering, err := dao.BuildSorting(tableName, opts); ordering != nil || err != nil {
+		t.Fatalf("%s failed: %#v / %s", testName, ordering, err)
 	}
 
 	opts = &godal.SortingOpt{}
 	opts.Add(&godal.SortingField{FieldName: fieldGboUsername})
 	expected := colSqlUsername
-	if ordering, err := dao.BuildSorting("tbl_test", opts); err != nil || ordering == nil {
-		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
+	if ordering, err := dao.BuildSorting(tableName, opts); err != nil || ordering == nil {
+		t.Fatalf("%s failed: %#v / %s", testName, ordering, err)
 	} else if ordering.Build() != expected {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, ordering.Build())
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, expected, ordering.Build())
 	}
 
 	opts.Add(&godal.SortingField{FieldName: fieldGboId, Descending: true})
 	expected += "," + colSqlId + " DESC"
-	if ordering, err := dao.BuildSorting("tbl_test", opts); err != nil || ordering == nil {
-		t.Fatalf("%s failed: %#v / %s", name, ordering, err)
+	if ordering, err := dao.BuildSorting(tableName, opts); err != nil || ordering == nil {
+		t.Fatalf("%s failed: %#v / %s", testName, ordering, err)
 	} else if ordering.Build() != expected {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, expected, ordering.Build())
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, expected, ordering.Build())
 	}
 }
 
 const (
-	testTableName    = "test_user"
+	testTableName = "test_user"
+	testTimeZone  = "Asia/Ho_Chi_Minh"
+
 	colSqlId         = "userid"
 	colSqlUsername   = "uusername"
 	colSqlData       = "udata"
@@ -356,8 +345,11 @@ const (
 	fieldGboValPFloat  = "pfloat"
 	fieldGboValPString = "pstring"
 	fieldGboValPTime   = "ptime"
+)
 
-	testTimeZone = "Asia/Ho_Chi_Minh"
+var (
+	colSqlList   = []string{colSqlId, colSqlUsername, colSqlData, colSqlValPInt, colSqlValPFloat, colSqlValPString, colSqlValPTime}
+	fieldGboList = []string{fieldGboId, fieldGboUsername, fieldGboData, fieldGboValPInt, fieldGboValPFloat, fieldGboValPString, fieldGboValPTime}
 )
 
 type UserDaoSql struct {
@@ -752,7 +744,7 @@ func dotestGenericDaoSqlTx(t *testing.T, name string, dao *UserDaoSql) {
 		Created:  time.Now(),
 	}
 	dao.GdaoCreate(dao.tableName, dao.toGbo(user2))
-	dao.SetTxIsolationLevel(sql.LevelSerializable)
+	dao.SetTxIsolationLevel(gosql.LevelSerializable)
 
 	var wg sync.WaitGroup
 	numRoutines := 3
