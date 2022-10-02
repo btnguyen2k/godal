@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func prepareTableSqlite(sqlc *prom.SqlConnect, table string) error {
+func prepareTableSqlite(sqlc *sql.SqlConnect, table string) error {
 	driver := strings.Trim(os.Getenv(envSqliteUrl), "\"")
 	os.MkdirAll(filepath.Dir(driver), 0711)
 	os.Remove(driver)
@@ -41,148 +41,202 @@ const (
 )
 
 func TestGenericDaoSqlite_SetGetSqlConnect(t *testing.T) {
-	name := "TestGenericDaoSqlite_SetGetSqlConnect"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
-	sqlc, _ := newSqlConnect(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTimeZone, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_SetGetSqlConnect"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.sqlConnect.Close()
+
+	sqlc, _ := _newSqlConnect(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTimeZone, sql.FlavorSqlite)
+	defer sqlc.Close()
 	if sqlc == dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should not equal", name)
+		t.Fatalf("%s failed: should not equal", testName)
 	}
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should equal", name)
+		t.Fatalf("%s failed: should equal", testName)
 	}
 }
 
 func TestGenericDaoSqlite_StartTx(t *testing.T) {
-	name := "TestGenericDaoSqlite_StartTx"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_StartTx"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	if err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName); err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
-		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
+		t.Fatalf("%s failed: %#v / %#v", testName, tx, err)
 	}
 }
 
 func TestGenericDaoSqlite_GdaoDelete(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoDelete"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoDelete"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoDelete(t, name, dao)
+	dotestGenericDaoSqlGdaoDelete(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoDeleteMany(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoDeleteMany(t, name, dao)
+	dotestGenericDaoSqlGdaoDeleteMany(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoFetchOne(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoFetchOne(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchOne(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoFetchMany(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoFetchMany"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoFetchMany"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoFetchMany(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchMany(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoCreate(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoCreate"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoCreate"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoCreate(t, name, dao)
+	dotestGenericDaoSqlGdaoCreate(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoUpdate(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoUpdate"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoUpdate"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoUpdate(t, name, dao)
+	dotestGenericDaoSqlGdaoUpdate(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoSave(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoSave"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoSave"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_GdaoSaveTxModeOnWrite(t *testing.T) {
-	name := "TestGenericDaoSqlite_GdaoSaveTxModeOnWrite"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_GdaoSaveTxModeOnWrite"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
 	dao.SetTxModeOnWrite(true)
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_Tx(t *testing.T) {
-	name := "TestGenericDaoSqlite_Tx"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_Tx"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlTx(t, name, dao)
+	dotestGenericDaoSqlTx(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_FilterNull(t *testing.T) {
-	name := "TestGenericDaoSqlite_FilterNull"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_FilterNull"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, testName, dao)
 }
 
 func TestGenericDaoSqlite_FilterNotNull(t *testing.T) {
-	name := "TestGenericDaoSqlite_FilterNotNull"
-	dao := initDao(t, name, os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, prom.FlavorSqlite)
+	testName := "TestGenericDaoSqlite_FilterNotNull"
+	dao := _initDao(os.Getenv(envSqliteDriver), os.Getenv(envSqliteUrl), testTableName, sql.FlavorSqlite)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableSqlite(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableSqlite", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableSqlite", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }

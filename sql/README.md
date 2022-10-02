@@ -9,18 +9,18 @@ Generic [`database/sql`](https://golang.org/pkg/database/sql/) DAO implementatio
 
 **General**
 
-- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
+- DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
 **Use `GenericDaoSql` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that extends `GenericDaoSql` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
+- Define a DAO struct that extends `GenericDaoSql` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
-**Implement custom `database/sql` business dao and bo**
+**Implement custom `database/sql` business DAOs and BOs**
 
-- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
-- Define functions to transform `godal.IGenericBo` to business bo and vice versa.
+- Define and implement the business DAO (Note: DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
+- Define functions to transform `godal.IGenericBo` to business BO and vice versa.
 
-> Optionally, create a helper function to create dao instances.
+> Optionally, create a helper function to create DAO instances.
 
 **Examples**: see [examples](../examples/) and [examples_sta](../examples_sta/).
 

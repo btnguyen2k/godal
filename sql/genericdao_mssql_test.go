@@ -5,11 +5,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 	_ "github.com/denisenkom/go-mssqldb"
 )
 
-func prepareTableMssql(sqlc *prom.SqlConnect, table string) error {
+func prepareTableMssql(sqlc *sql.SqlConnect, table string) error {
 	sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", table)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		return err
@@ -35,145 +35,199 @@ const (
 )
 
 func TestGenericDaoMssql_SetGetSqlConnect(t *testing.T) {
-	name := "TestGenericDaoMssql_SetGetSqlConnect"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
-	sqlc, _ := newSqlConnect(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTimeZone, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_SetGetSqlConnect"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.sqlConnect.Close()
+
+	sqlc, _ := _newSqlConnect(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTimeZone, sql.FlavorMsSql)
+	defer sqlc.Close()
 	if sqlc == dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should not equal", name)
+		t.Fatalf("%s failed: should not equal", testName)
 	}
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should equal", name)
+		t.Fatalf("%s failed: should equal", testName)
 	}
 }
 
 func TestGenericDaoMssql_StartTx(t *testing.T) {
-	name := "TestGenericDaoMssql_StartTx"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_StartTx"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	if tx, err := dao.StartTx(nil); tx == nil || err != nil {
-		t.Fatalf("%s failed: %#v / %#v", name, tx, err)
+		t.Fatalf("%s failed: %#v / %#v", testName, tx, err)
 	}
 }
 
 func TestGenericDaoMssql_GdaoDelete(t *testing.T) {
-	name := "TestGenericDaoSql_GdaoDelete"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoSql_GdaoDelete"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoDelete(t, name, dao)
+	dotestGenericDaoSqlGdaoDelete(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoDeleteMany(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoDeleteMany(t, name, dao)
+	dotestGenericDaoSqlGdaoDeleteMany(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoFetchOne(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoDeleteMany"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoDeleteMany"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoFetchOne(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchOne(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoFetchMany(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoFetchMany"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoFetchMany"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoFetchMany(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchMany(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoCreate(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoCreate"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoCreate"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoCreate(t, name, dao)
+	dotestGenericDaoSqlGdaoCreate(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoUpdate(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoUpdate"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoUpdate"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoUpdate(t, name, dao)
+	dotestGenericDaoSqlGdaoUpdate(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoSave(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoSave"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoSave"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoMssql_GdaoSaveTxModeOnWrite(t *testing.T) {
-	name := "TestGenericDaoMssql_GdaoSaveTxModeOnWrite"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_GdaoSaveTxModeOnWrite"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
 	dao.SetTxModeOnWrite(true)
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoMssql_Tx(t *testing.T) {
-	name := "TestGenericDaoMssql_Tx"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_Tx"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlTx(t, name, dao)
+	dotestGenericDaoSqlTx(t, testName, dao)
 }
 
 func TestGenericDaoMssql_FilterNull(t *testing.T) {
-	name := "TestGenericDaoMssql_FilterNull"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_FilterNull"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, testName, dao)
 }
 
 func TestGenericDaoMssql_FilterNotNull(t *testing.T) {
-	name := "TestGenericDaoMssql_FilterNotNull"
-	dao := initDao(t, name, os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, prom.FlavorMsSql)
+	testName := "TestGenericDaoMssql_FilterNotNull"
+	dao := _initDao(os.Getenv(envMssqlDriver), os.Getenv(envMssqlUrl), testTableName, sql.FlavorMsSql)
+	if dao == nil {
+		t.SkipNow()
+	}
 	defer dao.sqlConnect.Close()
+	
 	err := prepareTableMssql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableMssql", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableMssql", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }

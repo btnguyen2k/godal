@@ -9,21 +9,21 @@ Generic [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/) DAO
 
 **General**
 
-- Dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
+- DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 
 **Use `GenericDaoCosmosdb` (and `godal.IGenericBo`) directly**
 
-- Define a dao struct that extends `GenericDaoCosmosdb` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
+- Define a DAO struct that extends `GenericDaoCosmosdb` and implements `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`.
 - Configure either `{collection-name:path-to-fetch-partition_key-value-from-genericbo}` via `GenericDaoCosmosdb.CosmosSetPkGboMapPath`
   or `{collection-name:path-to-fetch-partition_key-value-from-dbrow}` via `GenericDaoCosmosdb.CosmosSetPkRowMapPath`.
 - Optionally, configure `{collection-name:path-to-fetch-id-value-from-genericbo}` via `GenericDaoCosmosdb.CosmosSetIdGboMapPath`.
-- Optionally, create a helper function to create dao instances.
+- Optionally, create a helper function to create DAO instances.
 
-**Implement custom `database/sql` business dao and bo**
+**Implement custom `database/sql` business DAOs and BOs**
 
-- Define and implement the business dao (Note: dao must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
-- Define functions to transform `godal.IGenericBo` to business bo and vice versa.
-- Optionally, create a helper function to create dao instances.
+- Define and implement the business DAO (Note: DAOs must implement `IGenericDao.GdaoCreateFilter(string, IGenericBo) FilterOpt`).
+- Define functions to transform `godal.IGenericBo` to business BO and vice versa.
+- Optionally, create a helper function to create DAO instances.
 
 > Partition key (PK) is crucial to CosmosDB. PK value is needed in almost all document related operations. Hence, it's
 > important to be able to extract PK value from BO. If using or extending `GenericDaoCosmosdb`, configure either

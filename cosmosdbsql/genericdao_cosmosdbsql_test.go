@@ -1,13 +1,14 @@
 package cosmosdbsql
 
 import (
-	"database/sql"
+	gosql "database/sql"
 	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
 	"os"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/btnguyen2k/consu/reddo"
 	_ "github.com/btnguyen2k/gocosmos"
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 
 	"github.com/btnguyen2k/godal"
 )
@@ -269,7 +270,7 @@ func TestGenericRowMapperCosmosdb_ToBoFieldName_Intact(t *testing.T) {
 
 /*--------------------------------------------------------------------------------*/
 
-func prepareTableCosmosdb(sqlc *prom.SqlConnect, table string) error {
+func prepareTableCosmosdb(sqlc *sql.SqlConnect, table string) error {
 	sql := fmt.Sprintf("DROP COLLECTION IF EXISTS %s", table)
 	if _, err := sqlc.GetDB().Exec(sql); err != nil {
 		return err
@@ -281,42 +282,49 @@ func prepareTableCosmosdb(sqlc *prom.SqlConnect, table string) error {
 	return nil
 }
 
-func newSqlConnect(t *testing.T, testName string, driver, url, timezone string, flavor prom.DbFlavor) (*prom.SqlConnect, error) {
+func newSqlConnect(driver, url, timezone string, flavor sql.DbFlavor) (*sql.SqlConnect, error) {
 	driver = strings.Trim(driver, "\"")
 	url = strings.Trim(url, "\"")
 	if driver == "" || url == "" {
-		t.Skipf("%s skipped", testName)
+		return nil, nil
 	}
 
-	url += ";Db=godal"
+	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
+	db := "godal"
+	if result := dbre.FindAllStringSubmatch(url, -1); result != nil {
+		db = result[0][1]
+	}
 
 	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")
 	url = strings.ReplaceAll(url, "${loc}", urlTimezone)
 	url = strings.ReplaceAll(url, "${tz}", urlTimezone)
 	url = strings.ReplaceAll(url, "${timezone}", urlTimezone)
-	sqlc, err := prom.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
-	if err != nil || sqlc == nil {
-		t.Fatalf("%s failed: %s", testName, err)
+	sqlc, err := sql.NewSqlConnectWithFlavor(driver, url, 10000, nil, flavor)
+	if err == nil && sqlc != nil {
+		loc, _ := time.LoadLocation(timezone)
+		sqlc.SetLocation(loc)
 	}
-	loc, _ := time.LoadLocation(timezone)
-	sqlc.SetLocation(loc)
+	return sqlc, err
 
-	sqlc.GetDB().Exec("CREATE DATABASE godal WITH maxru=10000")
+	sqlc.GetDB().Exec("CREATE DATABASE " + db + " WITH maxru=10000")
 
 	return sqlc, err
 }
 
-func createDaoCosmosdb(sqlc *prom.SqlConnect, collectionName string) *UserDaoSql {
+func createDaoCosmosdb(sqlc *sql.SqlConnect, collectionName string) *UserDaoSql {
 	dao := &UserDaoSql{collectionName: collectionName}
 	dao.GenericDaoCosmosdb = NewGenericDaoCosmosdb(sqlc, godal.NewAbstractGenericDao(dao))
-	dao.SetSqlFlavor(prom.FlavorCosmosDb).SetRowMapper(GenericRowMapperCosmosdbInstance)
-	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(sql.LevelDefault)
+	dao.SetRowMapper(GenericRowMapperCosmosdbInstance)
+	dao.SetTxModeOnWrite(false).SetTxIsolationLevel(gosql.LevelDefault)
 	dao.CosmosSetPkGboMapPath(map[string]string{collectionName: fieldGboGroup})
 	return dao
 }
 
-func initDaoCosmosdb(t *testing.T, testName string, driver, url, tableName string, flavor prom.DbFlavor) *UserDaoSql {
-	sqlc, _ := newSqlConnect(t, testName, driver, url, testTimeZone, flavor)
+func initDaoCosmosdb(driver, url, tableName string, flavor sql.DbFlavor) *UserDaoSql {
+	sqlc, err := newSqlConnect(driver, url, testTimeZone, flavor)
+	if err != nil || sqlc == nil {
+		return nil
+	}
 	return createDaoCosmosdb(sqlc, tableName)
 }
 
@@ -404,93 +412,116 @@ type UserBoSql struct {
 /*---------------------------------------------------------------*/
 
 func TestGenericDaoCosmosdb_CosmosSetGetIdGboMapPath(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_CosmosSetGetIdGboMapPath"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_CosmosSetGetIdGboMapPath"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	idGboMapPath := map[string]string{"*": "myid"}
 	dao.CosmosSetIdGboMapPath(idGboMapPath)
 	idGboMapPath["*"] = "id"
 	idGboMapPath2 := dao.CosmosGetIdGboMapPath()
 	if idGboMapPath2 == nil || idGboMapPath2["*"] != "myid" {
-		t.Fatalf("%s failed: %#v", name, idGboMapPath2)
+		t.Fatalf("%s failed: %#v", testName, idGboMapPath2)
 	}
 }
 
 func TestGenericDaoCosmosdb_CosmosSetGetPkGboMapPath(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_CosmosSetGetPkGboMapPath"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_CosmosSetGetPkGboMapPath"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	pkGboMapPath := map[string]string{"*": "mypk"}
 	dao.CosmosSetPkGboMapPath(pkGboMapPath)
 	pkGboMapPath["*"] = "pk"
 	pkGboMapPath2 := dao.CosmosGetPkGboMapPath()
 	if pkGboMapPath2 == nil || pkGboMapPath2["*"] != "mypk" {
-		t.Fatalf("%s failed: %#v", name, pkGboMapPath2)
+		t.Fatalf("%s failed: %#v", testName, pkGboMapPath2)
 	}
 }
 
 func TestGenericDaoCosmosdb_CosmosSetGetPkRowMapPath(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_CosmosSetGetPkRowMapPath"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_CosmosSetGetPkRowMapPath"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	pkRowMapPath := map[string]string{"*": "mypk"}
 	dao.CosmosSetPkRowMapPath(pkRowMapPath)
 	pkRowMapPath["*"] = "pk"
 	pkRowMapPath2 := dao.CosmosGetPkRowMapPath()
 	if pkRowMapPath2 == nil || pkRowMapPath2["*"] != "mypk" {
-		t.Fatalf("%s failed: %#v", name, pkRowMapPath2)
+		t.Fatalf("%s failed: %#v", testName, pkRowMapPath2)
 	}
 }
 
 func TestGenericDaoCosmosdb_CosmosGetId(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_CosmosGetId"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_CosmosGetId"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
 
 	gbo := godal.NewGenericBo()
 	if id := dao.CosmosGetId("*", gbo); id != "" {
-		t.Fatalf("%s failed: expected empty id-value but received %#v", name, id)
+		t.Fatalf("%s failed: expected empty id-value but received %#v", testName, id)
 	}
 
 	gbo = godal.NewGenericBo()
 	gbo.GboSetAttr("id", "myid")
 	if id := dao.CosmosGetId("*", gbo); id != "myid" {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, "myid", id)
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, "myid", id)
 	}
 
 	dao.CosmosSetIdGboMapPath(map[string]string{"*": "uid"})
 	if id := dao.CosmosGetId("*", gbo); id != "" {
-		t.Fatalf("%s failed: expected empty id-value but received %#v", name, id)
+		t.Fatalf("%s failed: expected empty id-value but received %#v", testName, id)
 	}
 
 	gbo = godal.NewGenericBo()
 	gbo.GboSetAttr("uid", "myid")
 	if id := dao.CosmosGetId("*", gbo); id != "myid" {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, "myid", id)
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, "myid", id)
 	}
 }
 
 func TestGenericDaoCosmosdb_CosmosGetPk(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_CosmosGetPk"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_CosmosGetPk"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
 
 	gbo := godal.NewGenericBo()
 	if pk := dao.CosmosGetPk("*", gbo); pk != "" {
-		t.Fatalf("%s failed: expected empty pk-value but received %#v", name, pk)
+		t.Fatalf("%s failed: expected empty pk-value but received %#v", testName, pk)
 	}
 
 	gbo = godal.NewGenericBo()
 	gbo.GboSetAttr("pk", "mypk")
 	dao.CosmosSetPkRowMapPath(map[string]string{"*": "pk"})
 	if id := dao.CosmosGetPk("*", gbo); id != "mypk" {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, "mypk", id)
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, "mypk", id)
 	}
 
 	gbo = godal.NewGenericBo()
 	dao.CosmosSetPkGboMapPath(map[string]string{"*": "upk"})
 	if pk := dao.CosmosGetPk("*", gbo); pk != "" {
-		t.Fatalf("%s failed: expected empty pk-value but received %#v", name, pk)
+		t.Fatalf("%s failed: expected empty pk-value but received %#v", testName, pk)
 	}
 
 	gbo.GboSetAttr("upk", "myupk")
 	if id := dao.CosmosGetPk("*", gbo); id != "myupk" {
-		t.Fatalf("%s failed: expected %#v but received %#v", name, "myupk", id)
+		t.Fatalf("%s failed: expected %#v but received %#v", testName, "myupk", id)
 	}
 }
 
@@ -854,44 +885,6 @@ func dotestGenericDaoSqlGdaoSave(t *testing.T, name string, dao *UserDaoSql) {
 	}
 }
 
-// func _checkFilterNull(t *testing.T, name string, expected, target *UserBoSql) {
-// 	if target == nil {
-// 		t.Fatalf("%s failed: target is nil", name)
-// 	}
-// 	if target.Id != expected.Id {
-// 		t.Fatalf("%s failed: field [Id] mismatched - %#v / %#v", name, expected.Id, target.Id)
-// 	}
-// 	if target.Username != expected.Username {
-// 		t.Fatalf("%s failed: field [Username] mismatched - %#v / %#v", name, expected.Username, target.Username)
-// 	}
-// 	if target.Name != expected.Name {
-// 		t.Fatalf("%s failed: field [Name] mismatched - %#v / %#v", name, expected.Name, target.Name)
-// 	}
-// 	if target.Version != expected.Version {
-// 		t.Fatalf("%s failed: field [Version] mismatched - %#v / %#v", name, expected.Version, target.Version)
-// 	}
-// 	if target.Active != expected.Active {
-// 		t.Fatalf("%s failed: field [Active] mismatched - %#v / %#v", name, expected.Active, target.Active)
-// 	}
-// 	layout := time.RFC3339
-// 	if target.Created.Format(layout) != expected.Created.Format(layout) {
-// 		t.Fatalf("%s failed: field [Created] mismatched - %#v / %#v", name, expected.Created.Format(layout), target.Created.Format(layout))
-// 	}
-//
-// 	if (expected.ValPInt != nil && (target.ValPInt == nil || *target.ValPInt != *expected.ValPInt)) || (expected.ValPInt == nil && target.ValPInt != nil) {
-// 		t.Fatalf("%s failed: field [PInt] mismatched - %#v / %#v", name, expected.ValPInt, target.ValPInt)
-// 	}
-// 	if (expected.ValPFloat != nil && (target.ValPFloat == nil || *target.ValPFloat != *expected.ValPFloat)) || (expected.ValPFloat == nil && target.ValPFloat != nil) {
-// 		t.Fatalf("%s failed: field [PFloat] mismatched - %#v / %#v", name, expected.ValPFloat, target.ValPFloat)
-// 	}
-// 	if (expected.ValPString != nil && (target.ValPString == nil || *target.ValPString != *expected.ValPString)) || (expected.ValPString == nil && target.ValPString != nil) {
-// 		t.Fatalf("%s failed: field [PString] mismatched - %#v / %#v", name, expected.ValPString, target.ValPString)
-// 	}
-// 	if (expected.ValPTime != nil && (target.ValPTime == nil || target.ValPTime.Format(layout) != expected.ValPTime.Format(layout))) || (expected.ValPTime == nil && target.ValPTime != nil) {
-// 		t.Fatalf("%s failed: field [PTime] mismatched - %#v / %#v", name, expected.ValPTime, target.ValPTime)
-// 	}
-// }
-
 func dotestGenericDaoSqlGdaoFilterNull(t *testing.T, name string, dao *UserDaoSql) {
 	rand.Seed(time.Now().UnixNano())
 	var userList = make([]*UserBoSql, 0)
@@ -1050,115 +1043,171 @@ const (
 )
 
 func TestGenericDaoCosmosdb_SetGetSqlConnect(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_SetGetSqlConnect"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
-	sqlc, _ := newSqlConnect(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTimeZone, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_SetGetSqlConnect"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
+	sqlc, _ := newSqlConnect(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTimeZone, sql.FlavorCosmosDb)
+	defer sqlc.Close()
 	if sqlc == dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should not equal", name)
+		t.Fatalf("%s failed: should not equal", testName)
 	}
 	dao.SetSqlConnect(sqlc)
 	if sqlc != dao.GetSqlConnect() {
-		t.Fatalf("%s failed: should equal", name)
+		t.Fatalf("%s failed: should equal", testName)
 	}
 }
 
 func TestGenericDaoCosmosdb_GdaoDelete(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoDelete"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoDelete"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoDelete(t, name, dao)
+	dotestGenericDaoSqlGdaoDelete(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoDeleteMany(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoDeleteMany"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoDeleteMany"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoDeleteMany(t, name, dao)
+	dotestGenericDaoSqlGdaoDeleteMany(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoFetchOne(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoDeleteMany"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoDeleteMany"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoFetchOne(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchOne(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoFetchMany(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoFetchMany"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoFetchMany"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoFetchMany(t, name, dao)
+	dotestGenericDaoSqlGdaoFetchMany(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoCreate(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoCreate"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoCreate"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoCreate(t, name, dao)
+	dotestGenericDaoSqlGdaoCreate(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoUpdate(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoUpdate"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoUpdate"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoUpdate(t, name, dao)
+	dotestGenericDaoSqlGdaoUpdate(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoSave(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoSave"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoSave"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_GdaoSaveTxModeOnWrite(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_GdaoSaveTxModeOnWrite"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_GdaoSaveTxModeOnWrite"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
 	dao.SetTxModeOnWrite(true)
-	dotestGenericDaoSqlGdaoSave(t, name, dao)
+	dotestGenericDaoSqlGdaoSave(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_FilterNull(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_FilterNull"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_FilterNull"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNull(t, testName, dao)
 }
 
 func TestGenericDaoCosmosdb_FilterNotNull(t *testing.T) {
-	name := "TestGenericDaoCosmosdb_FilterNotNull"
-	dao := initDaoCosmosdb(t, name, os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, prom.FlavorCosmosDb)
+	testName := "TestGenericDaoCosmosdb_FilterNotNull"
+	dao := initDaoCosmosdb(os.Getenv(envCosmosdbDriver), os.Getenv(envCosmosdbUrl), testTableName, sql.FlavorCosmosDb)
+	if dao == nil {
+		t.SkipNow()
+	}
+	defer dao.GetSqlConnect().Close()
+
 	err := prepareTableCosmosdb(dao.GetSqlConnect(), dao.collectionName)
 	if err != nil {
-		t.Fatalf("%s failed: %e", name+"/prepareTableCosmosdb", err)
+		t.Fatalf("%s failed: %e", testName+"/prepareTableCosmosdb", err)
 	}
-	dotestGenericDaoSqlGdaoFilterNotNull(t, name, dao)
+	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }

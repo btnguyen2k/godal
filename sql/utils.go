@@ -9,13 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/btnguyen2k/prom"
+	"github.com/btnguyen2k/prom/sql"
 )
 
 // PlaceholderGenerator is a function that generates placeholder used in prepared statement.
 type PlaceholderGenerator func(field string) string
 
-// NewPlaceholderGenerator is a function that creates PlaceholderGenerator
+// NewPlaceholderGenerator is a function that creates PlaceholderGenerator instances.
 type NewPlaceholderGenerator func() PlaceholderGenerator
 
 // NewPlaceholderGeneratorQuestion creates a placeholder function that uses "?" as placeholder.
@@ -71,24 +71,6 @@ func NewPlaceholderGeneratorAtpiN() PlaceholderGenerator {
 
 /*----------------------------------------------------------------------*/
 
-// // OptionOpLiteral controls literal forms of operators.
-// type OptionOpLiteral struct {
-// 	OpAnd      string // 'and' operator, default is "AND"
-// 	OpOr       string // 'or' operator, default is "OR"
-// 	OpEqual    string // 'equal' operator, default is "="
-// 	OpNotEqual string // 'not equal' operator, default is "!="
-// }
-
-// // DefaultOptionLiteralOperator uses "AND" for 'and' operator, "OR" for 'or' operator, "=" for equal and "!=" for not equal.
-// var DefaultOptionLiteralOperator = &OptionOpLiteral{
-// 	OpAnd:      "AND",
-// 	OpOr:       "OR",
-// 	OpEqual:    "=",
-// 	OpNotEqual: "!=",
-// }
-
-/*----------------------------------------------------------------------*/
-
 // OptTableAlias is used to prefix table alias to field name when building ISorting, IFilter or ISqlBuilder.
 type OptTableAlias struct {
 	TableAlias string
@@ -96,7 +78,7 @@ type OptTableAlias struct {
 
 // OptDbFlavor is used to specify the db flavor that affects the generated SQL statement.
 type OptDbFlavor struct {
-	Flavor prom.DbFlavor
+	Flavor sql.DbFlavor
 }
 
 /*----------------------------------------------------------------------*/
@@ -111,7 +93,7 @@ type ISorting interface {
 
 // GenericSorting is a generic implementation of ISorting.
 type GenericSorting struct {
-	Flavor prom.DbFlavor
+	Flavor sql.DbFlavor
 	// Ordering defines list of fields to sort on. Field is in the following format: <field_name[<:order>]>, where 'order>=0' means 'ascending' and 'order<0' means 'descending'.
 	Ordering []string
 }
@@ -291,7 +273,7 @@ type FilterFieldValue struct {
 // Build implements IFilter.Build.
 func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	tableAlias := ""
-	flavor := prom.FlavorDefault
+	flavor := sql.FlavorDefault
 	for _, opt := range opts {
 		switch opt.(type) {
 		case OptTableAlias:
@@ -306,7 +288,7 @@ func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts
 	}
 	values := make([]interface{}, 0)
 	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " NULL"
-	if flavor == prom.FlavorCosmosDb {
+	if flavor == sql.FlavorCosmosDb {
 		clause = tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " null"
 	}
 	if f.Value != nil {
@@ -330,7 +312,7 @@ func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...
 	f.Value = nil
 	if strings.TrimSpace(f.Operator) == "" {
 		f.Operator = "IS"
-		flavor := prom.FlavorDefault
+		flavor := sql.FlavorDefault
 		for _, opt := range opts {
 			switch opt.(type) {
 			case OptDbFlavor:
@@ -339,7 +321,7 @@ func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...
 				flavor = opt.(*OptDbFlavor).Flavor
 			}
 		}
-		if flavor == prom.FlavorCosmosDb {
+		if flavor == sql.FlavorCosmosDb {
 			f.Operator = "="
 		}
 	}
@@ -358,7 +340,7 @@ func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts 
 	f.Value = nil
 	if strings.TrimSpace(f.Operator) == "" {
 		f.Operator = "IS NOT"
-		flavor := prom.FlavorDefault
+		flavor := sql.FlavorDefault
 		for _, opt := range opts {
 			switch opt.(type) {
 			case OptDbFlavor:
@@ -367,7 +349,7 @@ func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts 
 				flavor = opt.(*OptDbFlavor).Flavor
 			}
 		}
-		if flavor == prom.FlavorCosmosDb {
+		if flavor == sql.FlavorCosmosDb {
 			f.Operator = "!="
 		}
 	}
@@ -399,7 +381,7 @@ type ISqlBuilder interface {
 //
 // Available since v0.3.0
 type BaseSqlBuilder struct {
-	Flavor               prom.DbFlavor
+	Flavor               sql.DbFlavor
 	PlaceholderGenerator PlaceholderGenerator
 	Table                string
 }
@@ -407,16 +389,16 @@ type BaseSqlBuilder struct {
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
-func (b *BaseSqlBuilder) WithFlavor(flavor prom.DbFlavor) *BaseSqlBuilder {
+func (b *BaseSqlBuilder) WithFlavor(flavor sql.DbFlavor) *BaseSqlBuilder {
 	b.Flavor = flavor
 	switch flavor {
-	case prom.FlavorPgSql, prom.FlavorCosmosDb:
+	case sql.FlavorPgSql, sql.FlavorCosmosDb:
 		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorDollarN())
-	case prom.FlavorMsSql:
+	case sql.FlavorMsSql:
 		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorAtpiN())
-	case prom.FlavorOracle:
+	case sql.FlavorOracle:
 		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorColonN())
-	case prom.FlavorMySql, prom.FlavorSqlite:
+	case sql.FlavorMySql, sql.FlavorSqlite:
 		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
 	default:
 		return b.WithPlaceholderGenerator(NewPlaceholderGeneratorQuestion())
@@ -449,7 +431,7 @@ func NewDeleteBuilder() *DeleteBuilder {
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
-func (b *DeleteBuilder) WithFlavor(flavor prom.DbFlavor) *DeleteBuilder {
+func (b *DeleteBuilder) WithFlavor(flavor sql.DbFlavor) *DeleteBuilder {
 	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
@@ -510,7 +492,7 @@ func NewSelectBuilder() *SelectBuilder {
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
-func (b *SelectBuilder) WithFlavor(flavor prom.DbFlavor) *SelectBuilder {
+func (b *SelectBuilder) WithFlavor(flavor sql.DbFlavor) *SelectBuilder {
 	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
@@ -625,7 +607,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	}
 	tablesClause := strings.Join(b.Tables, ",")
 
-	if b.Flavor == prom.FlavorCosmosDb {
+	if b.Flavor == sql.FlavorCosmosDb {
 		/* START: special case for gocosmos */
 		if tokens := reTblNameWithAlias.FindStringSubmatch(singleTblName); tokens != nil {
 			singleTblName = tokens[1]
@@ -644,7 +626,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	if len(b.Columns) > 0 {
 		cols := make([]string, len(b.Columns))
 		copy(cols, b.Columns)
-		if b.Flavor == prom.FlavorCosmosDb {
+		if b.Flavor == sql.FlavorCosmosDb {
 			/* START: special case for gocosmos */
 			for i, col := range cols {
 				col = strings.TrimSpace(col)
@@ -657,7 +639,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		colsClause = strings.Join(cols, ",")
 	}
 
-	sql := fmt.Sprintf("SELECT %s FROM %s", colsClause, tablesClause)
+	sqlStm := fmt.Sprintf("SELECT %s FROM %s", colsClause, tablesClause)
 	values := make([]interface{}, 0)
 	var tempValues []interface{}
 
@@ -668,7 +650,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		values = append(values, tempValues...)
 	}
 	if whereClause != "" {
-		sql += " WHERE " + whereClause
+		sqlStm += " WHERE " + whereClause
 	}
 
 	groupClause := ""
@@ -681,7 +663,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		groupClause = strings.Join(groupByList, ",")
 	}
 	if groupClause != "" {
-		sql += " GROUP BY " + groupClause
+		sqlStm += " GROUP BY " + groupClause
 	}
 
 	havingClause := ""
@@ -691,7 +673,7 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		values = append(values, tempValues...)
 	}
 	if havingClause != "" {
-		sql += " HAVING " + havingClause
+		sqlStm += " HAVING " + havingClause
 	}
 
 	orderClause := ""
@@ -699,35 +681,35 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		orderClause = b.Sorting.Build(opts...)
 	}
 	if orderClause != "" {
-		sql += " ORDER BY " + orderClause
+		sqlStm += " ORDER BY " + orderClause
 	}
 
 	if b.LimitNumRows != 0 || b.LimitOffset != 0 {
 		switch b.Flavor {
-		case prom.FlavorMySql, prom.FlavorSqlite:
-			sql += " LIMIT " + strconv.Itoa(b.LimitOffset) + "," + strconv.Itoa(b.LimitNumRows)
-		case prom.FlavorPgSql:
-			sql += " LIMIT " + strconv.Itoa(b.LimitNumRows) + " OFFSET " + strconv.Itoa(b.LimitOffset)
-		case prom.FlavorMsSql:
+		case sql.FlavorMySql, sql.FlavorSqlite:
+			sqlStm += " LIMIT " + strconv.Itoa(b.LimitOffset) + "," + strconv.Itoa(b.LimitNumRows)
+		case sql.FlavorPgSql:
+			sqlStm += " LIMIT " + strconv.Itoa(b.LimitNumRows) + " OFFSET " + strconv.Itoa(b.LimitOffset)
+		case sql.FlavorMsSql:
 			if orderClause != "" {
 				// available since SQL Server 2012 && Azure SQL Database
-				sql += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
+				sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
 			}
-		case prom.FlavorOracle:
-			sql += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
-		case prom.FlavorCosmosDb:
-			sql += " OFFSET " + strconv.Itoa(b.LimitOffset) + " LIMIT " + strconv.Itoa(b.LimitNumRows)
+		case sql.FlavorOracle:
+			sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
+		case sql.FlavorCosmosDb:
+			sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " LIMIT " + strconv.Itoa(b.LimitNumRows)
 		}
 	}
 
-	if b.Flavor == prom.FlavorCosmosDb {
+	if b.Flavor == sql.FlavorCosmosDb {
 		/* START: special case for gocosmos */
-		// sql += " WITH collection=" + singleTblName
-		sql += " WITH cross_partition=true"
+		// sqlStm += " WITH collection=" + singleTblName
+		sqlStm += " WITH cross_partition=true"
 		/* END: special case for gocosmos */
 	}
 
-	return sql, values
+	return sqlStm, values
 }
 
 /*----------------------------------------------------------------------*/
@@ -746,7 +728,7 @@ func NewInsertBuilder() *InsertBuilder {
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
-func (b *InsertBuilder) WithFlavor(flavor prom.DbFlavor) *InsertBuilder {
+func (b *InsertBuilder) WithFlavor(flavor sql.DbFlavor) *InsertBuilder {
 	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }
@@ -827,7 +809,7 @@ func NewUpdateBuilder() *UpdateBuilder {
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
 //
 // Note: WithFlavor will reset the PlaceholderGenerator
-func (b *UpdateBuilder) WithFlavor(flavor prom.DbFlavor) *UpdateBuilder {
+func (b *UpdateBuilder) WithFlavor(flavor sql.DbFlavor) *UpdateBuilder {
 	b.BaseSqlBuilder.WithFlavor(flavor)
 	return b
 }

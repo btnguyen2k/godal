@@ -3,5 +3,5 @@ package godal
 
 const (
 	// Version of godal
-	Version = "0.5.2"
+	Version = "0.6.0"
 )

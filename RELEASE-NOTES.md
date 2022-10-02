@@ -1,5 +1,9 @@
 # godal release notes
 
+## 2022-10-xx - v0.6.0
+
+- Migrated to `btnguyen2k/prom v0.4.x`.
+
 ## 2021-10-25 - v0.5.2
 
 - `GenericDaoDynamodb.GdaoFetchMany`: prefix table name with character `!` to query 'backward' instead of the normal 'forward' mode (used only in "query" operation).
