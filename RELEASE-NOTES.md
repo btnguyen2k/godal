@@ -1,6 +1,6 @@
 # godal release notes
 
-## 2022-10-xx - v0.6.0
+## 2022-10-02 - v0.6.0
 
 - Migrated to `btnguyen2k/prom v0.4.x`.
 
