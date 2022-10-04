@@ -63,9 +63,9 @@ func createSqlConnectForCosmosdb() *sql.SqlConnect {
 
 	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
 	db := "godal"
-	findResult := dbre.FindAllStringSubmatch(url, -1)
+	findResult := dbre.FindAllStringSubmatch(dsn, -1)
 	if findResult == nil {
-		url += ";Db=" + db
+		dsn += ";Db=" + db
 	} else {
 		db = findResult[0][1]
 	}
