@@ -291,10 +291,11 @@ func newSqlConnect(driver, url, timezone string, flavor sql.DbFlavor) (*sql.SqlC
 
 	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
 	db := "godal"
-	if result := dbre.FindAllStringSubmatch(url, -1); result != nil {
-		db = result[0][1]
-	} else {
+	findResult := dbre.FindAllStringSubmatch(url, -1)
+	if findResult == nil {
 		url += ";Db=" + db
+	} else {
+		db = findResult[0][1]
 	}
 
 	urlTimezone := strings.ReplaceAll(timezone, "/", "%2f")

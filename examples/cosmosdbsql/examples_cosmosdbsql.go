@@ -63,10 +63,11 @@ func createSqlConnectForCosmosdb() *sql.SqlConnect {
 
 	dbre := regexp.MustCompile(`(?i);db=(\w+)`)
 	db := "godal"
-	if result := dbre.FindAllStringSubmatch(dsn, -1); result != nil {
-		db = result[0][1]
+	findResult := dbre.FindAllStringSubmatch(url, -1)
+	if findResult == nil {
+		url += ";Db=" + db
 	} else {
-		dsn += ";Db=" + db
+		db = findResult[0][1]
 	}
 
 	sqlConnect, err := sql.NewSqlConnectWithFlavor(driver, dsn, 10000, nil, sql.FlavorCosmosDb)
