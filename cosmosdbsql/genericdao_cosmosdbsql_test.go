@@ -306,9 +306,8 @@ func newSqlConnect(driver, url, timezone string, flavor sql.DbFlavor) (*sql.SqlC
 		loc, _ := time.LoadLocation(timezone)
 		sqlc.SetLocation(loc)
 	}
-	return sqlc, err
 
-	sqlc.GetDB().Exec("CREATE DATABASE " + db + " WITH maxru=10000")
+	sqlc.GetDB().Exec("CREATE DATABASE IF NOT EXISTS " + db + " WITH maxru=10000")
 
 	return sqlc, err
 }
