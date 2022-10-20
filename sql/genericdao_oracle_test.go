@@ -224,10 +224,10 @@ func TestGenericDaoOracle_FilterNotNull(t *testing.T) {
 		t.SkipNow()
 	}
 	defer dao.sqlConnect.Close()
-	
 	err := prepareTableOracle(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", testName+"/prepareTableOracle", err)
 	}
 	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }
+
