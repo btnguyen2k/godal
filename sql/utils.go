@@ -81,6 +81,66 @@ type OptDbFlavor struct {
 	Flavor sql.DbFlavor
 }
 
+func extractOptTableAlias(opts ...interface{}) string {
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias:
+			return opt.(OptTableAlias).TableAlias + "."
+		case *OptTableAlias:
+			return opt.(*OptTableAlias).TableAlias + "."
+		}
+	}
+	return ""
+}
+
+func removeOptTableAlias(opts ...interface{}) []interface{} {
+	result := make([]interface{}, 0, len(opts))
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptTableAlias, *OptTableAlias:
+			continue
+		}
+		result = append(result, opt)
+	}
+	return result
+}
+
+func extractOptDbFlavor(opts ...interface{}) sql.DbFlavor {
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptDbFlavor:
+			return opt.(OptDbFlavor).Flavor
+		case *OptDbFlavor:
+			return opt.(*OptDbFlavor).Flavor
+		}
+	}
+	return sql.FlavorDefault
+}
+
+// StmGeneratorBetween generates custom "BETWEEN" clause of the SQL statement.
+//
+// Available since v0.6.1
+type StmGeneratorBetween func(pg PlaceholderGenerator, field string, leftValue, rightValue interface{}, opts ...interface{}) (string, []interface{})
+
+// OptBetweenGenerator is used to specify the generator used to generate custom "BETWEEN" clause of the SQL statement.
+//
+// Available since v0.6.1
+type OptBetweenGenerator struct {
+	Generator StmGeneratorBetween
+}
+
+func extractOptBetweenGenerator(opts ...interface{}) StmGeneratorBetween {
+	for _, opt := range opts {
+		switch opt.(type) {
+		case OptBetweenGenerator:
+			return opt.(OptBetweenGenerator).Generator
+		case *OptBetweenGenerator:
+			return opt.(*OptBetweenGenerator).Generator
+		}
+	}
+	return nil
+}
+
 /*----------------------------------------------------------------------*/
 
 var isortingType = reflect.TypeOf((*ISorting)(nil)).Elem()
@@ -93,12 +153,21 @@ type ISorting interface {
 
 // GenericSorting is a generic implementation of ISorting.
 type GenericSorting struct {
-	Flavor sql.DbFlavor
-	// Ordering defines list of fields to sort on. Field is in the following format: <field_name[<:order>]>, where 'order>=0' means 'ascending' and 'order<0' means 'descending'.
-	Ordering []string
+	Flavor   sql.DbFlavor
+	Ordering []string // list of fields to sort on. Field is in the following format: <field_name[<:order>]>, where '1' means 'ascending' and '-1' means 'descending'.
+}
+
+// WithFlavor sets the database flavor associated with this sorting instance.
+//
+// Available since v0.6.1
+func (o *GenericSorting) WithFlavor(flavor sql.DbFlavor) *GenericSorting {
+	o.Flavor = flavor
+	return o
 }
 
 // Add appends an ordering element to the list.
+//
+// order is in the following format: <field_name[<:order>]>, where '1' means 'ascending' and '-1' means 'descending'.
 func (o *GenericSorting) Add(order string) *GenericSorting {
 	if strings.TrimSpace(order) != "" {
 		o.Ordering = append(o.Ordering, strings.TrimSpace(order))
@@ -112,26 +181,22 @@ func (o *GenericSorting) Build(opts ...interface{}) string {
 		return ""
 	}
 
-	tableAlias := ""
-	for _, opt := range opts {
-		switch opt.(type) {
-		case OptTableAlias:
-			tableAlias = opt.(OptTableAlias).TableAlias + "."
-		case *OptTableAlias:
-			tableAlias = opt.(*OptTableAlias).TableAlias + "."
-		}
-	}
-
-	elements := make([]string, 0)
+	tableAlias := extractOptTableAlias(opts...)
+	elements := make([]string, 0, len(o.Ordering))
 	for _, v := range o.Ordering {
 		tokens := strings.Split(v, ":")
-		order := tableAlias + tokens[0]
+		order := tokens[0]
+		if !reColnamePrefixedTblname.MatchString(order) {
+			order = tableAlias + order
+		}
 		if len(tokens) > 1 {
 			ord := strings.TrimSpace(strings.ToUpper(tokens[1]))
 			if ord == "ASC" || ord == "DESC" {
 				order += " " + tokens[1]
 			} else if ord != "" && ord[0] == '-' {
 				order += " DESC"
+			} else {
+				order += " ASC"
 			}
 		}
 		elements = append(elements, order)
@@ -157,7 +222,24 @@ type IFilter interface {
 // Available since v0.3.0
 type FilterAndOr struct {
 	Filters  []IFilter
-	Operator string // literal form for the operator
+	Operator string // literal form of the operator
+}
+
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterAndOr) Clone() *FilterAndOr {
+	clone := &FilterAndOr{Operator: f.Operator, Filters: make([]IFilter, len(f.Filters))}
+	copy(clone.Filters, f.Filters)
+	return clone
+}
+
+// WithOperator assigns an operation to this filter.
+//
+// Available since v0.6.1
+func (f *FilterAndOr) WithOperator(op string) *FilterAndOr {
+	f.Operator = op
+	return f
 }
 
 // Add appends a filter to the list.
@@ -175,13 +257,13 @@ func (f *FilterAndOr) Build(placeholderGenerator PlaceholderGenerator, opts ...i
 		return "", make([]interface{}, 0)
 	}
 
-	op := " " + strings.TrimSpace(f.Operator) + " "
+	op := fmt.Sprintf(" %s ", strings.TrimSpace(f.Operator))
 	clause, values := f.Filters[0].Build(placeholderGenerator, opts...)
 	if nFilters > 1 {
-		clause = "(" + clause + ")"
+		clause = fmt.Sprintf("(%s)", clause)
 		for i := 1; i < nFilters; i++ {
 			c, v := f.Filters[i].Build(placeholderGenerator, opts...)
-			clause += op + "(" + c + ")"
+			clause += op + fmt.Sprintf("(%s)", c)
 			values = append(values, v...)
 		}
 	}
@@ -194,6 +276,14 @@ type FilterAnd struct {
 	FilterAndOr
 }
 
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterAnd) Clone() *FilterAnd {
+	clone := &FilterAnd{*f.FilterAndOr.Clone()}
+	return clone
+}
+
 // Add appends a filter to the list.
 func (f *FilterAnd) Add(filter IFilter) *FilterAnd {
 	f.FilterAndOr.Add(filter)
@@ -203,7 +293,7 @@ func (f *FilterAnd) Add(filter IFilter) *FilterAnd {
 // Build implements IFilter.Build.
 func (f *FilterAnd) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	if strings.TrimSpace(f.Operator) == "" {
-		f.Operator = "AND"
+		return f.Clone().WithOperator("AND").Build(placeholderGenerator, opts...)
 	}
 	return f.FilterAndOr.Build(placeholderGenerator, opts...)
 }
@@ -211,6 +301,14 @@ func (f *FilterAnd) Build(placeholderGenerator PlaceholderGenerator, opts ...int
 // FilterOr combines two filters using OR clause.
 type FilterOr struct {
 	FilterAndOr
+}
+
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterOr) Clone() *FilterOr {
+	clone := &FilterOr{*f.FilterAndOr.Clone()}
+	return clone
 }
 
 // Add appends a filter to the list.
@@ -222,14 +320,34 @@ func (f *FilterOr) Add(filter IFilter) *FilterOr {
 // Build implements IFilter.Build.
 func (f *FilterOr) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
 	if strings.TrimSpace(f.Operator) == "" {
-		f.Operator = "OR"
+		return f.Clone().WithOperator("OR").Build(placeholderGenerator, opts...)
 	}
 	return f.FilterAndOr.Build(placeholderGenerator, opts...)
 }
 
 /*----------------------------------------------------------------------*/
 
-// FilterBetween represents single filter: <field> BETWEEN <value1> AND <value2>.
+// FilterAsIs represents a single filter where the clause is passed as-is to the database driver.
+//
+// Available since v0.6.1
+type FilterAsIs struct {
+	Clause string
+}
+
+// WithClause assigns a clause to this filter.
+func (f *FilterAsIs) WithClause(clause string) *FilterAsIs {
+	f.Clause = clause
+	return f
+}
+
+// Build implements IFilter.Build.
+func (f *FilterAsIs) Build(_ PlaceholderGenerator, _ ...interface{}) (string, []interface{}) {
+	return f.Clause, []interface{}{}
+}
+
+/*----------------------------------------------------------------------*/
+
+// FilterBetween represents the single filter: <field> BETWEEN <value1> AND <value2>.
 //
 // Available since v0.4.0
 type FilterBetween struct {
@@ -239,134 +357,284 @@ type FilterBetween struct {
 	ValueRight interface{} // right value of the BETWEEN operator
 }
 
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterBetween) Clone() *FilterBetween {
+	clone := &FilterBetween{
+		Field:      f.Field,
+		Operator:   f.Operator,
+		ValueLeft:  f.ValueLeft,
+		ValueRight: f.ValueRight,
+	}
+	return clone
+}
+
+// WithField assigns a field to this filter.
+//
+// Available since v0.6.1
+func (f *FilterBetween) WithField(field string) *FilterBetween {
+	f.Field = field
+	return f
+}
+
+// WithOperator assigns an operator to this filter.
+//
+// Available since v0.6.1
+func (f *FilterBetween) WithOperator(op string) *FilterBetween {
+	f.Operator = op
+	return f
+}
+
+// WithLeftValue assigns a value to the left operand.
+//
+// Available since v0.6.1
+func (f *FilterBetween) WithLeftValue(val interface{}) *FilterBetween {
+	f.ValueLeft = val
+	return f
+}
+
+// WithRightValue assigns a value to the right operand.
+//
+// Available since v0.6.1
+func (f *FilterBetween) WithRightValue(val interface{}) *FilterBetween {
+	f.ValueRight = val
+	return f
+}
+
 // Build implements IFilter.Build.
 func (f *FilterBetween) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
+	if strings.TrimSpace(f.Operator) == "" {
+		return f.Clone().WithOperator("BETWEEN").Build(placeholderGenerator, opts...)
+	}
+
+	if customGenerator := extractOptBetweenGenerator(opts...); customGenerator != nil {
+		return customGenerator(placeholderGenerator, f.Field, f.ValueLeft, f.ValueRight, opts...)
+	}
+
 	if placeholderGenerator == nil {
 		return "", []interface{}{}
 	}
-	if strings.TrimSpace(f.Operator) == "" {
-		f.Operator = "BETWEEN"
-	}
-	tableAlias := ""
-	for _, opt := range opts {
-		switch opt.(type) {
-		case OptTableAlias:
-			tableAlias = opt.(OptTableAlias).TableAlias + "."
-		case *OptTableAlias:
-			tableAlias = opt.(*OptTableAlias).TableAlias + "."
-		}
+	tableAlias := extractOptTableAlias(opts...)
+	if reColnamePrefixedTblname.MatchString(f.Field) {
+		tableAlias = ""
 	}
 	values := []interface{}{f.ValueLeft, f.ValueRight}
-	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " " + placeholderGenerator(f.Field) + " AND " + placeholderGenerator(f.Field)
+	clause := fmt.Sprintf("%s%s %s %s AND %s", tableAlias, f.Field, strings.TrimSpace(f.Operator), placeholderGenerator(f.Field), placeholderGenerator(f.Field))
 	return clause, values
 }
 
 /*----------------------------------------------------------------------*/
 
-// FilterFieldValue represents single filter: <field> <operator> <value>.
+// FilterFieldValue represents the single filter: <field> <operator> <value>.
 type FilterFieldValue struct {
 	Field    string      // field to check
 	Operator string      // the operator to perform
 	Value    interface{} // value to test against
 }
 
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterFieldValue) Clone() *FilterFieldValue {
+	clone := &FilterFieldValue{
+		Field:    f.Field,
+		Operator: f.Operator,
+		Value:    f.Value,
+	}
+	return clone
+}
+
+// WithField assigns a field to this filter.
+//
+// Available since v0.6.1
+func (f *FilterFieldValue) WithField(field string) *FilterFieldValue {
+	f.Field = field
+	return f
+}
+
+// WithOperator assigns an operator to this filter.
+//
+// Available since v0.6.1
+func (f *FilterFieldValue) WithOperator(op string) *FilterFieldValue {
+	f.Operator = op
+	return f
+}
+
+// WithValue assigns a value to this filter.
+//
+// Available since v0.6.1
+func (f *FilterFieldValue) WithValue(val interface{}) *FilterFieldValue {
+	f.Value = val
+	return f
+}
+
 // Build implements IFilter.Build.
 func (f *FilterFieldValue) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
-	tableAlias := ""
-	flavor := sql.FlavorDefault
-	for _, opt := range opts {
-		switch opt.(type) {
-		case OptTableAlias:
-			tableAlias = opt.(OptTableAlias).TableAlias + "."
-		case *OptTableAlias:
-			tableAlias = opt.(*OptTableAlias).TableAlias + "."
-		case OptDbFlavor:
-			flavor = opt.(OptDbFlavor).Flavor
-		case *OptDbFlavor:
-			flavor = opt.(*OptDbFlavor).Flavor
-		}
+	tableAlias := extractOptTableAlias(opts...)
+	if reColnamePrefixedTblname.MatchString(f.Field) {
+		tableAlias = ""
 	}
+	flavor := extractOptDbFlavor(opts...)
 	values := make([]interface{}, 0)
-	clause := tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " NULL"
-	if flavor == sql.FlavorCosmosDb {
-		clause = tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " null"
-	}
+	var clause string
 	if f.Value != nil {
-		clause = tableAlias + f.Field + " " + strings.TrimSpace(f.Operator) + " " + placeholderGenerator(f.Field)
+		if placeholderGenerator == nil {
+			return "", []interface{}{}
+		}
+		clause = fmt.Sprintf("%s%s %s %s", tableAlias, f.Field, strings.TrimSpace(f.Operator), placeholderGenerator(f.Field))
 		values = append(values, f.Value)
+	} else if flavor == sql.FlavorCosmosDb {
+		clause = fmt.Sprintf("%s%s %s null", tableAlias, f.Field, strings.TrimSpace(f.Operator))
+	} else {
+		clause = fmt.Sprintf("%s%s %s NULL", tableAlias, f.Field, strings.TrimSpace(f.Operator))
 	}
 	return clause, values
 }
 
 /*----------------------------------------------------------------------*/
 
-// FilterIsNull represents single filter: <field> IS NULL.
+// FilterIsNull represents the single filter: <field> IS NULL.
 //
 // Available since v0.4.0
 type FilterIsNull struct {
 	FilterFieldValue
 }
 
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNull) Clone() *FilterIsNull {
+	clone := &FilterIsNull{*f.FilterFieldValue.Clone()}
+	return clone
+}
+
+// WithField assigns a field to this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNull) WithField(field string) *FilterIsNull {
+	f.FilterFieldValue.WithField(field)
+	return f
+}
+
+// WithOperator assigns an operator to this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNull) WithOperator(op string) *FilterIsNull {
+	f.FilterFieldValue.WithOperator(op)
+	return f
+}
+
 // Build implements IFilter.Build.
 func (f *FilterIsNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
-	f.Value = nil
-	if strings.TrimSpace(f.Operator) == "" {
-		f.Operator = "IS"
-		flavor := sql.FlavorDefault
-		for _, opt := range opts {
-			switch opt.(type) {
-			case OptDbFlavor:
-				flavor = opt.(OptDbFlavor).Flavor
-			case *OptDbFlavor:
-				flavor = opt.(*OptDbFlavor).Flavor
-			}
+	if f.Value != nil || strings.TrimSpace(f.Operator) == "" {
+		fclone := f.Clone()
+		fclone.WithValue(nil)
+		if strings.TrimSpace(fclone.Operator) == "" {
+			fclone.WithOperator("IS")
 		}
-		if flavor == sql.FlavorCosmosDb {
-			f.Operator = "="
-		}
+		return fclone.Build(placeholderGenerator, opts...)
+	}
+
+	flavor := extractOptDbFlavor(opts...)
+	if flavor == sql.FlavorCosmosDb {
+		return f.Clone().WithOperator("=").FilterFieldValue.Build(placeholderGenerator, opts...)
 	}
 	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
 }
 
-// FilterIsNotNull represents single filter: <field> IS NOT NULL.
+// FilterIsNotNull represents the single filter: <field> IS NOT NULL.
 //
 // Available since v0.4.0
 type FilterIsNotNull struct {
 	FilterFieldValue
 }
 
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNotNull) Clone() *FilterIsNotNull {
+	clone := &FilterIsNotNull{*f.FilterFieldValue.Clone()}
+	return clone
+}
+
+// WithField assigns a field to this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNotNull) WithField(field string) *FilterIsNotNull {
+	f.FilterFieldValue.WithField(field)
+	return f
+}
+
+// WithOperator assigns an operator to this filter.
+//
+// Available since v0.6.1
+func (f *FilterIsNotNull) WithOperator(op string) *FilterIsNotNull {
+	f.FilterFieldValue.WithOperator(op)
+	return f
+}
+
 // Build implements IFilter.Build.
 func (f *FilterIsNotNull) Build(placeholderGenerator PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
-	f.Value = nil
-	if strings.TrimSpace(f.Operator) == "" {
-		f.Operator = "IS NOT"
-		flavor := sql.FlavorDefault
-		for _, opt := range opts {
-			switch opt.(type) {
-			case OptDbFlavor:
-				flavor = opt.(OptDbFlavor).Flavor
-			case *OptDbFlavor:
-				flavor = opt.(*OptDbFlavor).Flavor
-			}
+	if f.Value != nil || strings.TrimSpace(f.Operator) == "" {
+		fclone := f.Clone()
+		fclone.WithValue(nil)
+		if strings.TrimSpace(fclone.Operator) == "" {
+			fclone.WithOperator("IS NOT")
 		}
-		if flavor == sql.FlavorCosmosDb {
-			f.Operator = "!="
-		}
+		return fclone.Build(placeholderGenerator, opts...)
+	}
+
+	flavor := extractOptDbFlavor(opts...)
+	if flavor == sql.FlavorCosmosDb {
+		return f.Clone().WithOperator("!=").FilterFieldValue.Build(placeholderGenerator, opts...)
 	}
 	return f.FilterFieldValue.Build(placeholderGenerator, opts...)
 }
 
 /*----------------------------------------------------------------------*/
 
-// FilterExpression represents single filter: <left> <operator> <right>.
+// FilterExpression represents the single filter: <left> <operator> <right>.
 type FilterExpression struct {
 	Left, Right string // left & right parts of the expression
 	Operator    string // the operator to perform
 }
 
+// WithLeft assigns a left operand to this filter.
+//
+// Available since v0.6.1
+func (f *FilterExpression) WithLeft(left string) *FilterExpression {
+	f.Left = left
+	return f
+}
+
+// WithRight assigns a right operand to this filter.
+//
+// Available since v0.6.1
+func (f *FilterExpression) WithRight(right string) *FilterExpression {
+	f.Right = right
+	return f
+}
+
+// WithOperator assigns an operator to this filter.
+//
+// Available since v0.6.1
+func (f *FilterExpression) WithOperator(op string) *FilterExpression {
+	f.Operator = op
+	return f
+}
+
 // Build implements IFilter.Build.
 func (f *FilterExpression) Build(_ PlaceholderGenerator, opts ...interface{}) (string, []interface{}) {
-	clause := f.Left + " " + strings.TrimSpace(f.Operator) + " " + f.Right
+	tableAlias := extractOptTableAlias(opts...)
+	tableAliasLeft, tableAliasRight := tableAlias, tableAlias
+	if reColnamePrefixedTblname.MatchString(f.Left) {
+		tableAliasLeft = ""
+	}
+	if reColnamePrefixedTblname.MatchString(f.Right) {
+		tableAliasRight = ""
+	}
+	clause := fmt.Sprintf("%s%s %s %s%s", tableAliasLeft, f.Left, strings.TrimSpace(f.Operator), tableAliasRight, f.Right)
 	return clause, make([]interface{}, 0)
 }
 
@@ -384,6 +652,14 @@ type BaseSqlBuilder struct {
 	Flavor               sql.DbFlavor
 	PlaceholderGenerator PlaceholderGenerator
 	Table                string
+}
+
+// Clone returns a cloned instance of this filter.
+//
+// Available since v0.6.1
+func (b *BaseSqlBuilder) Clone() *BaseSqlBuilder {
+	clone := &BaseSqlBuilder{Flavor: b.Flavor, PlaceholderGenerator: b.PlaceholderGenerator, Table: b.Table}
+	return clone
 }
 
 // WithFlavor sets the SQL flavor that affect the generated SQL statement.
@@ -417,7 +693,7 @@ func (b *BaseSqlBuilder) WithTable(table string) *BaseSqlBuilder {
 	return b
 }
 
-// DeleteBuilder is a builder that helps building DELETE sql statement.
+// DeleteBuilder is a builder that helps to build DELETE sql statement.
 type DeleteBuilder struct {
 	BaseSqlBuilder
 	Filter IFilter
@@ -458,15 +734,26 @@ func (b *DeleteBuilder) WithFilter(filter IFilter) *DeleteBuilder {
 //
 //     DELETE FROM <table> [WHERE <filter>]
 //
-// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+// (since v0.3.0) the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite3 and btnguyen2k/gocosmos.
 func (b *DeleteBuilder) Build(opts ...interface{}) (string, []interface{}) {
+	if b.Flavor == sql.FlavorCosmosDb {
+		opts = removeOptTableAlias(opts...)
+	}
+	tableAlias := extractOptTableAlias(opts...)
+	if tableAlias != "" {
+		if reTblNameWithAlias.MatchString(b.Table) {
+			tableAlias = ""
+		} else {
+			tableAlias = " " + tableAlias[:len(tableAlias)-1]
+		}
+	}
 	if b.Filter != nil {
-		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
-		whereClause, values := b.Filter.Build(b.PlaceholderGenerator, opts...)
-		sql := fmt.Sprintf("DELETE FROM %s WHERE %s", b.Table, whereClause)
+		newOpts := append([]interface{}{OptDbFlavor{Flavor: b.Flavor}}, opts...)
+		whereClause, values := b.Filter.Build(b.PlaceholderGenerator, newOpts...)
+		sql := fmt.Sprintf("DELETE FROM %s%s WHERE %s", b.Table, tableAlias, whereClause)
 		return sql, values
 	}
-	sql := fmt.Sprintf("DELETE FROM %s", b.Table)
+	sql := fmt.Sprintf("DELETE FROM %s%s", b.Table, tableAlias)
 	return sql, make([]interface{}, 0)
 }
 
@@ -520,7 +807,7 @@ func (b *SelectBuilder) AddColumns(columns ...string) *SelectBuilder {
 //
 // Available since v0.3.0
 func (b *SelectBuilder) WithTable(table string) *SelectBuilder {
-	b.BaseSqlBuilder.WithTable(table)
+	// b.BaseSqlBuilder.WithTable(table)
 	b.Tables = []string{table}
 	return b
 }
@@ -590,51 +877,48 @@ var (
 //     [ORDER BY <sorting>]
 //     [LIMIT <limit>]
 //
-// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+// (since v0.3.0) the generated SELECT statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+//
+// Note: (since v0.6.1) if selecting from multiple tables, OptTableAlias (if any) will be discarded.
 func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
-	singleTblName := strings.TrimSpace(b.Tables[0])
-	singleTblAlias := "c"
-	optTableAlias := ""
-	for _, opt := range opts {
-		switch opt.(type) {
-		case OptTableAlias:
-			singleTblAlias = opt.(OptTableAlias).TableAlias
-			optTableAlias = opt.(OptTableAlias).TableAlias + "."
-		case *OptTableAlias:
-			singleTblAlias = opt.(*OptTableAlias).TableAlias
-			optTableAlias = opt.(*OptTableAlias).TableAlias + "."
-		}
+	if len(b.Tables) > 1 {
+		opts = removeOptTableAlias(opts...)
 	}
+	cosmosdbTblName := strings.TrimSpace(b.Tables[0])
+	cosmosdbTblAlias := "c"
+	optTableAlias := extractOptTableAlias(opts...)
 	tablesClause := strings.Join(b.Tables, ",")
+	if optTableAlias != "" {
+		tblAlias := optTableAlias[:len(optTableAlias)-1]
+		if !reTblNameWithAlias.MatchString(tablesClause) {
+			tablesClause += fmt.Sprintf(" %s", tblAlias)
+		}
+		cosmosdbTblAlias = tblAlias
+	}
 
 	if b.Flavor == sql.FlavorCosmosDb {
 		/* START: special case for gocosmos */
-		if tokens := reTblNameWithAlias.FindStringSubmatch(singleTblName); tokens != nil {
-			singleTblName = tokens[1]
-			singleTblAlias = strings.TrimSpace(tokens[3])
+		if tokens := reTblNameWithAlias.FindStringSubmatch(cosmosdbTblName); tokens != nil {
+			cosmosdbTblName = tokens[1]
+			cosmosdbTblAlias = strings.TrimSpace(tokens[3])
 		}
-		tablesClause = singleTblName + " " + singleTblAlias
+		tablesClause = fmt.Sprintf("%s %s", cosmosdbTblName, cosmosdbTblAlias)
 
 		if optTableAlias == "" {
-			optTableAlias = singleTblAlias + "."
-			opts = append(opts, &OptTableAlias{TableAlias: singleTblAlias})
+			optTableAlias = cosmosdbTblAlias + "."
+			opts = append([]interface{}{OptTableAlias{TableAlias: cosmosdbTblAlias}}, opts...)
 		}
 		/* END: special case for gocosmos */
 	}
 
-	colsClause := "*"
+	colsClause := optTableAlias + "*"
 	if len(b.Columns) > 0 {
 		cols := make([]string, len(b.Columns))
 		copy(cols, b.Columns)
-		if b.Flavor == sql.FlavorCosmosDb {
-			/* START: special case for gocosmos */
-			for i, col := range cols {
-				col = strings.TrimSpace(col)
-				if !reColnamePrefixedTblname.MatchString(col) && col != "*" {
-					cols[i] = singleTblAlias + "." + col
-				}
+		for i, col := range b.Columns {
+			if !reColnamePrefixedTblname.MatchString(col) {
+				cols[i] = optTableAlias + col
 			}
-			/* END: special case for gocosmos */
 		}
 		colsClause = strings.Join(cols, ",")
 	}
@@ -645,12 +929,12 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 
 	whereClause := ""
 	if b.Filter != nil {
-		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
-		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
+		newOpts := append([]interface{}{OptDbFlavor{b.Flavor}}, opts...)
+		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, newOpts...)
 		values = append(values, tempValues...)
 	}
 	if whereClause != "" {
-		sqlStm += " WHERE " + whereClause
+		sqlStm += fmt.Sprintf(" WHERE %s", whereClause)
 	}
 
 	groupClause := ""
@@ -658,22 +942,25 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		groupByList := make([]string, len(b.GroupBy))
 		copy(groupByList, b.GroupBy)
 		for i, col := range groupByList {
-			groupByList[i] = optTableAlias + col
+			groupByList[i] = col
+			if !reColnamePrefixedTblname.MatchString(col) {
+				groupByList[i] = optTableAlias + col
+			}
 		}
 		groupClause = strings.Join(groupByList, ",")
 	}
 	if groupClause != "" {
-		sqlStm += " GROUP BY " + groupClause
+		sqlStm += fmt.Sprintf(" GROUP BY %s", groupClause)
 	}
 
 	havingClause := ""
 	if b.Having != nil {
-		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
-		havingClause, tempValues = b.Having.Build(b.PlaceholderGenerator, opts...)
+		newOpts := append([]interface{}{OptDbFlavor{b.Flavor}}, opts...)
+		havingClause, tempValues = b.Having.Build(b.PlaceholderGenerator, newOpts...)
 		values = append(values, tempValues...)
 	}
 	if havingClause != "" {
-		sqlStm += " HAVING " + havingClause
+		sqlStm += fmt.Sprintf(" HAVING %s", havingClause)
 	}
 
 	orderClause := ""
@@ -681,30 +968,30 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 		orderClause = b.Sorting.Build(opts...)
 	}
 	if orderClause != "" {
-		sqlStm += " ORDER BY " + orderClause
+		sqlStm += fmt.Sprintf(" ORDER BY %s", orderClause)
 	}
 
 	if b.LimitNumRows != 0 || b.LimitOffset != 0 {
 		switch b.Flavor {
 		case sql.FlavorMySql, sql.FlavorSqlite:
-			sqlStm += " LIMIT " + strconv.Itoa(b.LimitOffset) + "," + strconv.Itoa(b.LimitNumRows)
+			sqlStm += fmt.Sprintf(" LIMIT %d,%d", b.LimitOffset, b.LimitNumRows)
 		case sql.FlavorPgSql:
-			sqlStm += " LIMIT " + strconv.Itoa(b.LimitNumRows) + " OFFSET " + strconv.Itoa(b.LimitOffset)
+			sqlStm += fmt.Sprintf(" LIMIT %d OFFSET %d", b.LimitNumRows, b.LimitOffset)
 		case sql.FlavorMsSql:
 			if orderClause != "" {
 				// available since SQL Server 2012 && Azure SQL Database
-				sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
+				sqlStm += fmt.Sprintf(" OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", b.LimitOffset, b.LimitNumRows)
 			}
 		case sql.FlavorOracle:
-			sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " ROWS FETCH NEXT " + strconv.Itoa(b.LimitNumRows) + " ROWS ONLY"
+			sqlStm += fmt.Sprintf(" OFFSET %d ROWS FETCH NEXT %d ROWS ONLY", b.LimitOffset, b.LimitNumRows)
 		case sql.FlavorCosmosDb:
-			sqlStm += " OFFSET " + strconv.Itoa(b.LimitOffset) + " LIMIT " + strconv.Itoa(b.LimitNumRows)
+			sqlStm += fmt.Sprintf(" OFFSET %d LIMIT %d", b.LimitOffset, b.LimitNumRows)
 		}
 	}
 
 	if b.Flavor == sql.FlavorCosmosDb {
 		/* START: special case for gocosmos */
-		// sqlStm += " WITH collection=" + singleTblName
+		// sqlStm += " WITH collection=" + cosmosdbTblName
 		sqlStm += " WITH cross_partition=true"
 		/* END: special case for gocosmos */
 	}
@@ -773,11 +1060,14 @@ func (b *InsertBuilder) AddValues(values map[string]interface{}) *InsertBuilder 
 //
 //     INSERT INTO <table> (<columns>) VALUES (<placeholders>)
 //
-// As of v0.3.0 the generated INSERT statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
-func (b *InsertBuilder) Build(_ ...interface{}) (string, []interface{}) {
-	cols := make([]string, 0)
-	placeholders := make([]string, 0)
-	values := make([]interface{}, 0)
+// (since v0.3.0) the generated INSERT statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+func (b *InsertBuilder) Build(opts ...interface{}) (string, []interface{}) {
+	if b.Flavor == sql.FlavorCosmosDb {
+		opts = removeOptTableAlias(opts...)
+	}
+	cols := make([]string, 0, len(b.Values))
+	placeholders := make([]string, 0, len(b.Values))
+	values := make([]interface{}, 0, len(b.Values))
 
 	for k := range b.Values {
 		cols = append(cols, k)
@@ -788,7 +1078,19 @@ func (b *InsertBuilder) Build(_ ...interface{}) (string, []interface{}) {
 		placeholders = append(placeholders, b.PlaceholderGenerator(col))
 	}
 
-	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", b.Table, strings.Join(cols, ","), strings.Join(placeholders, ","))
+	tableAliasForField := extractOptTableAlias(opts...)
+	tableAlias := ""
+	if tableAliasForField != "" {
+		if !reTblNameWithAlias.MatchString(b.Table) {
+			tableAlias = " " + tableAliasForField[:len(tableAliasForField)-1]
+		}
+		for i, _ := range cols {
+			if !reColnamePrefixedTblname.MatchString(cols[i]) {
+				cols[i] = tableAliasForField + cols[i]
+			}
+		}
+	}
+	sql := fmt.Sprintf("INSERT INTO %s%s (%s) VALUES (%s)", b.Table, tableAlias, strings.Join(cols, ","), strings.Join(placeholders, ","))
 	return sql, values
 }
 
@@ -860,12 +1162,22 @@ func (b *UpdateBuilder) WithFilter(filter IFilter) *UpdateBuilder {
 //
 //     UPDATE <table> SET <col=value>[,<col=value>...] [WHERE <filter>]
 //
-// As of v0.3.0 the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
+// (since v0.3.0) the generated DELETE statement works with MySQL, MSSQL, PostgreSQL, Oracle, SQLite and btnguyen2k/gocosmos.
 func (b *UpdateBuilder) Build(opts ...interface{}) (string, []interface{}) {
-	sql := fmt.Sprintf("UPDATE %s", b.Table)
-	values := make([]interface{}, 0)
+	if b.Flavor == sql.FlavorCosmosDb {
+		opts = removeOptTableAlias(opts...)
+	}
+	tableAliasForField := extractOptTableAlias(opts...)
+	tableAlias := ""
+	if tableAliasForField != "" {
+		if !reTblNameWithAlias.MatchString(b.Table) {
+			tableAlias = " " + tableAliasForField[:len(tableAliasForField)-1]
+		}
+	}
 
-	cols := make([]string, 0)
+	sql := fmt.Sprintf("UPDATE %s%s", b.Table, tableAlias)
+	values := make([]interface{}, 0, len(b.Values))
+	cols := make([]string, 0, len(b.Values))
 	for k := range b.Values {
 		cols = append(cols, k)
 	}
@@ -873,15 +1185,19 @@ func (b *UpdateBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	setList := make([]string, 0)
 	for _, col := range cols {
 		values = append(values, b.Values[col])
-		setList = append(setList, col+"="+b.PlaceholderGenerator(col))
+		alias := tableAliasForField
+		if reColnamePrefixedTblname.MatchString(col) {
+			alias = ""
+		}
+		setList = append(setList, fmt.Sprintf("%s%s=%s", alias, col, b.PlaceholderGenerator(col)))
 	}
 	sql += " SET " + strings.Join(setList, ",")
 
 	whereClause := ""
 	if b.Filter != nil {
-		opts := append(opts, OptDbFlavor{Flavor: b.Flavor})
+		newOpts := append([]interface{}{OptDbFlavor{Flavor: b.Flavor}}, opts...)
 		var tempValues []interface{}
-		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, opts...)
+		whereClause, tempValues = b.Filter.Build(b.PlaceholderGenerator, newOpts...)
 		values = append(values, tempValues...)
 	}
 	if whereClause != "" {

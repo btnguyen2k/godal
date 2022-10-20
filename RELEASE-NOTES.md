@@ -1,5 +1,11 @@
 # godal release notes
 
+## 2022-xx-xx - v0.6.1
+
+- Enhance function chaining for `GenericSorting`, `FilterAndOr`, `FilterBetween`, `FilterFieldValue`, `FilterIsNull`, `FilterIsNotNull` and `FilterExpression`.
+- New filter `FilterAsIs`.
+- Other bug fixes and enhancements.
+
 ## 2022-10-02 - v0.6.0
 
 - Migrated to `btnguyen2k/prom v0.4.x`.
