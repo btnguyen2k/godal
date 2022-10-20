@@ -912,10 +912,16 @@ func (b *SelectBuilder) Build(opts ...interface{}) (string, []interface{}) {
 	}
 
 	colsClause := optTableAlias + "*"
+	if b.Flavor == sql.FlavorCosmosDb {
+		colsClause = "*"
+	}
 	if len(b.Columns) > 0 {
 		cols := make([]string, len(b.Columns))
 		copy(cols, b.Columns)
-		for i, col := range b.Columns {
+		for i, col := range cols {
+			if b.Flavor == sql.FlavorCosmosDb && col == "*" {
+				continue
+			}
 			if !reColnamePrefixedTblname.MatchString(col) {
 				cols[i] = optTableAlias + col
 			}

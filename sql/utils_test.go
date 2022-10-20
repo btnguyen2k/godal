@@ -1247,3 +1247,163 @@ func TestSelectBuilder_OptTableAliasFiltered(t *testing.T) {
 		}
 	}
 }
+
+func TestSelectBuilder_MultiTables(t *testing.T) {
+	testName := "TestSelectBuilder_MultiTables"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > $1) AND (field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT c.a,c.b,c.c FROM tbl1 c WHERE (c.field1 > $1) AND (c.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > @p1) AND (field2 = @p2)",
+		sql.FlavorOracle:   "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > :1) AND (field2 = :2)",
+		sql.FlavorMySql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorSqlite:   "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorDefault:  "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+	}
+	for _, flavor := range flavorList {
+		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+			Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("tbl1", "tbl2")
+		builder.WithColumns("a", "b", "c")
+		if sql, values := builder.Build(); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}
+
+func TestSelectBuilder_MultiTables_OptTableAlias(t *testing.T) {
+	testName := "TestSelectBuilder_MultiTables_OptTableAlias"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > $1) AND (field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT c.a,c.b,c.c FROM tbl1 c WHERE (c.field1 > $1) AND (c.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > @p1) AND (field2 = @p2)",
+		sql.FlavorOracle:   "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > :1) AND (field2 = :2)",
+		sql.FlavorMySql:    "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorSqlite:   "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorDefault:  "SELECT a,b,c FROM tbl1,tbl2 WHERE (field1 > ?) AND (field2 = ?)",
+	}
+	for _, flavor := range flavorList {
+		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+			Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("tbl1", "tbl2")
+		builder.WithColumns("a", "b", "c")
+		if sql, values := builder.Build(OptTableAlias{"t"}); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}
+
+func TestSelectBuilder_MultiTables_OptTableAliasFiltered(t *testing.T) {
+	testName := "TestSelectBuilder_MultiTables_OptTableAliasFiltered"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > $1) AND (t3.field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT t1.a,t0.b,t1.c FROM tbl1 t1 WHERE (t1.field1 > $1) AND (t3.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > @p1) AND (t3.field2 = @p2)",
+		sql.FlavorOracle:   "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > :1) AND (t3.field2 = :2)",
+		sql.FlavorMySql:    "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > ?) AND (t3.field2 = ?)",
+		sql.FlavorSqlite:   "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > ?) AND (t3.field2 = ?)",
+		sql.FlavorDefault:  "SELECT a,t0.b,c FROM tbl1 t1,tbl2 t2 WHERE (field1 > ?) AND (t3.field2 = ?)",
+	}
+	for _, flavor := range flavorList {
+		filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+			Add(&FilterFieldValue{Field: "t3.field2", Operator: "=", Value: "a"})
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("tbl1 t1", "tbl2 t2")
+		builder.WithColumns("a", "t0.b", "c")
+		if sql, values := builder.Build(OptTableAlias{"t"}); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}
+
+func TestSelectBuilder_ColStar(t *testing.T) {
+	testName := "TestSelectBuilder_ColStar"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT * FROM mytable WHERE (field1 > $1) AND (field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT * FROM mytable c WHERE (c.field1 > $1) AND (c.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT * FROM mytable WHERE (field1 > @p1) AND (field2 = @p2)",
+		sql.FlavorOracle:   "SELECT * FROM mytable WHERE (field1 > :1) AND (field2 = :2)",
+		sql.FlavorMySql:    "SELECT * FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorSqlite:   "SELECT * FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+		sql.FlavorDefault:  "SELECT * FROM mytable WHERE (field1 > ?) AND (field2 = ?)",
+	}
+	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+		Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
+	for _, flavor := range flavorList {
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("mytable")
+		builder.WithColumns()
+		if sql, values := builder.Build(); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+	for _, flavor := range flavorList {
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("mytable")
+		builder.WithColumns("*")
+		if sql, values := builder.Build(); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}
+
+func TestSelectBuilder_ColStar_OptTableAlias(t *testing.T) {
+	testName := "TestSelectBuilder_ColStar_OptTableAlias"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT t.* FROM mytable t WHERE (t.field1 > $1) AND (t.field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT * FROM mytable t WHERE (t.field1 > $1) AND (t.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT t.* FROM mytable t WHERE (t.field1 > @p1) AND (t.field2 = @p2)",
+		sql.FlavorOracle:   "SELECT t.* FROM mytable t WHERE (t.field1 > :1) AND (t.field2 = :2)",
+		sql.FlavorMySql:    "SELECT t.* FROM mytable t WHERE (t.field1 > ?) AND (t.field2 = ?)",
+		sql.FlavorSqlite:   "SELECT t.* FROM mytable t WHERE (t.field1 > ?) AND (t.field2 = ?)",
+		sql.FlavorDefault:  "SELECT t.* FROM mytable t WHERE (t.field1 > ?) AND (t.field2 = ?)",
+	}
+	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+		Add(&FilterFieldValue{Field: "field2", Operator: "=", Value: "a"})
+	for _, flavor := range flavorList {
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("mytable")
+		builder.WithColumns()
+		if sql, values := builder.Build(OptTableAlias{"t"}); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+	for _, flavor := range flavorList {
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("mytable")
+		builder.WithColumns("*")
+		if sql, values := builder.Build(&OptTableAlias{"t"}); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}
+
+func TestSelectBuilder_ColStar_OptTableAliasFiltered(t *testing.T) {
+	testName := "TestSelectBuilder_ColStar_OptTableAliasFiltered"
+	flavorList := []sql.DbFlavor{sql.FlavorDefault, sql.FlavorMySql, sql.FlavorPgSql, sql.FlavorMsSql, sql.FlavorOracle, sql.FlavorSqlite, sql.FlavorCosmosDb}
+	expectedSql := map[sql.DbFlavor]string{
+		sql.FlavorPgSql:    "SELECT t0.* FROM mytable t1 WHERE (t.field1 > $1) AND (t2.field2 = $2)",
+		sql.FlavorCosmosDb: "SELECT t0.* FROM mytable t1 WHERE (t.field1 > $1) AND (t2.field2 = $2) WITH cross_partition=true",
+		sql.FlavorMsSql:    "SELECT t0.* FROM mytable t1 WHERE (t.field1 > @p1) AND (t2.field2 = @p2)",
+		sql.FlavorOracle:   "SELECT t0.* FROM mytable t1 WHERE (t.field1 > :1) AND (t2.field2 = :2)",
+		sql.FlavorMySql:    "SELECT t0.* FROM mytable t1 WHERE (t.field1 > ?) AND (t2.field2 = ?)",
+		sql.FlavorSqlite:   "SELECT t0.* FROM mytable t1 WHERE (t.field1 > ?) AND (t2.field2 = ?)",
+		sql.FlavorDefault:  "SELECT t0.* FROM mytable t1 WHERE (t.field1 > ?) AND (t2.field2 = ?)",
+	}
+	filterMain := (&FilterAnd{}).Add(&FilterFieldValue{Field: "field1", Operator: ">", Value: 1}).
+		Add(&FilterFieldValue{Field: "t2.field2", Operator: "=", Value: "a"})
+	for _, flavor := range flavorList {
+		builder := NewSelectBuilder().WithFlavor(flavor).WithFilter(filterMain)
+		builder.WithTables("mytable t1")
+		builder.WithColumns("t0.*")
+		if sql, values := builder.Build(OptTableAlias{"t"}); sql != expectedSql[flavor] || len(values) != 2 || values[0] != 1 || values[1] != "a" {
+			t.Fatalf("%s failed: (%#v) expected\n%#v\nbut received\n%#v / %#v", testName+"/"+strconv.Itoa(int(flavor)), flavor, expectedSql[flavor], sql, values)
+		}
+	}
+}

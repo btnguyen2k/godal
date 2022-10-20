@@ -1,7 +1,8 @@
 # godal release notes
 
-## 2022-xx-xx - v0.6.1
+## 2022-10-20 - v0.6.1
 
+package `sql`:
 - Enhance function chaining for `GenericSorting`, `FilterAndOr`, `FilterBetween`, `FilterFieldValue`, `FilterIsNull`, `FilterIsNotNull` and `FilterExpression`.
 - New filter `FilterAsIs`.
 - Other bug fixes and enhancements.
