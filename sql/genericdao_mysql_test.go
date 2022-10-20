@@ -224,10 +224,10 @@ func TestGenericDaoMysql_FilterNotNull(t *testing.T) {
 		t.SkipNow()
 	}
 	defer dao.sqlConnect.Close()
-	
 	err := prepareTableMysql(dao.GetSqlConnect(), dao.tableName)
 	if err != nil {
 		t.Fatalf("%s failed: %e", testName+"/prepareTableMysql", err)
 	}
 	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }
+
