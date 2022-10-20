@@ -231,3 +231,4 @@ func TestGenericDaoMssql_FilterNotNull(t *testing.T) {
 	}
 	dotestGenericDaoSqlGdaoFilterNotNull(t, testName, dao)
 }
+
