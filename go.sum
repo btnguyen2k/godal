@@ -19,8 +19,9 @@ github.com/btnguyen2k/consu/reddo v0.1.7/go.mod h1:pdY5oIVX3noZIaZu3nvoKZ59+seXL
 github.com/btnguyen2k/consu/semita v0.1.4/go.mod h1:EmOAKM4o+iljiR2kShq3MlIvGrzALnUW4IkgI292p10=
 github.com/btnguyen2k/consu/semita v0.1.5 h1:fu71xNJTbCV8T+6QPJdJu3bxtmLWvTjCepkvujF74+I=
 github.com/btnguyen2k/consu/semita v0.1.5/go.mod h1:fksCe3L4kxiJVnKKhUXKI8mcFdB9974mtedwUVVFu1M=
-github.com/btnguyen2k/gocosmos v0.1.6 h1:JgL5198Rn9otqvDamsFEJ9hwOB+hiL5RvltQniXHH7M=
 github.com/btnguyen2k/gocosmos v0.1.6/go.mod h1:BYrAnNLG+e5NCz9q0X9dkjhMM1XkYhyRG74bQX4Wb1w=
+github.com/btnguyen2k/gocosmos v0.3.0 h1:218OaZpnWRuXoHiLA8DuSf80xL0If7n9Yt8N6t2JWvI=
+github.com/btnguyen2k/gocosmos v0.3.0/go.mod h1:eToVV+1+mpht97WvC/EzTOb+4kHTUc/9Z2zNUSKbCUI=
 github.com/btnguyen2k/prom v0.4.1 h1:fxuHIBNgWXiIZ2IteV8UUV2MYRWmM46OM3Z2mFBnXPk=
 github.com/btnguyen2k/prom v0.4.1/go.mod h1:S2mxIOugWK0SaNFJg+BTrO+cM5PMXsmfX/Yw8lT6wDY=
 github.com/cespare/xxhash/v2 v2.1.2/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
