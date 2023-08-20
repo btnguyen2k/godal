@@ -11,7 +11,7 @@ require (
 	github.com/btnguyen2k/prom v0.4.1
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/go-sql-driver/mysql v1.7.1
-	github.com/godror/godror v0.37.0
+	github.com/godror/godror v0.39.0
 	github.com/jackc/pgx/v4 v4.18.1
 	github.com/mattn/go-sqlite3 v1.14.17
 	go.mongodb.org/mongo-driver v1.12.1
