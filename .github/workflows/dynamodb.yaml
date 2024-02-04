@@ -19,7 +19,7 @@ jobs:
       run: |
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_general.txt .
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: general
         name: general
@@ -44,7 +44,7 @@ jobs:
         export AWS_DYNAMODB_ENDPOINT="http://localhost:8000"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_dynamodb.txt ./dynamodb
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: dynamodb
         name: dynamodb

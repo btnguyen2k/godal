@@ -21,7 +21,7 @@ jobs:
       run: |
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_general.txt .
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: general
         name: general
@@ -46,7 +46,7 @@ jobs:
         export AWS_DYNAMODB_ENDPOINT="http://localhost:8000"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_dynamodb.txt ./dynamodb
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: dynamodb
         name: dynamodb
@@ -69,7 +69,7 @@ jobs:
         export MONGO_URL="mongodb://test:test@localhost:27017/?authSource=admin"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mongo_singleserver.txt ./mongo
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: mongo_singleserver
         name: mongo_singleserver
@@ -92,7 +92,7 @@ jobs:
         export MONGO_URL="mongodb://root:test@localhost:27017/?authSource=admin&replicaSet=replicaset"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mongo_replicaset.txt ./mongo
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: mongo_replicaset
         name: mongo_replicaset
@@ -116,7 +116,7 @@ jobs:
         export MSSQL_URL="sqlserver://sa:SecretPassword1@localhost:1433?database=tempdb"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mssql.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: mssql
         name: mssql
@@ -140,7 +140,7 @@ jobs:
         export MYSQL_URL="test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=false&loc=\${loc}"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mysql.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: mysql
         name: mysql
@@ -164,7 +164,7 @@ jobs:
         export PGSQL_URL="postgres://test:test@localhost:5432/test?sslmode=disable&client_encoding=UTF-8&application_name=godal"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_pgsql.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: pgsql
         name: pgsql
@@ -187,7 +187,7 @@ jobs:
         export SQLITE_URL="./temp/temp.db"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_sqlite.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: sqlite
         name: sqlite
@@ -214,7 +214,7 @@ jobs:
         $env:TIMEZONE='Asia/Ho_Chi_Minh'
         go test -v -count 1 -p 1 -cover -coverprofile="coverage_cosmosdb_sql.txt" ./cosmosdbsql
     - name: Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         flags: cosmosdb_sql
         name: cosmosdb_sql
