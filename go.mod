@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/aws/aws-sdk-go v1.50.25
 	github.com/btnguyen2k/consu/checksum v0.1.2
-	github.com/btnguyen2k/consu/reddo v0.1.8
+	github.com/btnguyen2k/consu/reddo v0.1.9
 	github.com/btnguyen2k/consu/semita v0.1.5
 	github.com/btnguyen2k/gocosmos v0.3.0
 	github.com/btnguyen2k/prom v0.4.1
