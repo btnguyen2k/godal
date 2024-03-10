@@ -12,7 +12,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/go-sql-driver/mysql v1.8.0
 	github.com/godror/godror v0.40.3
-	github.com/jackc/pgx/v4 v4.18.1
+	github.com/jackc/pgx/v4 v4.18.3
 	github.com/mattn/go-sqlite3 v1.14.22
 	go.mongodb.org/mongo-driver v1.14.0
 )
