@@ -3,7 +3,7 @@ module github.com/btnguyen2k/godal
 go 1.13
 
 require (
-	github.com/aws/aws-sdk-go v1.51.21
+	github.com/aws/aws-sdk-go v1.51.25
 	github.com/btnguyen2k/consu/checksum v0.1.2
 	github.com/btnguyen2k/consu/reddo v0.1.9
 	github.com/btnguyen2k/consu/semita v0.1.5
