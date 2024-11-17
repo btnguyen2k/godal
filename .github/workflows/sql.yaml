@@ -19,7 +19,7 @@ jobs:
       run: |
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_general.txt .
     - name: Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         flags: general
         name: general
@@ -43,7 +43,7 @@ jobs:
         export MSSQL_URL="sqlserver://sa:SecretPassword1@localhost:1433?database=tempdb"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mssql.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         flags: mssql
         name: mssql
@@ -67,7 +67,7 @@ jobs:
         export MYSQL_URL="test:test@tcp(localhost:3306)/test?charset=utf8mb4,utf8&parseTime=false&loc=\${loc}"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_mysql.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         flags: mysql
         name: mysql
@@ -92,7 +92,7 @@ jobs:
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_pgsql.txt ./sql
         bash <(curl -s https://codecov.io/bash) -cF pgsql
     - name: Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         flags: pgsql
         name: pgsql
@@ -115,7 +115,7 @@ jobs:
         export SQLITE_URL="./temp/temp.db"
         go test -v -count 1 -p 1 -cover -coverprofile=coverage_sqlite.txt ./sql
     - name: Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
         flags: sqlite
         name: sqlite
