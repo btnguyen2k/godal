@@ -65,8 +65,8 @@ github.com/go-sql-driver/mysql v1.9.3/go.mod h1:qn46aNg1333BRMNU69Lq93t8du/dwxI6
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0/go.mod h1:fyg7847qk6SyHyPtNmDHnmrv/HOrqktSC+C9fM+CJOE=
 github.com/godror/godror v0.33.3/go.mod h1:FbrZ7po7LyS3gUTdW/K1+kIoePvP/E044HpwptL4vqw=
-github.com/godror/godror v0.48.3 h1:D9rzymnm8NFt07waT/gLLTkAZzbibOl4L1rj03hHJjc=
-github.com/godror/godror v0.48.3/go.mod h1:D4gKled+sJVcagT1HWibkBsO9PcLn2Nu96FCr1RtnzI=
+github.com/godror/godror v0.49.0 h1:oXAzPOm7bAGdFGkTaePCRXv3dfyr6Agni++4XhaRcC8=
+github.com/godror/godror v0.49.0/go.mod h1:D4gKled+sJVcagT1HWibkBsO9PcLn2Nu96FCr1RtnzI=
 github.com/godror/knownpb v0.1.0/go.mod h1:4nRFbQo1dDuwKnblRXDxrfCFYeT4hjg3GjMqef58eRE=
 github.com/godror/knownpb v0.3.0 h1:+caUdy8hTtl7X05aPl3tdL540TvCcaQA6woZQroLZMw=
 github.com/godror/knownpb v0.3.0/go.mod h1:PpTyfJwiOEAzQl7NtVCM8kdPCnp3uhxsZYIzZ5PV4zU=
